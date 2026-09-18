@@ -6,6 +6,7 @@ import { EditJobPage } from "@/pages/EditJobPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { PublicJobPage } from "@/pages/PublicJobPage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 
 // Deliberately minimal for now: only the routes needed to demonstrate the
@@ -20,6 +21,12 @@ export const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    // Public, candidate-facing — deliberately outside ProtectedRoute/AppShell:
+    // candidates have no TalentIQ account and must never hit an auth wall here.
+    path: "/careers/jobs/:id",
+    element: <PublicJobPage />,
   },
   {
     element: <ProtectedRoute />,
