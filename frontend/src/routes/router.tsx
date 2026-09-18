@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
+import { ApplyPage } from "@/pages/ApplyPage";
 import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { EditJobPage } from "@/pages/EditJobPage";
@@ -27,6 +28,10 @@ export const router = createBrowserRouter([
     // candidates have no TalentIQ account and must never hit an auth wall here.
     path: "/careers/jobs/:id",
     element: <PublicJobPage />,
+  },
+  {
+    path: "/careers/jobs/:id/apply",
+    element: <ApplyPage />,
   },
   {
     element: <ProtectedRoute />,

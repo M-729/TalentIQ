@@ -1,20 +1,10 @@
 import { AlertCircle, Banknote, Briefcase, Clock, MapPin, SearchX } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 import { usePublicJob } from "@/hooks/usePublicJob";
-
-function PublicHeader() {
-  return (
-    <header className="border-b border-border bg-card">
-      <div className="mx-auto flex h-16 max-w-3xl items-center gap-2 px-4 sm:px-6">
-        <span className="inline-block size-6 rotate-45 rounded-[7px] bg-primary" aria-hidden="true" />
-        <span className="text-lg font-semibold tracking-tight text-foreground">TalentIQ</span>
-      </div>
-    </header>
-  );
-}
 
 function formatSalary(min?: number, max?: number): string | null {
   if (min === undefined && max === undefined) return null;
@@ -144,8 +134,8 @@ export function PublicJobPage() {
               </Card>
 
               <div className="flex justify-center">
-                <Button size="lg" className="w-full sm:w-auto" disabled title="Applications open soon">
-                  Apply for this position
+                <Button size="lg" className="w-full sm:w-auto" asChild>
+                  <Link to={`/careers/jobs/${job._id}/apply`}>Apply for this position</Link>
                 </Button>
               </div>
             </div>

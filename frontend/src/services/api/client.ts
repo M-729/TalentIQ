@@ -33,16 +33,23 @@ interface RequestOptions {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const isFormData = options.body instanceof FormData;
+
   const res = await fetch(`${env.apiBaseUrl}${path}`, {
     method: options.method ?? "GET",
     headers: {
-      ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      // FormData bodies must NOT get a manually-set Content-Type — the
+      // browser generates one itself (multipart/form-data with the
+      // correct boundary), which fetch only does when the header is left
+      // unset. Setting it here would produce a boundary-less/incorrect
+      // header and break multipart parsing server-side.
+      ...(options.body !== undefined && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...(currentAccessToken ? { Authorization: `Bearer ${currentAccessToken}` } : {}),
     },
     // Required so the httpOnly refresh-token cookie is sent/received
     // cross-origin between the Vite dev server and the API.
     credentials: "include",
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: options.body === undefined ? undefined : isFormData ? (options.body as FormData) : JSON.stringify(options.body),
     signal: options.signal,
   });
 

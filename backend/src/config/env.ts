@@ -15,6 +15,18 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN_DAYS: z.coerce.number().int().positive().default(7),
 
   BCRYPT_SALT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
+
+  // Optional (not required to boot the app) so the rest of the backend
+  // stays fully runnable — including the full test suite, via a mocked
+  // storage service — without R2 being configured yet. CV upload itself
+  // fails with a clear error if attempted while unset; see
+  // services/storage/r2CvStorage.service.ts. No endpoint/region variable
+  // is needed: R2's S3-compatible endpoint is derived from the account id,
+  // and its region is always "auto".
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
