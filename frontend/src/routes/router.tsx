@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
+import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { EditJobPage } from "@/pages/EditJobPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -27,6 +29,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "/dashboard", element: <DashboardPage /> },
           { path: "/jobs", element: <JobsPage /> },
+          { path: "/jobs/new", element: <CreateJobPage /> },
+          { path: "/jobs/:id/edit", element: <EditJobPage /> },
         ],
       },
     ],
