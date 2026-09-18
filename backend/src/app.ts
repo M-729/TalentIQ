@@ -6,6 +6,7 @@ import morgan from "morgan";
 import { env } from "./config/env";
 import { isDBConnected } from "./config/db";
 import { authRouter } from "./modules/auth/auth.routes";
+import { jobRouter } from "./modules/jobs/job.routes";
 import { notFoundHandler } from "./middleware/notFound.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -36,6 +37,7 @@ export function createApp(): Express {
   });
 
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1/jobs", jobRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
