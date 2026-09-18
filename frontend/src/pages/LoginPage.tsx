@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
+import { Lock, Mail } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { IconInput } from "@/components/ui/icon-input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/services/api/client";
@@ -38,52 +39,61 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">Sign in to TalentIQ</CardTitle>
-          <CardDescription>HR and Admin access only.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
+    <div className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-md space-y-6">
+        <div className="flex items-center justify-center gap-2">
+          <span className="inline-block size-6 rotate-45 rounded-[7px] bg-primary" aria-hidden="true" />
+          <span className="text-xl font-semibold tracking-tight text-foreground">TalentIQ</span>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+        <Card>
+          <CardHeader className="space-y-1.5 text-center">
+            <CardTitle className="text-2xl">Sign in to your account</CardTitle>
+            <CardDescription>HR and Admin access only.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <IconInput
+                  icon={Mail}
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
 
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <IconInput
+                  icon={Lock}
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Signing in…" : "Sign in"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

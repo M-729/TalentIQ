@@ -93,4 +93,16 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+
+  /* Browser autofill (Chrome/Edge) otherwise paints its own yellow/blue
+     background and ignores our text color — override both so an
+     autofilled field still matches the rest of the design system. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+    box-shadow: 0 0 0 1000px var(--background) inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }

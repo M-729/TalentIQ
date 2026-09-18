@@ -1,8 +1,8 @@
-import { useState, type ComponentProps, type ReactNode } from "react";
-import { AlertCircle, Banknote, Briefcase, Building2, Clock, MapPin, TrendingUp, type LucideIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { AlertCircle, Banknote, Briefcase, Building2, Clock, MapPin, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { IconInput } from "@/components/ui/icon-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SkillsInput } from "@/components/jobs/SkillsInput";
@@ -100,20 +100,6 @@ function Field({ label, htmlFor, required, error, children }: FieldProps) {
           {error}
         </p>
       )}
-    </div>
-  );
-}
-
-// Small leading-icon treatment on text inputs, matching the wireframe's
-// icon-prefixed fields (Job Title, Department, Location, ...).
-function IconInput({ icon: Icon, className, ...props }: { icon: LucideIcon } & ComponentProps<typeof Input>) {
-  return (
-    <div className="relative">
-      <Icon
-        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <Input className={cn("pl-9", className)} {...props} />
     </div>
   );
 }
