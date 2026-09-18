@@ -8,6 +8,7 @@ import { JobsEmptyState } from "@/components/jobs/JobsEmptyState";
 import { JobsStats } from "@/components/jobs/JobsStats";
 import { JobsTable } from "@/components/jobs/JobsTable";
 import { useJobs } from "@/hooks/useJobs";
+import { cn } from "@/lib/utils";
 import type { JobStatus } from "@/types/job";
 
 type StatusFilter = "all" | JobStatus;
@@ -73,19 +74,36 @@ export function JobsPage() {
         <JobsStats jobs={stats.jobs ?? []} />
       )}
 
-      <div role="group" aria-label="Filter jobs by status" className="flex flex-wrap gap-2">
-        {STATUS_FILTERS.map(({ value, label }) => (
-          <Button
-            key={value}
-            type="button"
-            size="sm"
-            variant={statusFilter === value ? "default" : "outline"}
-            aria-pressed={statusFilter === value}
-            onClick={() => setStatusFilter(value)}
-          >
-            {label}
-          </Button>
-        ))}
+      {/* Counts always reflect the full (unfiltered) set fetched above, same
+          reasoning as the stat cards — the numbers next to each tab must
+          not change just because a different tab is currently selected. */}
+      <div role="group" aria-label="Filter jobs by status" className="flex flex-wrap gap-5 border-b border-border">
+        {STATUS_FILTERS.map(({ value, label }) => {
+          const count = stats.jobs
+            ? value === "all"
+              ? stats.jobs.length
+              : stats.jobs.filter((j) => j.status === value).length
+            : undefined;
+          const isActive = statusFilter === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => setStatusFilter(value)}
+              className={cn(
+                "-mb-px flex items-center gap-1.5 border-b-2 pb-3 text-sm font-medium transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                isActive
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {label}
+              {count !== undefined && <span className="text-xs">({count})</span>}
+            </button>
+          );
+        })}
       </div>
 
       {table.isLoading ? (

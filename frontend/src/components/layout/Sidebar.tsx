@@ -45,7 +45,8 @@ export function Sidebar({ className }: { className?: string }) {
       aria-label="Main navigation"
       className={cn("flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground", className)}
     >
-      <div className="flex h-14 shrink-0 items-center px-5 text-lg font-semibold tracking-tight text-white">
+      <div className="flex h-14 shrink-0 items-center gap-2 px-5 text-lg font-semibold tracking-tight text-white">
+        <span className="inline-block size-5 rotate-45 rounded-[6px] bg-primary" aria-hidden="true" />
         TalentIQ
       </div>
 

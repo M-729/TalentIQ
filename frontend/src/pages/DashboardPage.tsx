@@ -1,14 +1,15 @@
 import { Briefcase, CalendarClock, TrendingUp, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 // Static placeholders only — real metrics are wired up in a later ticket.
 // Shown as "—" rather than invented numbers so nothing here reads as real data.
 const STAT_CARDS = [
-  { label: "Active Jobs", icon: Briefcase },
-  { label: "Candidates in Process", icon: Users },
-  { label: "Upcoming Interviews", icon: CalendarClock },
-  { label: "Hires this Month", icon: TrendingUp },
+  { label: "Active Jobs", icon: Briefcase, tint: "bg-primary/10 text-primary" },
+  { label: "Candidates in Process", icon: Users, tint: "bg-success/10 text-success" },
+  { label: "Upcoming Interviews", icon: CalendarClock, tint: "bg-warning/10 text-warning" },
+  { label: "Hires this Month", icon: TrendingUp, tint: "bg-primary/10 text-primary" },
 ];
 
 export function DashboardPage() {
@@ -24,14 +25,16 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STAT_CARDS.map(({ label, icon: Icon }) => (
+        {STAT_CARDS.map(({ label, icon: Icon, tint }) => (
           <Card key={label}>
-            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-              <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold text-foreground">—</p>
+            <CardContent className="flex items-center gap-3">
+              <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full", tint)}>
+                <Icon className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">{label}</p>
+                <p className="text-2xl font-semibold text-foreground">—</p>
+              </div>
             </CardContent>
           </Card>
         ))}

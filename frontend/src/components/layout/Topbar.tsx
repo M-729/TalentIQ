@@ -2,6 +2,13 @@ import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+  return (first + last).toUpperCase();
+}
+
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
 
@@ -21,11 +28,19 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="flex items-center gap-3">
         {user && (
-          <span className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{user.name}</span>
-            {" · "}
-            {user.role}
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+              aria-hidden="true"
+            >
+              {getInitials(user.name)}
+            </span>
+            <span className="hidden text-sm text-muted-foreground sm:inline">
+              <span className="font-medium text-foreground">{user.name}</span>
+              {" · "}
+              {user.role}
+            </span>
+          </div>
         )}
         <Button variant="ghost" size="sm" onClick={() => void logout()}>
           <LogOut className="size-4" aria-hidden="true" />

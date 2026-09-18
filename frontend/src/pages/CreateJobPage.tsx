@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { JobForm } from "@/components/jobs/JobForm";
 import * as jobsApi from "@/services/api/jobs";
 import { ApiError } from "@/services/api/client";
@@ -32,10 +34,18 @@ export function CreateJobPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Create Job</h1>
-        <p className="text-sm text-muted-foreground">Add a new open position for your company.</p>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Create New Job</h1>
+          <p className="text-sm text-muted-foreground">Fill in the details to create a new job posting.</p>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/jobs">
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Back to Jobs
+          </Link>
+        </Button>
       </div>
 
       <JobForm

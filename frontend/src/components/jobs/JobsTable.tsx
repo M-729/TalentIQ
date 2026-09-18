@@ -53,7 +53,7 @@ export function JobsTable({ jobs }: { jobs: Job[] }) {
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{formatDate(job.created_at)}</td>
                 <td className="px-4 py-3 text-right">
-                  <Button variant="ghost" size="icon" asChild aria-label={`Edit ${job.title}`}>
+                  <Button variant="outline" size="icon" asChild aria-label={`Edit ${job.title}`}>
                     <Link to={`/jobs/${job._id}/edit`}>
                       <Pencil className="size-4" aria-hidden="true" />
                     </Link>

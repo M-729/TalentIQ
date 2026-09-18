@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
-import { AlertCircle } from "lucide-react";
+import { useState, type ComponentProps, type ReactNode } from "react";
+import { AlertCircle, Banknote, Briefcase, Building2, Clock, MapPin, TrendingUp, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,6 +67,18 @@ function buildPayload(values: JobFormValues): CreateJobInput {
   return payload;
 }
 
+// One continuous card with internal sections (heading + divider), matching
+// the approved wireframe's single-panel form layout rather than several
+// separate cards.
+function Section({ title, first, children }: { title: string; first?: boolean; children: ReactNode }) {
+  return (
+    <div className={cn("space-y-4", !first && "border-t border-border pt-6")}>
+      <h3 className="text-base font-semibold text-foreground">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
 interface FieldProps {
   label: string;
   htmlFor: string;
@@ -88,6 +100,20 @@ function Field({ label, htmlFor, required, error, children }: FieldProps) {
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+// Small leading-icon treatment on text inputs, matching the wireframe's
+// icon-prefixed fields (Job Title, Department, Location, ...).
+function IconInput({ icon: Icon, className, ...props }: { icon: LucideIcon } & ComponentProps<typeof Input>) {
+  return (
+    <div className="relative">
+      <Icon
+        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        aria-hidden="true"
+      />
+      <Input className={cn("pl-9", className)} {...props} />
     </div>
   );
 }
@@ -142,180 +168,169 @@ export function JobForm({ mode, job, isSubmitting, serverError, fieldErrors, onS
     // Publish), letting Enter implicitly trigger "whichever button is
     // first" would risk accidentally publishing a job the user meant to
     // save as a draft.
-    <form
-      className="space-y-6"
-      onSubmit={(e) => e.preventDefault()}
-      noValidate
-    >
+    <form onSubmit={(e) => e.preventDefault()} noValidate>
       {serverError && !Object.keys(fieldErrors ?? {}).length && (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p role="alert">{serverError}</p>
         </div>
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Job Information</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Field label="Job Title" htmlFor="title" required error={errors.title}>
-              <Input
-                id="title"
-                value={values.title}
-                onChange={(e) => update("title", e.target.value)}
-                aria-invalid={!!errors.title}
-                aria-describedby={errors.title ? "title-error" : undefined}
+        <CardContent className="space-y-6">
+          <Section title="Basic Information" first>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Field label="Job Title" htmlFor="title" required error={errors.title}>
+                  <IconInput
+                    icon={Briefcase}
+                    id="title"
+                    value={values.title}
+                    onChange={(e) => update("title", e.target.value)}
+                    aria-invalid={!!errors.title}
+                    aria-describedby={errors.title ? "title-error" : undefined}
+                  />
+                </Field>
+              </div>
+
+              <Field label="Department" htmlFor="department">
+                <IconInput
+                  icon={Building2}
+                  id="department"
+                  value={values.department}
+                  onChange={(e) => update("department", e.target.value)}
+                />
+              </Field>
+
+              <Field label="Location" htmlFor="location">
+                <IconInput
+                  icon={MapPin}
+                  id="location"
+                  value={values.location}
+                  onChange={(e) => update("location", e.target.value)}
+                />
+              </Field>
+
+              <Field label="Employment Type" htmlFor="employment_type">
+                <IconInput
+                  icon={Clock}
+                  id="employment_type"
+                  placeholder="e.g. Full-time"
+                  value={values.employment_type}
+                  onChange={(e) => update("employment_type", e.target.value)}
+                />
+              </Field>
+
+              <Field label="Experience Level" htmlFor="experience_level">
+                <IconInput
+                  icon={TrendingUp}
+                  id="experience_level"
+                  placeholder="e.g. Mid-level"
+                  value={values.experience_level}
+                  onChange={(e) => update("experience_level", e.target.value)}
+                />
+              </Field>
+
+              <Field label="Minimum Salary" htmlFor="salary_min" error={errors.salary_min}>
+                <IconInput
+                  icon={Banknote}
+                  id="salary_min"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={values.salary_min}
+                  onChange={(e) => update("salary_min", e.target.value)}
+                  aria-invalid={!!errors.salary_min}
+                  aria-describedby={errors.salary_min ? "salary_min-error" : undefined}
+                />
+              </Field>
+
+              <Field label="Maximum Salary" htmlFor="salary_max" error={errors.salary_max}>
+                <IconInput
+                  icon={Banknote}
+                  id="salary_max"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={values.salary_max}
+                  onChange={(e) => update("salary_max", e.target.value)}
+                  aria-invalid={!!errors.salary_max}
+                  aria-describedby={errors.salary_max ? "salary_max-error" : undefined}
+                />
+              </Field>
+              {salaryRangeWarning && <p className="sm:col-span-2 text-xs text-warning">{salaryRangeWarning}</p>}
+            </div>
+          </Section>
+
+          <Section title="Job Description">
+            <Field label="Description" htmlFor="description">
+              <Textarea
+                id="description"
+                rows={5}
+                value={values.description}
+                onChange={(e) => update("description", e.target.value)}
               />
             </Field>
-          </div>
+          </Section>
 
-          <Field label="Department" htmlFor="department">
-            <Input id="department" value={values.department} onChange={(e) => update("department", e.target.value)} />
-          </Field>
+          <Section title="Required Skills">
+            <Field label="Skills" htmlFor="skills">
+              <SkillsInput
+                id="skills"
+                value={values.required_skills}
+                onChange={(skills) => update("required_skills", skills)}
+                placeholder="Type a skill and press Enter"
+              />
+            </Field>
+          </Section>
 
-          <Field label="Location" htmlFor="location">
-            <Input id="location" value={values.location} onChange={(e) => update("location", e.target.value)} />
-          </Field>
-
-          <Field label="Employment Type" htmlFor="employment_type">
-            <Input
-              id="employment_type"
-              placeholder="e.g. Full-time"
-              value={values.employment_type}
-              onChange={(e) => update("employment_type", e.target.value)}
-            />
-          </Field>
-
-          <Field label="Experience Level" htmlFor="experience_level">
-            <Input
-              id="experience_level"
-              placeholder="e.g. Mid-level"
-              value={values.experience_level}
-              onChange={(e) => update("experience_level", e.target.value)}
-            />
-          </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Job Description</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Field label="Description" htmlFor="description">
-            <Textarea
-              id="description"
-              rows={5}
-              value={values.description}
-              onChange={(e) => update("description", e.target.value)}
-            />
-          </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Required Skills</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Field label="Skills" htmlFor="skills">
-            <SkillsInput
-              id="skills"
-              value={values.required_skills}
-              onChange={(skills) => update("required_skills", skills)}
-              placeholder="Type a skill and press Enter"
-            />
-          </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Compensation</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Minimum Salary" htmlFor="salary_min" error={errors.salary_min}>
-            <Input
-              id="salary_min"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={values.salary_min}
-              onChange={(e) => update("salary_min", e.target.value)}
-              aria-invalid={!!errors.salary_min}
-              aria-describedby={errors.salary_min ? "salary_min-error" : undefined}
-            />
-          </Field>
-          <Field label="Maximum Salary" htmlFor="salary_max" error={errors.salary_max}>
-            <Input
-              id="salary_max"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={values.salary_max}
-              onChange={(e) => update("salary_max", e.target.value)}
-              aria-invalid={!!errors.salary_max}
-              aria-describedby={errors.salary_max ? "salary_max-error" : undefined}
-            />
-          </Field>
-          {salaryRangeWarning && (
-            <p className="sm:col-span-2 text-xs text-warning">{salaryRangeWarning}</p>
+          {mode === "edit" && (
+            <Section title="Status">
+              <div role="group" aria-label="Job status" className="flex flex-wrap gap-2">
+                {JOB_STATUSES.map((s) => (
+                  <Button
+                    key={s}
+                    type="button"
+                    size="sm"
+                    variant={values.status === s ? "default" : "outline"}
+                    aria-pressed={values.status === s}
+                    onClick={() => update("status", s)}
+                    className="capitalize"
+                  >
+                    {s}
+                  </Button>
+                ))}
+              </div>
+            </Section>
           )}
+
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-3 border-t border-border pt-6",
+              mode === "create" ? "justify-between" : "justify-end"
+            )}
+          >
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+
+            {mode === "create" ? (
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void runSubmit("draft")}>
+                  {isSubmitting && pendingStatus === "draft" ? "Saving…" : "Save as Draft"}
+                </Button>
+                <Button type="button" disabled={isSubmitting} onClick={() => void runSubmit("active")}>
+                  {isSubmitting && pendingStatus === "active" ? "Publishing…" : "Publish Job"}
+                </Button>
+              </div>
+            ) : (
+              <Button type="button" disabled={isSubmitting} onClick={() => void runSubmit(values.status)}>
+                {isSubmitting ? "Saving…" : "Save changes"}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
-
-      {mode === "edit" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div role="group" aria-label="Job status" className="flex flex-wrap gap-2">
-              {JOB_STATUSES.map((s) => (
-                <Button
-                  key={s}
-                  type="button"
-                  size="sm"
-                  variant={values.status === s ? "default" : "outline"}
-                  aria-pressed={values.status === s}
-                  onClick={() => update("status", s)}
-                  className="capitalize"
-                >
-                  {s}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className={cn("flex flex-wrap items-center gap-3", mode === "create" ? "justify-between" : "justify-end")}>
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
-          Cancel
-        </Button>
-
-        {mode === "create" ? (
-          <div className="flex flex-wrap gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSubmitting}
-              onClick={() => void runSubmit("draft")}
-            >
-              {isSubmitting && pendingStatus === "draft" ? "Saving…" : "Save as Draft"}
-            </Button>
-            <Button type="button" disabled={isSubmitting} onClick={() => void runSubmit("active")}>
-              {isSubmitting && pendingStatus === "active" ? "Publishing…" : "Publish Job"}
-            </Button>
-          </div>
-        ) : (
-          <Button type="button" disabled={isSubmitting} onClick={() => void runSubmit(values.status)}>
-            {isSubmitting ? "Saving…" : "Save changes"}
-          </Button>
-        )}
-      </div>
     </form>
   );
 }

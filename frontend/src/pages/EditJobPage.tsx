@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { AlertCircle, SearchX } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { AlertCircle, ArrowLeft, SearchX } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,10 +41,18 @@ export function EditJobPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Edit Job</h1>
-        <p className="text-sm text-muted-foreground">Update this position's details.</p>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Edit Job</h1>
+          <p className="text-sm text-muted-foreground">Update this position's details.</p>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/jobs">
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Back to Jobs
+          </Link>
+        </Button>
       </div>
 
       {isLoading ? (
