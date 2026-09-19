@@ -8,4 +8,5 @@ import type { CvStorageService } from "./cvStorage.types";
 // (Previously Cloudinary; switched to Cloudflare R2 — see task report.)
 export const cvStorage: CvStorageService = r2CvStorage;
 
-export type { CvStorageService, StoredCvFile, UploadCvInput } from "./cvStorage.types";
+export { CvStorageError } from "./cvStorage.types";
+export type { CvStorageService, CvStorageErrorCode, StoredCvFile, UploadCvInput } from "./cvStorage.types";

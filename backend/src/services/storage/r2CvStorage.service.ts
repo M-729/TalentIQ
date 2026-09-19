@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, NoSuchKey, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../../config/env";
+import { CvStorageError } from "./cvStorage.types";
 import type { CvStorageService, StoredCvFile, UploadCvInput } from "./cvStorage.types";
 
 const CV_PREFIX = "talentiq/cvs";
@@ -80,5 +81,28 @@ export const r2CvStorage: CvStorageService = {
     const { client, bucket } = ensureConfigured();
     const command = new GetObjectCommand({ Bucket: bucket, Key: storageKey });
     return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+  },
+
+  async download(storageKey: string): Promise<Buffer> {
+    const { client, bucket } = ensureConfigured();
+
+    let response;
+    try {
+      response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: storageKey }));
+    } catch (err) {
+      if (err instanceof NoSuchKey) {
+        throw new CvStorageError("not_found", "CV object was not found in storage.");
+      }
+      // Never surface the raw AWS/R2 error (which can include request
+      // metadata) beyond a safe, generic message.
+      throw new CvStorageError("provider_error", "Failed to download CV from storage.");
+    }
+
+    if (!response.Body) {
+      throw new CvStorageError("provider_error", "Storage returned no file content.");
+    }
+
+    const bytes = await response.Body.transformToByteArray();
+    return Buffer.from(bytes);
   },
 };
