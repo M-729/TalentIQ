@@ -18,9 +18,16 @@ import { assertOwnedByCompany } from "../../security/companyScope";
  *
  * Authorization only — performs no AI, CV extraction, or R2 work, so
  * callers can safely run this before any costly operation.
+ *
+ * Returns the FULL Application document (not just job_id) — earlier
+ * callers (screening.service.ts) only ever needed the ownership check
+ * and discard the return value, so returning the complete document costs
+ * them nothing, while the HR Applications Management endpoints (which
+ * need candidate_id/status/source/applied_at/cv_file for serialization)
+ * can reuse this same helper instead of a second near-duplicate query.
  */
 export async function getAccessibleApplication(applicationId: string, companyId: string): Promise<ApplicationDoc> {
-  const application = await Application.findById(applicationId).select("job_id");
+  const application = await Application.findById(applicationId);
   if (!application) {
     throw new NotFoundError("Application not found");
   }
