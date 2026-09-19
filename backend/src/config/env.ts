@@ -58,6 +58,13 @@ const envSchema = z.object({
   // to change again.
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
+
+  // Screenings trigger a real (paid) Groq call, so the explicit "run a new
+  // screening" route is rate-limited per authenticated user — see
+  // rateLimit.middleware.ts's aiScreeningRateLimiter. 20/hour is a
+  // reasonable, development-safe default; production can tune it without a
+  // code change.
+  AI_SCREENING_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(20),
 });
 
 const parsed = envSchema.safeParse(process.env);

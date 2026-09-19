@@ -43,3 +43,21 @@ export const applicationRateLimiter = rateLimit({
   skip: skipInTest,
   message: { error: { message: "Too many applications submitted, please try again later" } },
 });
+
+// Applied only to the explicit "run a new AI screening" route (a real,
+// paid Groq call) — never to the latest/history read routes, which are
+// plain database reads and share no limiter with this one. This route is
+// authenticated, so it's limited per user (not per IP, which an office of
+// HR users could otherwise share and throttle each other on); requireAuth
+// runs before this in every route it's attached to, so req.auth is always
+// populated by the time keyGenerator reads it, but req.ip is kept as a
+// defensive fallback rather than assuming that can never change.
+export const aiScreeningRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: env.AI_SCREENING_RATE_LIMIT_PER_HOUR,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  message: { error: { message: "Too many AI screenings requested, please try again later" } },
+});

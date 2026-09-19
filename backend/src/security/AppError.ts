@@ -42,3 +42,24 @@ export class ConflictError extends AppError {
     super(message, 409);
   }
 }
+
+// First use: mapping the AI CV-analysis/screening pipeline's own internal
+// error codes (see modules/screenings/screening.errors.ts) to HTTP status
+// for the first time anything in that pipeline is exposed over a route.
+export class UnprocessableEntityError extends AppError {
+  constructor(message = "Unprocessable entity") {
+    super(message, 422);
+  }
+}
+
+export class BadGatewayError extends AppError {
+  constructor(message = "Bad gateway") {
+    super(message, 502);
+  }
+}
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message = "Service unavailable") {
+    super(message, 503);
+  }
+}
