@@ -1,4 +1,6 @@
 import type { AIScreeningDoc } from "../../models/AIScreening.model";
+import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
+import { ConflictError } from "../../security/AppError";
 import { getAccessibleApplication } from "../applications/applicationAccess.service";
 import {
   createApplicationScreening,
@@ -19,10 +21,22 @@ import { mapScreeningError } from "./screening.errors";
  * None of these duplicate CV extraction, AI analysis, or scoring logic —
  * they only add the HTTP-layer concerns (tenant authorization, safe error
  * mapping) on top of the existing screeningHistory.service.ts functions.
+ *
+ * getAccessibleApplication() deliberately does NOT exclude a soft-deleted
+ * Job (see NOT_DELETED_JOB_FILTER's doc comment in Job.model.ts) — reading
+ * existing screening history for an Application must keep working after
+ * its Job is later soft-deleted. Creating a brand-new screening is
+ * different: only createScreening adds its own explicit deleted-Job check
+ * below, blocking it before any CV/R2/Groq work is attempted.
  */
 
 export async function createScreening(applicationId: string, companyId: string): Promise<AIScreeningDoc> {
-  await getAccessibleApplication(applicationId, companyId);
+  const application = await getAccessibleApplication(applicationId, companyId);
+
+  const jobIsAvailable = await Job.exists({ _id: application.job_id, ...NOT_DELETED_JOB_FILTER });
+  if (!jobIsAvailable) {
+    throw new ConflictError("This job has been deleted; new screenings can no longer be created for it.");
+  }
 
   try {
     return await createApplicationScreening(applicationId);

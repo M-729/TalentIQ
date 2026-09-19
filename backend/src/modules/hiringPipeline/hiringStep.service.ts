@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
 import { Application } from "../../models/Application.model";
 import { HiringStep, type HiringStepDoc } from "../../models/HiringStep.model";
-import { Job } from "../../models/Job.model";
+import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
 import { assertOwnedByCompany } from "../../security/companyScope";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
@@ -26,9 +26,19 @@ async function assertNoDuplicateName(jobId: string, name: string, excludeStepId?
   }
 }
 
-/** Database read only — never modifies anything. Position ascending. */
+/**
+ * Database read only — never modifies anything. Position ascending.
+ *
+ * Every function in this file gates on NOT_DELETED_JOB_FILTER: a
+ * soft-deleted Job's hiring pipeline is unavailable through this module
+ * (404), since HR should not keep managing stages for an administratively
+ * deleted Job. HiringStep documents themselves are never deleted or
+ * otherwise touched by this — only the ability to
+ * list/create/update/reorder/delete them is gated on the Job's deletion
+ * state.
+ */
 export async function listHiringSteps(companyId: string, jobId: string): Promise<HiringStepDoc[]> {
-  await assertOwnedByCompany(Job, { _id: jobId }, companyId, { notFoundMessage: "Job not found" });
+  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
   return HiringStep.find({ job_id: jobId }).sort({ position: 1 });
 }
 
@@ -44,7 +54,7 @@ export async function createHiringStep(
   jobId: string,
   input: CreateHiringStepInput
 ): Promise<HiringStepDoc> {
-  await assertOwnedByCompany(Job, { _id: jobId }, companyId, { notFoundMessage: "Job not found" });
+  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
   await assertNoDuplicateName(jobId, input.name);
 
   const position = await HiringStep.countDocuments({ job_id: jobId });
@@ -80,7 +90,7 @@ export async function updateHiringStep(
   stepId: string,
   input: UpdateHiringStepInput
 ): Promise<HiringStepDoc> {
-  await assertOwnedByCompany(Job, { _id: jobId }, companyId, { notFoundMessage: "Job not found" });
+  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
 
   const step = await HiringStep.findOne({ _id: stepId, job_id: jobId });
   if (!step) {
@@ -133,7 +143,7 @@ export async function reorderHiringSteps(
   jobId: string,
   orderedStepIds: string[]
 ): Promise<HiringStepDoc[]> {
-  await assertOwnedByCompany(Job, { _id: jobId }, companyId, { notFoundMessage: "Job not found" });
+  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
 
   const existingSteps = await HiringStep.find({ job_id: jobId }).select("_id");
   const existingIds = new Set(existingSteps.map((step) => step.id));
@@ -190,7 +200,7 @@ export async function reorderHiringSteps(
  * the pipeline stays contiguous (0..N-1) — see HiringStep.model.ts.
  */
 export async function deleteHiringStep(companyId: string, jobId: string, stepId: string): Promise<void> {
-  await assertOwnedByCompany(Job, { _id: jobId }, companyId, { notFoundMessage: "Job not found" });
+  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
 
   const step = await HiringStep.findOne({ _id: stepId, job_id: jobId });
   if (!step) {

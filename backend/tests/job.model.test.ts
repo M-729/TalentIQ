@@ -78,4 +78,26 @@ describe("Job model", () => {
     expect(job.created_at).toBeInstanceOf(Date);
     expect(job.updated_at).toBeInstanceOf(Date);
   });
+
+  it("defaults deleted_at to null on a new Job", async () => {
+    const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "New Job" });
+    const reread = await Job.findById(job.id).select("+deleted_at");
+    expect(reread?.deleted_at).toBeNull();
+  });
+
+  it("persists a Date value assigned to deleted_at", async () => {
+    const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Deletable Job" });
+    const deletionTime = new Date();
+    await Job.updateOne({ _id: job.id }, { $set: { deleted_at: deletionTime } });
+
+    const reread = await Job.findById(job.id).select("+deleted_at");
+    expect(reread?.deleted_at).toBeInstanceOf(Date);
+    expect(reread?.deleted_at?.getTime()).toBe(deletionTime.getTime());
+  });
+
+  it("has a { company_id: 1, deleted_at: 1 } index for normal Job-management reads", () => {
+    const indexes = Job.schema.indexes();
+    const hasIndex = indexes.some(([spec]) => spec.company_id === 1 && spec.deleted_at === 1);
+    expect(hasIndex).toBe(true);
+  });
 });

@@ -1,4 +1,4 @@
-import { Job } from "../../models/Job.model";
+import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { Company } from "../../models/Company.model";
 import { NotFoundError } from "../../security/AppError";
 
@@ -21,10 +21,13 @@ export interface PublicJob {
 }
 
 export async function getPublicJob(jobId: string): Promise<PublicJob> {
-  // Scoping the query itself to status: "active" (rather than fetching by
-  // id and checking status after) means a draft/closed job's existence is
-  // never distinguishable from a nonexistent one — both simply don't match.
-  const job = await Job.findOne({ _id: jobId, status: "active" });
+  // Scoping the query itself to status: "active" and NOT_DELETED_JOB_FILTER
+  // (rather than fetching by id and checking after) means a
+  // draft/closed/soft-deleted job's existence is never distinguishable
+  // from a nonexistent one — none of them match, so all resolve as the
+  // same 404 below. A soft-deleted Job must never be publicly reachable
+  // even if its status somehow remains "active".
+  const job = await Job.findOne({ _id: jobId, status: "active", ...NOT_DELETED_JOB_FILTER });
   if (!job) {
     throw new NotFoundError("Job not found");
   }

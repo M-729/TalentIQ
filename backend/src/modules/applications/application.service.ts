@@ -1,6 +1,6 @@
 import { Candidate, type CandidateDoc } from "../../models/Candidate.model";
 import { Application } from "../../models/Application.model";
-import { Job } from "../../models/Job.model";
+import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { Company } from "../../models/Company.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
@@ -91,11 +91,15 @@ export async function submitPublicApplication(
   input: SubmitApplicationInput,
   cvFile: CvFileInput
 ): Promise<void> {
-  // 1-2: only an active job can be interacted with publicly at all.
-  // Draft/closed/nonexistent are all identical 404s — the query is scoped
-  // to status: "active" directly, not fetched then checked, so a
-  // non-public job's existence is never revealed here either.
-  const job = await Job.findOne({ _id: jobId, status: "active" }).select("_id title company_id");
+  // 1-2: only an active, non-deleted job can be applied to at all.
+  // Draft/closed/soft-deleted/nonexistent are all identical 404s — the
+  // query is scoped to status: "active" and NOT_DELETED_JOB_FILTER
+  // directly, not fetched then checked, so a non-public job's existence
+  // (including a soft-deleted one whose status somehow remains "active")
+  // is never revealed here either.
+  const job = await Job.findOne({ _id: jobId, status: "active", ...NOT_DELETED_JOB_FILTER }).select(
+    "_id title company_id"
+  );
   if (!job) {
     throw new NotFoundError("Job not found");
   }

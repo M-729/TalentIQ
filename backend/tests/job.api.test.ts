@@ -233,7 +233,7 @@ describe("Job CRUD API", () => {
   });
 
   describe("DELETE /api/v1/jobs/:id", () => {
-    it("deletes a job belonging to the caller's company", async () => {
+    it("soft-deletes a job belonging to the caller's company (sets deleted_at, does not remove the document)", async () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "To Delete" });
 
       const res = await request(app)
@@ -241,7 +241,10 @@ describe("Job CRUD API", () => {
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(204);
-      expect(await Job.findById(job.id)).toBeNull();
+
+      const stillExists = await Job.findById(job.id).select("+deleted_at");
+      expect(stillExists).not.toBeNull();
+      expect(stillExists?.deleted_at).toBeInstanceOf(Date);
     });
 
     it("blocks deleting a job belonging to another company", async () => {
