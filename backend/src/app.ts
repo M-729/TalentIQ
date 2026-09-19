@@ -11,6 +11,7 @@ import { publicJobRouter } from "./modules/publicJobs/publicJob.routes";
 import { applicationHrRouter } from "./modules/applications/applicationHr.routes";
 import { screeningRouter } from "./modules/screenings/screening.routes";
 import { hiringStepRouter } from "./modules/hiringPipeline/hiringStep.routes";
+import { stageTransitionRouter } from "./modules/stageTransitions/stageTransition.routes";
 import { notFoundHandler } from "./middleware/notFound.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -46,6 +47,7 @@ export function createApp(): Express {
   app.use("/api/v1/applications", applicationHrRouter);
   app.use("/api/v1/applications/:applicationId/screenings", screeningRouter);
   app.use("/api/v1/jobs/:jobId/hiring-steps", hiringStepRouter);
+  app.use("/api/v1/applications/:applicationId", stageTransitionRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
