@@ -45,6 +45,19 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM_NAME: z.string().default("TalentIQ"),
   EMAIL_FROM_ADDRESS: z.string().optional(),
+
+  // Optional, same rationale as R2/SMTP above — the backend (and the full
+  // test suite, which mocks the AI service entirely) runs fine without
+  // this. Attempting an AI generation while unset fails clearly inside
+  // groqAi.service.ts. GROQ_MODEL has a real default (not just an empty
+  // optional) so changing models later is a config change, not a code
+  // change, without requiring every environment to set it explicitly.
+  // Groq deprecates/retires hosted models over time (llama-3.3-70b-versatile,
+  // this project's original default, was live-verified to now 404) — check
+  // console.groq.com/docs/models for the current catalog if this ever needs
+  // to change again.
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
 });
 
 const parsed = envSchema.safeParse(process.env);
