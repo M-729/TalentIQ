@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api/client";
-import type { SubmitApplicationInput } from "@/types/application";
+import type { ApplicationDetail, ApplicationListRow, ApplicationStatus, Pagination, SubmitApplicationInput } from "@/types/application";
 
 export function submitApplication(
   jobId: string,
@@ -17,4 +17,39 @@ export function submitApplication(
   formData.set("cv", cvFile);
 
   return apiClient.post<{ message: string }>(`/public/jobs/${jobId}/applications`, formData);
+}
+
+export interface ListApplicationsParams {
+  search?: string;
+  jobId?: string;
+  status?: ApplicationStatus;
+  page?: number;
+  limit?: number;
+}
+
+// Authenticated, HR/Admin-only — distinct from submitApplication above
+// (public, unauthenticated candidate submission). Every filter is passed
+// straight through as a query param; the backend is the source of truth
+// for validating/scoping them (company isolation, malformed-id checks) —
+// this function never filters or trusts anything client-side.
+export function getApplications(
+  params: ListApplicationsParams,
+  signal?: AbortSignal
+): Promise<{ applications: ApplicationListRow[]; pagination: Pagination }> {
+  const query = new URLSearchParams();
+  if (params.search) query.set("search", params.search);
+  if (params.jobId) query.set("jobId", params.jobId);
+  if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+  const queryString = query.toString();
+
+  return apiClient.get<{ applications: ApplicationListRow[]; pagination: Pagination }>(
+    `/applications${queryString ? `?${queryString}` : ""}`,
+    signal
+  );
+}
+
+export function getApplication(applicationId: string, signal?: AbortSignal): Promise<{ application: ApplicationDetail }> {
+  return apiClient.get<{ application: ApplicationDetail }>(`/applications/${applicationId}`, signal);
 }

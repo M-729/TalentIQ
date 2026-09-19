@@ -14,8 +14,10 @@ import { RerunConfirmDialog } from "@/components/screenings/RerunConfirmDialog";
 import { ScreeningDetailsCard } from "@/components/screenings/ScreeningDetailsCard";
 import { ScreeningEmptyState } from "@/components/screenings/ScreeningEmptyState";
 import { ScreeningHistoryList } from "@/components/screenings/ScreeningHistoryList";
+import { ScreeningPageContextHeader } from "@/components/screenings/ScreeningPageContextHeader";
 import { ScreeningResultHeader } from "@/components/screenings/ScreeningResultHeader";
 import { StrengthsGapsCards } from "@/components/screenings/StrengthsGapsCards";
+import { useApplication } from "@/hooks/useApplication";
 import { useCreateScreening } from "@/hooks/useCreateScreening";
 import { useLatestScreening } from "@/hooks/useLatestScreening";
 import { useScreeningHistory } from "@/hooks/useScreeningHistory";
@@ -26,6 +28,7 @@ const SUCCESS_FLASH_MS = 4000;
 export function ApplicationScreeningPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
 
+  const application = useApplication(applicationId);
   const latest = useLatestScreening(applicationId);
   const history = useScreeningHistory(applicationId);
   const create = useCreateScreening(applicationId);
@@ -97,19 +100,35 @@ export function ApplicationScreeningPage() {
     return null;
   }
 
+  // Candidate/job context loads independently of the screening data below
+  // (its own isLoading) — neither blocks the other, and it's rendered in
+  // every branch so HR always sees whose application this is, even while
+  // the screening itself is loading/missing/erroring.
+  const contextHeader = (
+    <ScreeningPageContextHeader
+      applicationId={applicationId}
+      application={application.application}
+      isLoading={application.isLoading}
+    />
+  );
+
   if (latest.isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4">
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-48 w-full" />
+      <div className="mx-auto max-w-4xl space-y-6">
+        {contextHeader}
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
       </div>
     );
   }
 
   if (latest.notFound) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-6">
+        {contextHeader}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <SearchX className="size-8 text-muted-foreground" aria-hidden="true" />
@@ -122,7 +141,8 @@ export function ApplicationScreeningPage() {
 
   if (latest.error) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-6">
+        {contextHeader}
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
@@ -141,6 +161,8 @@ export function ApplicationScreeningPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      {contextHeader}
+
       {!displayedScreening ? (
         <ScreeningEmptyState isRunning={create.isCreating} onRun={handleRun} />
       ) : (

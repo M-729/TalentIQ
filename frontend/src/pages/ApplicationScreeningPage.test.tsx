@@ -3,10 +3,12 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApplicationScreeningPage } from "@/pages/ApplicationScreeningPage";
-import { buildScreening } from "@/test/fixtures";
+import { buildApplicationDetail, buildScreening } from "@/test/fixtures";
 import * as screeningsApi from "@/services/api/screenings";
+import * as applicationsApi from "@/services/api/applications";
 
 vi.mock("@/services/api/screenings");
+vi.mock("@/services/api/applications");
 
 function renderPage(applicationId = "app-1") {
   return render(
@@ -23,6 +25,14 @@ describe("ApplicationScreeningPage", () => {
     vi.mocked(screeningsApi.getLatestScreening).mockReset();
     vi.mocked(screeningsApi.getScreeningHistory).mockReset();
     vi.mocked(screeningsApi.createScreening).mockReset();
+    vi.mocked(applicationsApi.getApplication)
+      .mockReset()
+      .mockResolvedValue({
+        application: buildApplicationDetail({
+          candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
+          job: { id: "job-1", title: "Backend Developer", required_skills: [], status: "active" },
+        }),
+      });
   });
 
   it("fetches the latest screening on mount", async () => {
@@ -198,5 +208,68 @@ describe("ApplicationScreeningPage", () => {
 
     expect(await screen.findByText("100%")).toBeInTheDocument();
     expect(screen.queryByText("Historical Screening")).not.toBeInTheDocument();
+  });
+
+  describe("candidate/job context header", () => {
+    it("shows the candidate's name", async () => {
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+
+      renderPage();
+
+      expect(await screen.findByRole("heading", { name: "Sarah Ahmed" })).toBeInTheDocument();
+    });
+
+    it("shows the applied job title", async () => {
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+
+      renderPage();
+
+      expect(await screen.findByText("Application for Backend Developer")).toBeInTheDocument();
+    });
+
+    it("links Back to Application to the correct detail route", async () => {
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+
+      renderPage("app-1");
+
+      const backLink = await screen.findByRole("link", { name: /back to application/i });
+      expect(backLink).toHaveAttribute("href", "/applications/app-1");
+    });
+
+    it("still never auto-POSTs a screening, even with candidate/job context loaded", async () => {
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+
+      renderPage();
+
+      await screen.findByRole("heading", { name: "Sarah Ahmed" });
+      expect(screeningsApi.createScreening).not.toHaveBeenCalled();
+    });
+
+    it("leaves historical screening browsing unchanged by the context header", async () => {
+      const newest = buildScreening({ id: "second", created_at: "2024-02-01T00:00:00.000Z" });
+      const oldest = buildScreening({
+        id: "first",
+        created_at: "2024-01-01T00:00:00.000Z",
+        match: { ...buildScreening().match, score: 40 },
+      });
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest });
+      vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [newest, oldest] });
+
+      renderPage();
+      await screen.findByRole("heading", { name: "Sarah Ahmed" });
+      await screen.findByText("Screening History");
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: /view screening from.*jan/i }));
+
+      // Context header stays visible and correct alongside the historical view.
+      expect(await screen.findByText("Historical Screening")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sarah Ahmed" })).toBeInTheDocument();
+      expect(screen.getByText("40%")).toBeInTheDocument();
+    });
   });
 });

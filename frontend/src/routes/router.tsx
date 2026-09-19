@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
+import { ApplicationDetailPage } from "@/pages/ApplicationDetailPage";
 import { ApplicationScreeningPage } from "@/pages/ApplicationScreeningPage";
+import { ApplicationsPage } from "@/pages/ApplicationsPage";
 import { ApplyPage } from "@/pages/ApplyPage";
 import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -44,11 +46,8 @@ export const router = createBrowserRouter([
           { path: "/jobs", element: <JobsPage /> },
           { path: "/jobs/new", element: <CreateJobPage /> },
           { path: "/jobs/:id/edit", element: <EditJobPage /> },
-          // No Application/Candidate detail page exists yet to integrate
-          // into (confirmed before building this) — a dedicated route,
-          // reachable by direct URL for now. A future Applications/
-          // Candidates list ticket should link into this route once it
-          // exists.
+          { path: "/applications", element: <ApplicationsPage /> },
+          { path: "/applications/:applicationId", element: <ApplicationDetailPage /> },
           { path: "/applications/:applicationId/screening", element: <ApplicationScreeningPage /> },
         ],
       },

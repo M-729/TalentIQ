@@ -29,7 +29,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
   { label: "Jobs", icon: Briefcase, to: "/jobs" },
   { label: "Candidates", icon: Users },
-  { label: "Applications", icon: FileText },
+  // No `end` prop, matching Jobs above — NavLink's default (non-end)
+  // matching makes this active for /applications, /applications/:id, and
+  // /applications/:id/screening alike, without any bespoke logic. It does
+  // NOT also activate Jobs, since none of these paths start with /jobs.
+  { label: "Applications", icon: FileText, to: "/applications" },
   { label: "Hiring Pipeline", icon: Workflow },
   { label: "Assessments", icon: ClipboardCheck },
   { label: "Interviews", icon: CalendarDays },
