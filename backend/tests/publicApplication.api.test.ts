@@ -37,8 +37,18 @@ jest.mock("../src/modules/applications/cvFileSignature", () => ({
   }),
 }));
 
+// Tests must never send real email either — mocked the same way as
+// storage, at the same boundary application.service.ts depends on.
+jest.mock("../src/services/email/email.service", () => ({
+  emailService: { send: jest.fn() },
+}));
+
 const { cvStorage } = jest.requireMock("../src/services/storage/cvStorage.service") as {
   cvStorage: { upload: jest.Mock; delete: jest.Mock; getSignedDownloadUrl: jest.Mock };
+};
+
+const { emailService } = jest.requireMock("../src/services/email/email.service") as {
+  emailService: { send: jest.Mock };
 };
 
 const app = createApp();
@@ -75,6 +85,9 @@ describe("Public Application API (with CV upload)", () => {
       })
     );
     cvStorage.delete.mockResolvedValue(undefined);
+
+    emailService.send.mockReset();
+    emailService.send.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -122,6 +135,7 @@ describe("Public Application API (with CV upload)", () => {
 
     expect(res.status).toBe(400);
     expect(cvStorage.upload).not.toHaveBeenCalled();
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects a file over 5MB", async () => {
@@ -135,6 +149,7 @@ describe("Public Application API (with CV upload)", () => {
 
     expect(res.status).toBe(400);
     expect(cvStorage.upload).not.toHaveBeenCalled();
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects an unsupported file type (png)", async () => {
@@ -147,6 +162,7 @@ describe("Public Application API (with CV upload)", () => {
 
     expect(res.status).toBe(400);
     expect(cvStorage.upload).not.toHaveBeenCalled();
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects a spoofed file (named/labeled as pdf, isn't one) via signature inspection", async () => {
@@ -159,6 +175,20 @@ describe("Public Application API (with CV upload)", () => {
 
     expect(res.status).toBe(400);
     expect(cvStorage.upload).not.toHaveBeenCalled();
+    expect(emailService.send).not.toHaveBeenCalled();
+  });
+
+  it("does not send an email when CV storage upload itself fails", async () => {
+    const job = await createActiveJob("Storage Failure Role");
+    cvStorage.upload.mockRejectedValueOnce(new Error("simulated storage outage"));
+
+    const res = await withFields(
+      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      baseFields({ email: "storage-fail@candidate.test" })
+    ).attach("cv", SAMPLE_PDF);
+
+    expect(res.status).toBe(500);
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects an application to a draft job (CV never uploaded)", async () => {
@@ -171,6 +201,7 @@ describe("Public Application API (with CV upload)", () => {
 
     expect(res.status).toBe(404);
     expect(cvStorage.upload).not.toHaveBeenCalled();
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects an application to a closed job", async () => {
@@ -182,6 +213,7 @@ describe("Public Application API (with CV upload)", () => {
     ).attach("cv", SAMPLE_PDF);
 
     expect(res.status).toBe(404);
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects an application to a nonexistent job", async () => {
@@ -191,6 +223,7 @@ describe("Public Application API (with CV upload)", () => {
     ).attach("cv", SAMPLE_PDF);
 
     expect(res.status).toBe(404);
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed job id with 400", async () => {
@@ -200,6 +233,7 @@ describe("Public Application API (with CV upload)", () => {
     ).attach("cv", SAMPLE_PDF);
 
     expect(res.status).toBe(400);
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("rejects invalid candidate input (blank full_name)", async () => {
@@ -211,6 +245,7 @@ describe("Public Application API (with CV upload)", () => {
     }).attach("cv", SAMPLE_PDF);
 
     expect(res.status).toBe(400);
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("cannot mass-assign status, current_step_id, final_decision, job_id, or company_id", async () => {
@@ -260,6 +295,39 @@ describe("Public Application API (with CV upload)", () => {
     expect(application?.cv_file.size_bytes).toBeGreaterThan(0);
   });
 
+  it("sends exactly one confirmation email to the candidate with correct name/job/company and no internal fields", async () => {
+    const job = await createActiveJob("Senior Backend Engineer");
+
+    const res = await withFields(
+      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      baseFields({ full_name: "Priya Sharma", email: "priya@candidate.test" })
+    ).attach("cv", SAMPLE_PDF);
+
+    expect(res.status).toBe(201);
+    expect(emailService.send).toHaveBeenCalledTimes(1);
+
+    const sent = emailService.send.mock.calls[0][0] as { to: string; subject: string; text: string; html: string };
+    expect(sent.to).toBe("priya@candidate.test");
+    expect(sent.subject).toContain("Senior Backend Engineer");
+    expect(sent.text).toContain("Priya Sharma");
+    expect(sent.text).toContain("Senior Backend Engineer");
+    expect(sent.text).toContain(company.name);
+    expect(sent.html).toContain("Priya Sharma");
+    expect(sent.html).toContain("Senior Backend Engineer");
+    expect(sent.html).toContain(company.name);
+
+    const application = await Application.findOne({ "cv_file.original_name": { $exists: true } }).sort({
+      applied_at: -1,
+    });
+    const combined = sent.text + sent.html;
+    expect(combined).not.toContain(application?.cv_file.storage_key);
+    expect(combined).not.toContain(company.id);
+    expect(combined).not.toContain(application?._id.toString());
+    expect(combined.toLowerCase()).not.toContain("score");
+    expect(combined.toLowerCase()).not.toContain("match");
+    expect(combined).not.toMatch(/\bapplied\b|\bin_process\b|\brejected\b|\boffered\b|\bhired\b/);
+  });
+
   it("returns a minimal response with no storage/internal fields or credentials", async () => {
     const job = await createActiveJob("Minimal Response Role");
 
@@ -283,6 +351,7 @@ describe("Public Application API (with CV upload)", () => {
     );
     expect(first.status).toBe(201);
     expect(cvStorage.upload).toHaveBeenCalledTimes(1);
+    expect(emailService.send).toHaveBeenCalledTimes(1);
 
     const second = await withFields(request(app).post(`/api/v1/public/jobs/${job.id}/applications`), fields).attach(
       "cv",
@@ -290,8 +359,10 @@ describe("Public Application API (with CV upload)", () => {
     );
     expect(second.status).toBe(409);
     // The pre-check (Application.exists) caught it before a second
-    // external upload was ever attempted.
+    // external upload — or a second confirmation email — was ever
+    // attempted.
     expect(cvStorage.upload).toHaveBeenCalledTimes(1);
+    expect(emailService.send).toHaveBeenCalledTimes(1);
 
     const applications = await Application.find({});
     expect(applications).toHaveLength(1);
@@ -309,6 +380,7 @@ describe("Public Application API (with CV upload)", () => {
     expect(res.status).toBe(500);
     expect(cvStorage.upload).toHaveBeenCalledTimes(1);
     expect(cvStorage.delete).toHaveBeenCalledTimes(1);
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it("cleans up the uploaded CV when the database-level duplicate race is hit after upload", async () => {
@@ -327,5 +399,28 @@ describe("Public Application API (with CV upload)", () => {
     expect(res.status).toBe(409);
     expect(cvStorage.upload).toHaveBeenCalledTimes(1);
     expect(cvStorage.delete).toHaveBeenCalledTimes(1);
+    expect(emailService.send).not.toHaveBeenCalled();
+  });
+
+  it("email provider failure after a successful Application does not roll back the Application, still returns 201, and leaks no SMTP internals", async () => {
+    const job = await createActiveJob("Email Failure Role");
+    emailService.send.mockRejectedValueOnce(new Error("SMTP connection refused: 535 5.7.8 auth failed for user x"));
+
+    const res = await withFields(
+      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      baseFields({ email: "email-fail@candidate.test" })
+    ).attach("cv", SAMPLE_PDF);
+
+    // The application itself is the primary operation and already
+    // succeeded by the time email sending is attempted — its outcome must
+    // not change the response.
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ message: "Application submitted successfully" });
+    expect(JSON.stringify(res.body)).not.toMatch(/smtp|auth failed|535/i);
+
+    const candidate = await Candidate.findOne({ email: "email-fail@candidate.test" });
+    const application = await Application.findOne({ candidate_id: candidate?._id });
+    expect(application).not.toBeNull();
+    expect(application?.job_id.toString()).toBe(job.id);
   });
 });

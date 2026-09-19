@@ -1,9 +1,12 @@
 import { Candidate, type CandidateDoc } from "../../models/Candidate.model";
 import { Application } from "../../models/Application.model";
 import { Job } from "../../models/Job.model";
+import { Company } from "../../models/Company.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
 import { cvStorage } from "../../services/storage/cvStorage.service";
+import { emailService } from "../../services/email/email.service";
+import { buildApplicationConfirmationEmail } from "../../services/email/templates/applicationConfirmation.template";
 import { detectCvFileType } from "./cvFileSignature";
 import type { SubmitApplicationInput } from "./application.validation";
 
@@ -51,6 +54,38 @@ async function findOrCreateCandidate(input: SubmitApplicationInput): Promise<Can
   }
 }
 
+/**
+ * Sends the candidate their application-confirmation email. Deliberately
+ * never throws: the Application is the primary business operation and has
+ * already succeeded by the time this runs, so a delivery failure here must
+ * never affect the response or roll back anything already persisted. Never
+ * logs SMTP credentials or CV contents — only ids, for operator triage.
+ */
+async function sendApplicationConfirmationEmail(params: {
+  candidate: CandidateDoc;
+  jobId: string;
+  jobTitle: string;
+  companyId: string;
+}): Promise<void> {
+  try {
+    const company = await Company.findById(params.companyId).select("name").lean();
+
+    const { subject, text, html } = buildApplicationConfirmationEmail({
+      candidateName: params.candidate.full_name,
+      jobTitle: params.jobTitle,
+      companyName: company?.name ?? "the hiring company",
+    });
+
+    await emailService.send({ to: params.candidate.email, subject, text, html });
+  } catch (err) {
+    console.error("[email] failed to send application confirmation", {
+      candidateId: params.candidate._id.toString(),
+      jobId: params.jobId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export async function submitPublicApplication(
   jobId: string,
   input: SubmitApplicationInput,
@@ -60,7 +95,7 @@ export async function submitPublicApplication(
   // Draft/closed/nonexistent are all identical 404s — the query is scoped
   // to status: "active" directly, not fetched then checked, so a
   // non-public job's existence is never revealed here either.
-  const job = await Job.findOne({ _id: jobId, status: "active" }).select("_id");
+  const job = await Job.findOne({ _id: jobId, status: "active" }).select("_id title company_id");
   if (!job) {
     throw new NotFoundError("Job not found");
   }
@@ -133,6 +168,17 @@ export async function submitPublicApplication(
     }
     throw err;
   }
+
+  // The Application is now the source of truth and has already succeeded
+  // — email is purely a notification side effect from here on. It never
+  // throws (see sendApplicationConfirmationEmail), so this can't affect
+  // the response the controller sends next.
+  await sendApplicationConfirmationEmail({
+    candidate,
+    jobId: job._id.toString(),
+    jobTitle: job.title,
+    companyId: job.company_id.toString(),
+  });
 
   // 10: the controller sends the minimal success response.
 }

@@ -27,6 +27,24 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET_NAME: z.string().optional(),
+
+  // Optional, same rationale as R2 above — the backend (and the full test
+  // suite, which mocks the email service entirely) runs fine without these.
+  // Sending an email without them configured fails clearly inside
+  // smtpEmail.service.ts rather than silently doing nothing.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  // z.coerce.boolean() would treat the literal string "false" as truthy
+  // (any non-empty string coerces to true) — an explicit string comparison
+  // is used instead so SMTP_SECURE=false actually means false.
+  SMTP_SECURE: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM_NAME: z.string().default("TalentIQ"),
+  EMAIL_FROM_ADDRESS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
