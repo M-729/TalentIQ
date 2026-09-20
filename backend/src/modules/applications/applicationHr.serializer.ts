@@ -14,7 +14,7 @@ export interface ScreeningSummaryDTO {
   latest_screened_at?: string;
 }
 
-function serializeScreeningSummary(summary: ScreeningSummary | undefined): ScreeningSummaryDTO {
+export function serializeScreeningSummary(summary: ScreeningSummary | undefined): ScreeningSummaryDTO {
   if (!summary || !summary.hasScreening) {
     return { has_screening: false };
   }

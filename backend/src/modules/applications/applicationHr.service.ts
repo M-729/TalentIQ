@@ -36,7 +36,7 @@ export interface ListApplicationsResult {
  * no Groq call, no R2 access, no CV parsing, and no score is ever
  * recalculated here.
  */
-async function getLatestScreeningSummaries(applicationIds: string[]): Promise<Map<string, ScreeningSummary>> {
+export async function getLatestScreeningSummaries(applicationIds: string[]): Promise<Map<string, ScreeningSummary>> {
   if (applicationIds.length === 0) {
     return new Map();
   }

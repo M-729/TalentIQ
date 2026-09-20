@@ -52,6 +52,16 @@ export class UnprocessableEntityError extends AppError {
   }
 }
 
+// First use: the Hiring Pipeline Board's pathological-load guard (see
+// hiringPipelineBoard.service.ts) — a Job with an unreasonable number of
+// active Applications refuses to render an unpaginated board rather than
+// silently truncating candidates.
+export class PayloadTooLargeError extends AppError {
+  constructor(message = "Payload too large") {
+    super(message, 413);
+  }
+}
+
 export class BadGatewayError extends AppError {
   constructor(message = "Bad gateway") {
     super(message, 502);
