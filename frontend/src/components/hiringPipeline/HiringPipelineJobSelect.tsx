@@ -3,21 +3,26 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useJobs } from "@/hooks/useJobs";
+import type { Job } from "@/types/job";
 
 export interface HiringPipelineJobSelectProps {
   value: string | null;
   onChange: (jobId: string | null) => void;
+  jobs: Job[] | null;
+  isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
 }
 
-// No status filter: normal Jobs API access already excludes soft-deleted
-// Jobs by construction, and draft/closed Jobs are still shown deliberately
-// — HR may configure a pipeline before publishing, or review a closed
-// Job's historical configuration. Nothing here is hard-coded; every option
-// comes straight from the authenticated Jobs API.
-export function HiringPipelineJobSelect({ value, onChange }: HiringPipelineJobSelectProps) {
-  const { jobs, isLoading, error, refetch } = useJobs();
-
+// Presentational only — the Jobs list is fetched once by HiringPipelinePage
+// (not here) so the page can also validate a URL-restored jobId against
+// the same authenticated list before treating it as selected. No status
+// filter on that fetch: normal Jobs API access already excludes
+// soft-deleted Jobs by construction, and draft/closed Jobs are still shown
+// deliberately — HR may configure a pipeline before publishing, or
+// continue managing a closed Job's existing applicants. Nothing here is
+// hard-coded; every option comes straight from the authenticated Jobs API.
+export function HiringPipelineJobSelect({ value, onChange, jobs, isLoading, error, onRetry }: HiringPipelineJobSelectProps) {
   if (isLoading) {
     return (
       <div className="space-y-1.5">
@@ -32,7 +37,7 @@ export function HiringPipelineJobSelect({ value, onChange }: HiringPipelineJobSe
       <div className="flex items-center gap-2 text-sm text-destructive">
         <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
         <span role="alert">{error}</span>
-        <Button variant="outline" size="sm" onClick={refetch}>
+        <Button variant="outline" size="sm" onClick={onRetry}>
           Retry
         </Button>
       </div>

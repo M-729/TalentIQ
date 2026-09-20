@@ -358,6 +358,25 @@ describe("Application stage movement + history", () => {
     });
   });
 
+  // ===== CLOSED JOB =====
+  // Intentional product behavior (Hiring Pipeline Board UI ticket, closed-
+  // Job clarification): closing a Job stops new candidate INTAKE only —
+  // it must not freeze the existing recruitment workflow for applicants
+  // who already applied. Closed != soft-deleted (see Job.model.ts).
+  describe("closed (not deleted) Job", () => {
+    it("allows movement for an Application whose Job is closed", async () => {
+      const application = await createApplicationIn(jobA);
+      await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
+
+      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      const reread = await Application.findById(application.id);
+      expect(reread?.status).toBe("in_process");
+      expect(reread?.current_step_id?.toString()).toBe(review.id);
+    });
+  });
+
   // ===== SOFT-DELETED JOB =====
   describe("soft-deleted Job", () => {
     it("blocks movement for an Application whose Job is soft-deleted", async () => {

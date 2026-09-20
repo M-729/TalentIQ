@@ -1,5 +1,11 @@
 import type { ApplicationDetail, ApplicationListRow } from "@/types/application";
 import type { HiringStep } from "@/types/hiringStep";
+import type {
+  HiringPipelineApplicationCard,
+  HiringPipelineBoard,
+  HiringPipelineBoardColumn,
+  HiringPipelineNeedsAttentionApplication,
+} from "@/types/hiringPipelineBoard";
 import type { Screening } from "@/types/screening";
 
 export function buildScreening(overrides: Partial<Screening> = {}): Screening {
@@ -63,6 +69,52 @@ export function buildHiringStep(overrides: Partial<HiringStep> = {}): HiringStep
     type: "review",
     description: null,
     position: 0,
+    ...overrides,
+  };
+}
+
+export function buildHiringPipelineApplicationCard(
+  overrides: Partial<HiringPipelineApplicationCard> = {}
+): HiringPipelineApplicationCard {
+  return {
+    id: "application-1",
+    candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
+    status: "applied",
+    applied_at: "2024-01-15T00:00:00.000Z",
+    screening: { has_screening: false },
+    ...overrides,
+  };
+}
+
+export function buildHiringPipelineNeedsAttentionApplication(
+  overrides: Partial<HiringPipelineNeedsAttentionApplication> = {}
+): HiringPipelineNeedsAttentionApplication {
+  return {
+    ...buildHiringPipelineApplicationCard(),
+    current_step_id: null,
+    ...overrides,
+  };
+}
+
+export function buildHiringPipelineBoardColumn(overrides: Partial<HiringPipelineBoardColumn> = {}): HiringPipelineBoardColumn {
+  return {
+    id: "step-1",
+    name: "Application Review",
+    type: "review",
+    description: null,
+    position: 0,
+    count: 0,
+    applications: [],
+    ...overrides,
+  };
+}
+
+export function buildHiringPipelineBoard(overrides: Partial<HiringPipelineBoard> = {}): HiringPipelineBoard {
+  return {
+    job: { id: "job-a", title: "Backend Developer", status: "active" },
+    unassigned: { count: 0, applications: [] },
+    stages: [buildHiringPipelineBoardColumn()],
+    needs_attention: [],
     ...overrides,
   };
 }
