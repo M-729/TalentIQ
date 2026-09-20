@@ -37,4 +37,26 @@ describe("Sidebar navigation", () => {
     renderSidebarAt("/applications/app-1/screening");
     expect(screen.getByRole("link", { name: "Jobs" })).not.toHaveClass("bg-sidebar-accent");
   });
+
+  it("renders Hiring Pipeline as an enabled link, not a disabled placeholder", () => {
+    renderSidebarAt("/dashboard");
+    const link = screen.getByRole("link", { name: "Hiring Pipeline" });
+    expect(link).toHaveAttribute("href", "/hiring-pipeline");
+  });
+
+  it("highlights Hiring Pipeline on /hiring-pipeline", () => {
+    renderSidebarAt("/hiring-pipeline");
+    expect(screen.getByRole("link", { name: "Hiring Pipeline" })).toHaveClass("bg-sidebar-accent");
+  });
+
+  it("does not highlight Jobs or Applications while on /hiring-pipeline", () => {
+    renderSidebarAt("/hiring-pipeline");
+    expect(screen.getByRole("link", { name: "Jobs" })).not.toHaveClass("bg-sidebar-accent");
+    expect(screen.getByRole("link", { name: "Applications" })).not.toHaveClass("bg-sidebar-accent");
+  });
+
+  it("does not highlight Hiring Pipeline while on Jobs or Applications routes", () => {
+    renderSidebarAt("/jobs");
+    expect(screen.getByRole("link", { name: "Hiring Pipeline" })).not.toHaveClass("bg-sidebar-accent");
+  });
 });

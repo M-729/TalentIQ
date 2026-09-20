@@ -34,7 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   // /applications/:id/screening alike, without any bespoke logic. It does
   // NOT also activate Jobs, since none of these paths start with /jobs.
   { label: "Applications", icon: FileText, to: "/applications" },
-  { label: "Hiring Pipeline", icon: Workflow },
+  { label: "Hiring Pipeline", icon: Workflow, to: "/hiring-pipeline" },
   { label: "Assessments", icon: ClipboardCheck },
   { label: "Interviews", icon: CalendarDays },
   { label: "Emails", icon: Mail },

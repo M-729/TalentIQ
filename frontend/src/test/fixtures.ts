@@ -1,4 +1,5 @@
 import type { ApplicationDetail, ApplicationListRow } from "@/types/application";
+import type { HiringStep } from "@/types/hiringStep";
 import type { Screening } from "@/types/screening";
 
 export function buildScreening(overrides: Partial<Screening> = {}): Screening {
@@ -51,6 +52,17 @@ export function buildApplicationListRow(overrides: Partial<ApplicationListRow> =
       status: "active",
     },
     screening: { has_screening: false },
+    ...overrides,
+  };
+}
+
+export function buildHiringStep(overrides: Partial<HiringStep> = {}): HiringStep {
+  return {
+    id: "step-1",
+    name: "Application Review",
+    type: "review",
+    description: null,
+    position: 0,
     ...overrides,
   };
 }
