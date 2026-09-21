@@ -4,6 +4,33 @@ import { HIRING_STEP_TYPES } from "./HiringStep.model";
 export const INTERVIEW_STATUSES = ["scheduled", "cancelled", "completed"] as const;
 export type InterviewStatus = (typeof INTERVIEW_STATUSES)[number];
 
+// TalentIQ is the source of truth; these fields track a PROJECTION of the
+// Interview into an external provider's Calendar, never the reverse (see
+// modules/interviews/interviewCalendarSync.service.ts). "not_connected"
+// is the default for every Interview that has no provider integration at
+// all — it is NOT an error state, just "nothing has been attempted yet".
+export const CALENDAR_SYNC_STATUSES = ["not_connected", "pending", "synced", "failed"] as const;
+export type CalendarSyncStatus = (typeof CALENDAR_SYNC_STATUSES)[number];
+
+// A provider-neutral, safe error taxonomy — never a raw Google error
+// body. Declared here (not in modules/integrations/googleCalendar/) so
+// this model stays the single source of truth for what can legally be
+// stored in calendar_sync_error_code below; the Google provider module
+// imports this list rather than duplicating it, matching this codebase's
+// existing direction of dependency (modules import from models, e.g.
+// ApplicationStageTransition.model.ts importing HIRING_STEP_TYPES from
+// HiringStep.model.ts — never the reverse).
+export const CALENDAR_SYNC_ERROR_CODES = [
+  "not_connected",
+  "authorization_required",
+  "rate_limited",
+  "event_not_found",
+  "conference_pending",
+  "provider_unavailable",
+  "provider_error",
+] as const;
+export type CalendarSyncErrorCode = (typeof CALENDAR_SYNC_ERROR_CODES)[number];
+
 /**
  * Explicit, typed snapshot of the HiringStep the Interview was scheduled
  * against, AT THE MOMENT of scheduling — never a generic Mixed blob, and
@@ -81,16 +108,29 @@ const interviewSchema = new Schema(
     cancelled_at: { type: Date, default: null },
     cancellation_reason: { type: String, trim: true, maxlength: 1000, default: null },
 
-    // Reserved for the next ticket's Google Calendar/Meet integration —
-    // deliberately added now (per this ticket's explicit invitation) so
-    // that ticket doesn't need an awkward schema migration, but never
-    // populated, never client-controlled, and never a secret/token: just
-    // a provider name, an opaque event id, and a meeting URL. All
-    // nullable so every Interview this ticket creates is valid without
-    // them.
+    // Google Calendar/Meet integration metadata — never client-controlled
+    // (absent from every Zod schema in interview.validation.ts /
+    // googleCalendar.validation.ts), never a secret/token (the actual
+    // Google refresh token lives only in GoogleCalendarConnection.model.ts,
+    // encrypted). All nullable/defaulted so every Interview remains valid
+    // whether or not it has ever had a provider event.
     calendar_provider: { type: String, trim: true, default: null },
     calendar_event_id: { type: String, trim: true, default: null },
     meeting_url: { type: String, trim: true, default: null },
+
+    // The TalentIQ User whose Google connection owns the live Calendar
+    // event — set once, at successful creation, and never changed
+    // afterward. Every later provider call (reschedule sync, cancel sync,
+    // manual sync/retry) MUST use this user's connection, never the
+    // currently authenticated actor's — see
+    // interviewCalendarSync.service.ts's doc comment for why (a different
+    // HR/Admin may legitimately reschedule an Interview whose Calendar
+    // event was created by someone else).
+    calendar_owner_user_id: { type: Schema.Types.ObjectId, ref: "User", default: null },
+
+    calendar_sync_status: { type: String, enum: CALENDAR_SYNC_STATUSES, default: "not_connected", required: true },
+    calendar_sync_error_code: { type: String, enum: [...CALENDAR_SYNC_ERROR_CODES, null], default: null },
+    calendar_last_synced_at: { type: Date, default: null },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

@@ -87,6 +87,14 @@ export const cancelInterviewSchema = z
   })
   .strict();
 
+// POST create/sync accept no business input at all — every field
+// (provider, event id, meeting URL, owner) is backend-derived, and there
+// is no legitimate reason for a client to ever send provider metadata
+// here (see this ticket's "do not trust provider metadata from request
+// body" rule). `.strict()` rejects any unexpected field outright, same
+// pattern as createScreeningBodySchema.
+export const googleCalendarActionBodySchema = z.object({}).strict();
+
 export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewSchema>;
 export type RescheduleInterviewInput = z.infer<typeof rescheduleInterviewSchema>;
 export type CancelInterviewInput = z.infer<typeof cancelInterviewSchema>;

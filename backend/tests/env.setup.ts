@@ -8,3 +8,8 @@ process.env.JWT_ACCESS_SECRET = "test-only-access-secret-at-least-32-chars";
 process.env.JWT_ACCESS_EXPIRES_IN = "15m";
 process.env.JWT_REFRESH_EXPIRES_IN_DAYS = "7";
 process.env.BCRYPT_SALT_ROUNDS = "10";
+// A fixed, obviously-fake 32-byte key — same "safe fake secret committed
+// here, never in .env/.env.example" precedent as JWT_ACCESS_SECRET above.
+// Lets tests exercise real AES-256-GCM encrypt/decrypt round-trips (see
+// security/googleTokenEncryption.ts) instead of only mocking it away.
+process.env.GOOGLE_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");

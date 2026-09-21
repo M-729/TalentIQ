@@ -23,6 +23,15 @@ export interface InterviewCancellationDTO {
   reason: string | null;
 }
 
+export interface InterviewCalendarDTO {
+  provider: string;
+  /** Whether the OWNER's Google connection is currently active — lets the frontend show "owner disconnected" safely without exposing OAuth details. */
+  connected: boolean;
+  sync_status: string;
+  meeting_url: string | null;
+  last_synced_at: string | null;
+}
+
 export interface InterviewDTO {
   id: string;
   title: string;
@@ -34,6 +43,8 @@ export interface InterviewDTO {
   interviewers: InterviewerDTO[];
   scheduled_by: ActorDTO;
   cancellation: InterviewCancellationDTO | null;
+  /** null when this Interview has no Google Calendar integration at all. */
+  calendar: InterviewCalendarDTO | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,15 +69,21 @@ function resolveActor(userMap: Map<string, UserRef>, userId: string): ActorDTO {
  *
  * Deliberately excludes: password hashes, refresh/auth data, company
  * internals, __v, raw Mongoose internals, candidate PII (Application
- * detail already owns that context), and the reserved
- * calendar_provider/calendar_event_id/meeting_url fields (unused by this
- * ticket, and not yet meaningful to expose).
+ * detail already owns that context), the raw Google event id (backend-
+ * internal — not yet genuinely useful to a client), and
+ * calendar_owner_user_id (which User owns the provider connection is an
+ * implementation detail; `calendar.connected` is the safe derived signal
+ * a client actually needs).
  *
  * Interviewer entries include email (unlike scheduled_by/cancelled_by,
  * which only need {id, name}) — HR needs to know who is participating,
  * per this ticket's explicit instruction.
  */
-export function serializeInterview(doc: InterviewDoc, userMap: Map<string, UserRef>): InterviewDTO {
+export function serializeInterview(
+  doc: InterviewDoc,
+  userMap: Map<string, UserRef>,
+  ownerConnectedMap: Map<string, boolean> = new Map()
+): InterviewDTO {
   const interviewers: InterviewerDTO[] = doc.interviewer_user_ids.map((id) => {
     const userId = id.toString();
     const user = userMap.get(userId);
@@ -98,6 +115,15 @@ export function serializeInterview(doc: InterviewDoc, userMap: Map<string, UserR
             reason: doc.cancellation_reason ?? null,
           }
         : null,
+    calendar: doc.calendar_provider
+      ? {
+          provider: doc.calendar_provider,
+          connected: doc.calendar_owner_user_id ? (ownerConnectedMap.get(doc.calendar_owner_user_id.toString()) ?? false) : false,
+          sync_status: doc.calendar_sync_status,
+          meeting_url: doc.meeting_url ?? null,
+          last_synced_at: doc.calendar_last_synced_at ? doc.calendar_last_synced_at.toISOString() : null,
+        }
+      : null,
     // Always set by Mongoose (timestamps: { createdAt: "created_at", ... })
     // — the schema-inferred type just doesn't capture that as non-optional.
     created_at: doc.created_at!.toISOString(),
@@ -105,6 +131,10 @@ export function serializeInterview(doc: InterviewDoc, userMap: Map<string, UserR
   };
 }
 
-export function serializeInterviews(docs: InterviewDoc[], userMap: Map<string, UserRef>): InterviewDTO[] {
-  return docs.map((doc) => serializeInterview(doc, userMap));
+export function serializeInterviews(
+  docs: InterviewDoc[],
+  userMap: Map<string, UserRef>,
+  ownerConnectedMap: Map<string, boolean> = new Map()
+): InterviewDTO[] {
+  return docs.map((doc) => serializeInterview(doc, userMap, ownerConnectedMap));
 }

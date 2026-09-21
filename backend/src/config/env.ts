@@ -65,6 +65,27 @@ const envSchema = z.object({
   // reasonable, development-safe default; production can tune it without a
   // code change.
   AI_SCREENING_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(20),
+
+  // Google Calendar/Meet interview integration — optional, same rationale
+  // as R2/SMTP/GROQ above: the backend (and the full test suite, which
+  // mocks the Google provider entirely) runs fine without these.
+  // Attempting an actual OAuth connect/callback or a Calendar API call
+  // while unset fails clearly inside googleCalendarOAuth.service.ts /
+  // googleCalendar.service.ts rather than silently doing nothing.
+  // GOOGLE_CLIENT_SECRET and GOOGLE_TOKEN_ENCRYPTION_KEY are real secrets
+  // — never fill them in .env.example, only in a local, gitignored .env.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().optional(),
+  // Base64-encoded 32-byte (AES-256) key used to encrypt Google refresh
+  // tokens at rest — see security/googleTokenEncryption.ts. Generate one
+  // with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  GOOGLE_TOKEN_ENCRYPTION_KEY: z.string().optional(),
+
+  // Where the OAuth callback redirects the browser after success/failure
+  // (e.g. /settings/integrations?googleCalendar=connected) — not a
+  // secret, safe to default for local development.
+  FRONTEND_URL: z.string().default("http://localhost:5173"),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -572,7 +572,7 @@ describe("Interview scheduling API", () => {
 
       expect(JSON.stringify(scheduleRes.body)).not.toMatch(/__v|password|company_id|job_id|application_id/i);
       expect(Object.keys(scheduleRes.body.interview).sort()).toEqual(
-        ["id", "title", "stage", "starts_at", "ends_at", "timezone", "status", "interviewers", "scheduled_by", "cancellation", "created_at", "updated_at"].sort()
+        ["id", "title", "stage", "starts_at", "ends_at", "timezone", "status", "interviewers", "scheduled_by", "cancellation", "calendar", "created_at", "updated_at"].sort()
       );
     });
 

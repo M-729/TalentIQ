@@ -14,6 +14,7 @@ import { hiringStepRouter } from "./modules/hiringPipeline/hiringStep.routes";
 import { hiringPipelineBoardRouter } from "./modules/hiringPipeline/hiringPipelineBoard.routes";
 import { stageTransitionRouter } from "./modules/stageTransitions/stageTransition.routes";
 import { interviewDetailRouter, interviewRouter } from "./modules/interviews/interview.routes";
+import { googleCalendarOAuthRouter } from "./modules/integrations/googleCalendar/googleCalendarOAuth.routes";
 import { notFoundHandler } from "./middleware/notFound.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -53,6 +54,7 @@ export function createApp(): Express {
   app.use("/api/v1/applications/:applicationId", stageTransitionRouter);
   app.use("/api/v1/applications/:applicationId/interviews", interviewRouter);
   app.use("/api/v1/interviews", interviewDetailRouter);
+  app.use("/api/v1/integrations/google-calendar", googleCalendarOAuthRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -4,14 +4,17 @@ import { requireRole } from "../../middleware/role.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import {
   cancelInterviewHandler,
+  createGoogleCalendarEventHandler,
   getInterviewHandler,
   listInterviewsHandler,
   rescheduleInterviewHandler,
   scheduleInterviewHandler,
+  syncGoogleCalendarEventHandler,
 } from "./interview.controller";
 import {
   applicationIdParamsSchema,
   cancelInterviewSchema,
+  googleCalendarActionBodySchema,
   interviewIdParamsSchema,
   rescheduleInterviewSchema,
   scheduleInterviewSchema,
@@ -48,4 +51,20 @@ interviewDetailRouter.patch(
   "/:interviewId/cancel",
   validate({ params: interviewIdParamsSchema, body: cancelInterviewSchema }),
   cancelInterviewHandler
+);
+
+// "Create/synchronize this scheduled Interview into my connected Google
+// Calendar" — never creates a second Interview, only the ONE Calendar
+// event for an existing one (see interviewCalendarSync.service.ts).
+interviewDetailRouter.post(
+  "/:interviewId/google-calendar",
+  validate({ params: interviewIdParamsSchema, body: googleCalendarActionBodySchema }),
+  createGoogleCalendarEventHandler
+);
+
+// The one explicit retry/reconciliation endpoint.
+interviewDetailRouter.post(
+  "/:interviewId/google-calendar/sync",
+  validate({ params: interviewIdParamsSchema, body: googleCalendarActionBodySchema }),
+  syncGoogleCalendarEventHandler
 );
