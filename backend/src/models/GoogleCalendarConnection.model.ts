@@ -51,6 +51,18 @@ const googleCalendarConnectionSchema = new Schema(
     encrypted_refresh_token: { type: encryptedRefreshTokenSchema, required: true, select: false },
     granted_scopes: { type: [String], default: [] },
 
+    // Whether Google's own token introspection confirmed (at the most
+    // recent connect/reconnect) that the required calendar.events scope
+    // is ACTUALLY present on the issued access token — never inferred
+    // from granted_scopes/the OAuth response's optional `scope` field,
+    // and never assumed from the scopes this app requested (see
+    // googleCalendarOAuth.service.ts's exchangeCodeForTokens doc comment
+    // for the production incident this hardens against: Google can
+    // silently restrict a sensitive scope without any consent-time
+    // error). Defaults false — a connection is never presented as ready
+    // until this is verified true.
+    calendar_permission_granted: { type: Boolean, required: true, default: false },
+
     connected_at: { type: Date, required: true },
     revoked_at: { type: Date, default: null },
   },

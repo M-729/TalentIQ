@@ -2,6 +2,7 @@ import { Types, type FilterQuery } from "mongoose";
 import { Application, type ApplicationDoc, type ApplicationStatus } from "../../models/Application.model";
 import { Candidate } from "../../models/Candidate.model";
 import { Job } from "../../models/Job.model";
+import { HiringStep } from "../../models/HiringStep.model";
 import { AIScreening } from "../../models/AIScreening.model";
 import { NotFoundError } from "../../security/AppError";
 import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
@@ -150,10 +151,15 @@ export async function listApplications(companyId: string, filters: ListApplicati
 export async function getApplicationDetail(applicationId: string, companyId: string): Promise<ApplicationDetailDTO> {
   const application = await getAccessibleApplication(applicationId, companyId);
 
-  const [candidate, job, screeningSummaries] = await Promise.all([
+  const [candidate, job, screeningSummaries, currentStep] = await Promise.all([
     Candidate.findById(application.candidate_id),
     Job.findById(application.job_id),
     getLatestScreeningSummaries([application.id]),
+    // Resolved from the LIVE HiringStep (never a snapshot) — see
+    // ApplicationDetailDTO.current_step's own doc comment. null when the
+    // Application has no current stage, or (defensively) if
+    // current_step_id points at a stage that no longer resolves.
+    application.current_step_id ? HiringStep.findById(application.current_step_id).select("name type") : null,
   ]);
 
   // Defensive, not expected in practice: candidate_id is required on every
@@ -163,5 +169,5 @@ export async function getApplicationDetail(applicationId: string, companyId: str
     throw new NotFoundError("Application not found");
   }
 
-  return serializeApplicationDetail(application, candidate, job, screeningSummaries.get(application.id));
+  return serializeApplicationDetail(application, candidate, job, screeningSummaries.get(application.id), currentStep);
 }

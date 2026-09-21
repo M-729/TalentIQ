@@ -361,6 +361,43 @@ describe("HR Applications Management API", () => {
       });
     });
 
+    it("returns null current_step when the application has no current stage", async () => {
+      const { application } = await createApplication(companyA, hrA);
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.body.application.current_step).toBeNull();
+    });
+
+    it("returns the live current_step name/type, resolved from the current HiringStep", async () => {
+      const { job, application } = await createApplication(companyA, hrA);
+      const { HiringStep } = await import("../src/models/HiringStep.model");
+      const step = await HiringStep.create({ job_id: job.id, name: "Technical Interview", type: "interview", position: 0 });
+      await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.body.application.current_step).toEqual({ id: step.id, name: "Technical Interview", type: "interview" });
+    });
+
+    it("reflects a renamed HiringStep immediately (never a frozen snapshot)", async () => {
+      const { job, application } = await createApplication(companyA, hrA);
+      const { HiringStep } = await import("../src/models/HiringStep.model");
+      const step = await HiringStep.create({ job_id: job.id, name: "Technical Interview", type: "interview", position: 0 });
+      await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
+      await HiringStep.updateOne({ _id: step._id }, { $set: { name: "Engineering Interview" } });
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.body.application.current_step.name).toBe("Engineering Interview");
+    });
+
     it("never returns the CV storage_key", async () => {
       const { application } = await createApplication(companyA, hrA);
 

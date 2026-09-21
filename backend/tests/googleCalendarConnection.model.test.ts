@@ -21,6 +21,16 @@ describe("GoogleCalendarConnection model", () => {
     expect(doc.revoked_at).toBeNull();
   });
 
+  it("defaults calendar_permission_granted to false — a connection is never presented as healthy until verified", async () => {
+    const doc = await GoogleCalendarConnection.create(validAttrs());
+    expect(doc.calendar_permission_granted).toBe(false);
+  });
+
+  it("persists an explicitly verified calendar_permission_granted: true", async () => {
+    const doc = await GoogleCalendarConnection.create(validAttrs({ calendar_permission_granted: true }));
+    expect(doc.calendar_permission_granted).toBe(true);
+  });
+
   it("requires user_id", async () => {
     const attrs = validAttrs() as Record<string, unknown>;
     delete attrs.user_id;

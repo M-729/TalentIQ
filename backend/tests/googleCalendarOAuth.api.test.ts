@@ -156,6 +156,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: ["https://www.googleapis.com/auth/calendar.events"],
+        calendarPermissionGranted: true,
       });
 
       const res = await request(app).get(callbackUrl({ code: "auth-code", state }));
@@ -175,6 +176,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "super-secret-refresh-token",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
 
       const res = await request(app).get(callbackUrl({ code: "auth-code", state }));
@@ -189,6 +191,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
 
       const first = await request(app).get(callbackUrl({ code: "auth-code", state }));
@@ -206,6 +209,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "original-refresh-token",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code-1", state: firstState }));
 
@@ -214,6 +218,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: null,
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       const res = await request(app).get(callbackUrl({ code: "auth-code-2", state: secondState }));
       expect(res.headers.location).toContain("googleCalendar=connected");
@@ -252,6 +257,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code", state }));
 
@@ -260,6 +266,43 @@ describe("Google Calendar OAuth API", () => {
       expect(res.body.connected).toBe(true);
       expect(res.body.account_email).toBe("alice@gmail.com");
       expect(typeof res.body.connected_at).toBe("string");
+      expect(res.body.calendar_permission_granted).toBe(true);
+    });
+
+    it("reports calendar_permission_granted: true when Google's token introspection confirmed calendar.events", async () => {
+      const state = await connectAndCaptureState(hr, company.id);
+      mockExchangeCodeForTokens.mockResolvedValue({
+        refreshToken: "raw-refresh-token-value-1",
+        accountEmail: "alice@gmail.com",
+        scopes: ["https://www.googleapis.com/auth/calendar.events", "openid"],
+        calendarPermissionGranted: true,
+      });
+      await request(app).get(callbackUrl({ code: "auth-code", state }));
+
+      const res = await request(app).get(statusUrl()).set("Authorization", authHeaderFor(hr, company.id));
+      expect(res.body.connected).toBe(true);
+      expect(res.body.calendar_permission_granted).toBe(true);
+    });
+
+    it("reports calendar_permission_granted: false — and never presents the connection as fully healthy — when the required Calendar scope was not actually granted", async () => {
+      const state = await connectAndCaptureState(hr, company.id);
+      mockExchangeCodeForTokens.mockResolvedValue({
+        refreshToken: "raw-refresh-token-value-1",
+        accountEmail: "alice@gmail.com",
+        // Google's own introspection found only openid/email — NOT
+        // calendar.events (the exact production incident this hardens
+        // against: the OAuth response's own `scope` field/consent screen
+        // can't be trusted as proof of what was actually granted).
+        scopes: ["openid", "https://www.googleapis.com/auth/userinfo.email"],
+        calendarPermissionGranted: false,
+      });
+      await request(app).get(callbackUrl({ code: "auth-code", state }));
+
+      const res = await request(app).get(statusUrl()).set("Authorization", authHeaderFor(hr, company.id));
+      // Still "connected" (OAuth itself succeeded, a usable refresh token
+      // was stored) — but distinguishable from a fully healthy connection.
+      expect(res.body.connected).toBe(true);
+      expect(res.body.calendar_permission_granted).toBe(false);
     });
 
     it("never exposes encrypted token fields", async () => {
@@ -268,6 +311,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code", state }));
 
@@ -282,6 +326,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code", state }));
 
@@ -308,6 +353,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code", state }));
 
@@ -328,6 +374,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code", state }));
       mockRevokeRefreshToken.mockResolvedValue(false);
@@ -345,6 +392,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-1",
         accountEmail: "alice@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code", state }));
 
@@ -353,6 +401,7 @@ describe("Google Calendar OAuth API", () => {
         refreshToken: "raw-refresh-token-value-2",
         accountEmail: "bob@gmail.com",
         scopes: [],
+        calendarPermissionGranted: true,
       });
       await request(app).get(callbackUrl({ code: "auth-code-2", state: otherState }));
 

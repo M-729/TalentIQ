@@ -76,6 +76,8 @@ export interface ApplicationDetail {
     size_bytes: number;
   };
   screening: ApplicationScreeningSummary;
+  /** Resolved from the LIVE HiringStep (not a snapshot) — null when the application has no current stage. Lets the UI decide whether to offer "Schedule Interview" without a second request. */
+  current_step: { id: string; name: string; type: string } | null;
 }
 
 export interface Pagination {

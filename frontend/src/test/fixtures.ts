@@ -6,6 +6,7 @@ import type {
   HiringPipelineBoardColumn,
   HiringPipelineNeedsAttentionApplication,
 } from "@/types/hiringPipelineBoard";
+import type { Interview, InterviewListRow } from "@/types/interview";
 import type { Screening } from "@/types/screening";
 
 export function buildScreening(overrides: Partial<Screening> = {}): Screening {
@@ -142,6 +143,36 @@ export function buildApplicationDetail(overrides: Partial<ApplicationDetail> = {
       size_bytes: 253952,
     },
     screening: { has_screening: false },
+    current_step: null,
+    ...overrides,
+  };
+}
+
+export function buildInterview(overrides: Partial<Interview> = {}): Interview {
+  return {
+    id: "interview-1",
+    title: "Technical Interview",
+    stage: { id: "step-1", name: "Technical Interview", type: "interview" },
+    starts_at: "2024-02-01T10:00:00.000Z",
+    ends_at: "2024-02-01T11:00:00.000Z",
+    timezone: "Asia/Beirut",
+    status: "scheduled",
+    interviewers: [{ id: "user-1", name: "Alex Interviewer", email: "alex@example.test" }],
+    scheduled_by: { id: "user-2", name: "Hana HR" },
+    cancellation: null,
+    calendar: null,
+    latest_notification: null,
+    created_at: "2024-01-20T00:00:00.000Z",
+    updated_at: "2024-01-20T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function buildInterviewListRow(overrides: Partial<InterviewListRow> = {}): InterviewListRow {
+  return {
+    ...buildInterview(),
+    candidate: { id: "candidate-1", name: "Sarah Ahmed", email: "sarah@example.test" },
+    job: { id: "job-1", title: "Backend Developer" },
     ...overrides,
   };
 }

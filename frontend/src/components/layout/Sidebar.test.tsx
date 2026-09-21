@@ -59,4 +59,31 @@ describe("Sidebar navigation", () => {
     renderSidebarAt("/jobs");
     expect(screen.getByRole("link", { name: "Hiring Pipeline" })).not.toHaveClass("bg-sidebar-accent");
   });
+
+  it("renders Interviews as an enabled link, not a disabled placeholder", () => {
+    renderSidebarAt("/dashboard");
+    const link = screen.getByRole("link", { name: "Interviews" });
+    expect(link).toHaveAttribute("href", "/interviews");
+  });
+
+  it("highlights Interviews on /interviews", () => {
+    renderSidebarAt("/interviews");
+    expect(screen.getByRole("link", { name: "Interviews" })).toHaveClass("bg-sidebar-accent");
+  });
+
+  it("highlights Interviews on /interviews/:id", () => {
+    renderSidebarAt("/interviews/interview-1");
+    expect(screen.getByRole("link", { name: "Interviews" })).toHaveClass("bg-sidebar-accent");
+  });
+
+  it("renders Settings as an enabled link pointing at Integrations", () => {
+    renderSidebarAt("/dashboard");
+    const link = screen.getByRole("link", { name: "Settings" });
+    expect(link).toHaveAttribute("href", "/settings/integrations");
+  });
+
+  it("highlights Settings on /settings/integrations", () => {
+    renderSidebarAt("/settings/integrations");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveClass("bg-sidebar-accent");
+  });
 });

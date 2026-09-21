@@ -1,6 +1,7 @@
 import type { ApplicationDoc } from "../../models/Application.model";
 import type { CandidateDoc } from "../../models/Candidate.model";
 import type { JobDoc } from "../../models/Job.model";
+import type { HiringStepDoc } from "../../models/HiringStep.model";
 
 export interface ScreeningSummary {
   hasScreening: boolean;
@@ -111,6 +112,17 @@ export interface ApplicationDetailDTO {
     size_bytes: number;
   };
   screening: ScreeningSummaryDTO;
+  /**
+   * The application's current stage, resolved from the LIVE HiringStep
+   * (unlike Interview.stage_snapshot, which is deliberately frozen —
+   * there is no analogous "historical" concern here: an Application's
+   * current stage is, by definition, whatever the live pipeline says it
+   * is right now). null when the Application has no current stage (e.g.
+   * still "applied", never moved into the active pipeline). This is what
+   * lets the frontend decide whether to offer "Schedule Interview"
+   * without a second request.
+   */
+  current_step: { id: string; name: string; type: string } | null;
 }
 
 /**
@@ -125,7 +137,8 @@ export function serializeApplicationDetail(
   application: ApplicationDoc,
   candidate: CandidateDoc,
   job: JobDoc,
-  screeningSummary: ScreeningSummary | undefined
+  screeningSummary: ScreeningSummary | undefined,
+  currentStep: HiringStepDoc | null = null
 ): ApplicationDetailDTO {
   return {
     id: application.id,
@@ -158,5 +171,6 @@ export function serializeApplicationDetail(
       size_bytes: application.cv_file.size_bytes,
     },
     screening: serializeScreeningSummary(screeningSummary),
+    current_step: currentStep ? { id: currentStep.id, name: currentStep.name, type: currentStep.type } : null,
   };
 }

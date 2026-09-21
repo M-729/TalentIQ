@@ -31,6 +31,16 @@ jest.mock("../src/modules/integrations/googleCalendar/googleCalendarProvider", (
   };
 });
 
+// Scheduling now attempts a real candidate notification email (see
+// interviewNotification.service.ts) — mocked here at the same boundary
+// interview.api.test.ts uses, so this suite never depends on (or
+// accidentally exercises) real SMTP. Every test in this file schedules
+// at least one Interview via the helper below, so this is a top-level
+// mock, not a per-test spy.
+jest.mock("../src/services/email/email.service", () => ({
+  emailService: { send: jest.fn() },
+}));
+
 import {
   googleCalendarProvider,
   GoogleCalendarProviderError,
@@ -40,6 +50,7 @@ const mockCreateEvent = googleCalendarProvider.createEvent as jest.Mock;
 const mockUpdateEvent = googleCalendarProvider.updateEvent as jest.Mock;
 const mockCancelEvent = googleCalendarProvider.cancelEvent as jest.Mock;
 const mockGetEvent = googleCalendarProvider.getEvent as jest.Mock;
+const { emailService } = jest.requireMock("../src/services/email/email.service") as { emailService: { send: jest.Mock } };
 
 const app = createApp();
 
@@ -101,6 +112,7 @@ describe("Interview <-> Google Calendar sync API", () => {
     jobA = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Backend Developer", status: "active" });
     interviewStage = await HiringStep.create({ job_id: jobA.id, name: "Technical Interview", type: "interview", position: 0 });
 
+    emailService.send.mockReset().mockResolvedValue(undefined);
     mockCreateEvent.mockReset();
     mockUpdateEvent.mockReset();
     mockCancelEvent.mockReset();
@@ -122,14 +134,23 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
   }
 
-  async function connectGoogle(user: UserDoc, companyId: string, email = "owner@gmail.com") {
+  async function connectGoogle(
+    user: UserDoc,
+    companyId: string,
+    email = "owner@gmail.com",
+    overrides: Record<string, unknown> = {}
+  ) {
     return GoogleCalendarConnection.create({
       user_id: user.id,
       company_id: companyId,
       google_account_email: email,
       encrypted_refresh_token: encryptToken(`refresh-token-for-${user.id}`),
       granted_scopes: ["https://www.googleapis.com/auth/calendar.events"],
+      // A normal, fully-healthy connection fixture — tests exercising the
+      // Part 10 "permission missing" hardening pass an explicit override.
+      calendar_permission_granted: true,
       connected_at: new Date(),
+      ...overrides,
     });
   }
 
@@ -177,6 +198,18 @@ describe("Interview <-> Google Calendar sync API", () => {
       const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockCreateEvent).not.toHaveBeenCalled();
+    });
+
+    it("blocks event creation when the connection is missing the required Calendar permission, without calling the provider", async () => {
+      const { interviewId } = await scheduleInterview();
+      await connectGoogle(hrA, companyA.id, "owner@gmail.com", { calendar_permission_granted: false });
+
+      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      expect(res.status).toBe(409);
+      expect(mockCreateEvent).not.toHaveBeenCalled();
+
+      const stored = await Interview.findById(interviewId);
+      expect(stored!.calendar_event_id).toBeNull();
     });
 
     it("creates the event for a connected HR user on a scheduled Interview", async () => {
@@ -398,6 +431,32 @@ describe("Interview <-> Google Calendar sync API", () => {
       expect(mockUpdateEvent).not.toHaveBeenCalled();
     });
 
+    it("6. an identical reschedule retry causes no second Google Calendar sync call", async () => {
+      const { interviewId } = await scheduleInterview();
+      await connectGoogle(hrA, companyA.id);
+      mockCreateEvent.mockResolvedValue(successResult());
+      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+
+      mockUpdateEvent.mockResolvedValue(successResult());
+      const newStart = hoursFromNow(48);
+      const newEnd = hoursFromNow(49);
+      const body = { starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] };
+
+      const first = await request(app)
+        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(body);
+      expect(first.status).toBe(200);
+      expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+
+      const second = await request(app)
+        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(body);
+      expect(second.status).toBe(200);
+      expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
+    });
+
     it("patches the linked provider event with the new time/timezone on reschedule", async () => {
       const { interviewId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
@@ -522,6 +581,24 @@ describe("Interview <-> Google Calendar sync API", () => {
       expect(res.body.interview.calendar.sync_status).toBe("failed");
       expect(mockUpdateEvent).not.toHaveBeenCalled();
     });
+
+    it("produces a safe, retryable failed state when the owner's connection is missing the required Calendar permission", async () => {
+      const { interviewId } = await scheduleInterview();
+      const connection = await connectGoogle(hrA, companyA.id);
+      mockCreateEvent.mockResolvedValue(successResult());
+      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+
+      await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { calendar_permission_granted: false } });
+
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .set("Authorization", authHeaderFor(bobA, companyA.id))
+        .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.interview.calendar.sync_status).toBe("failed");
+      expect(mockUpdateEvent).not.toHaveBeenCalled();
+    });
   });
 
   // ===== CANCEL SYNC =====
@@ -600,6 +677,21 @@ describe("Interview <-> Google Calendar sync API", () => {
       expect(res.body.interview.calendar.sync_status).toBe("failed");
       expect(mockCancelEvent).not.toHaveBeenCalled();
     });
+
+    it("produces a safe failed state (not a crash) when the owner's connection is missing the required Calendar permission", async () => {
+      const { interviewId } = await scheduleInterview();
+      const connection = await connectGoogle(hrA, companyA.id);
+      mockCreateEvent.mockResolvedValue(successResult());
+      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+
+      await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { calendar_permission_granted: false } });
+
+      const res = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(bobA, companyA.id)).send({});
+      expect(res.status).toBe(200);
+      expect(res.body.interview.status).toBe("cancelled");
+      expect(res.body.interview.calendar.sync_status).toBe("failed");
+      expect(mockCancelEvent).not.toHaveBeenCalled();
+    });
   });
 
   // ===== RETRY / SYNC ENDPOINT =====
@@ -614,6 +706,23 @@ describe("Interview <-> Google Calendar sync API", () => {
       const { interviewId } = await scheduleInterview();
       const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
+    });
+
+    it("blocks retry when the owner's connection is missing the required Calendar permission, without calling the provider", async () => {
+      const { interviewId } = await scheduleInterview();
+      const connection = await connectGoogle(hrA, companyA.id);
+      mockCreateEvent.mockResolvedValue(successResult());
+      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+
+      await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { calendar_permission_granted: false } });
+
+      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      expect(res.status).toBe(409);
+      expect(mockGetEvent).not.toHaveBeenCalled();
+      expect(mockUpdateEvent).not.toHaveBeenCalled();
+
+      const stored = await Interview.findById(interviewId);
+      expect(stored!.calendar_sync_status).toBe("failed");
     });
 
     it("retries a failed create as an initial create (idempotent, no duplicate)", async () => {
@@ -691,17 +800,21 @@ describe("Interview <-> Google Calendar sync API", () => {
       expect(res.body.interview.calendar.meeting_url).toBeNull();
     });
 
-    it("does not send a duplicate Nodemailer email for calendar events", async () => {
-      const { emailService } = await import("../src/services/email/email.service");
-      const sendSpy = jest.spyOn(emailService, "send").mockResolvedValue(undefined as never);
-
+    it("does not send a duplicate Nodemailer email for calendar events (only the schedule notification email is sent)", async () => {
       const { interviewId } = await scheduleInterview();
+      // Scheduling itself legitimately sends exactly one candidate
+      // notification email (see interviewNotification.service.ts) —
+      // this test's actual point is that the SEPARATE "Add to Google
+      // Calendar" action does not trigger a second one on top of it (see
+      // this ticket's Part 12: Google Calendar/Meet creation is never a
+      // reason to send a second TalentIQ email).
+      expect(emailService.send).toHaveBeenCalledTimes(1);
+
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
       await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      expect(sendSpy).not.toHaveBeenCalled();
-      sendSpy.mockRestore();
+      expect(emailService.send).toHaveBeenCalledTimes(1);
     });
   });
 });

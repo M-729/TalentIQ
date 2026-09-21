@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { HiringPipelineApplicationCard } from "@/components/hiringPipeline/HiringPipelineApplicationCard";
 import type { HiringPipelineApplicationCard as ApplicationCardData } from "@/types/hiringPipelineBoard";
+import type { HiringStepType } from "@/types/hiringStep";
 
 export interface HiringPipelineColumnProps {
   title: string;
@@ -9,6 +10,9 @@ export interface HiringPipelineColumnProps {
   count: number;
   applications: ApplicationCardData[];
   onMoveApplication: (application: ApplicationCardData) => void;
+  /** The stage's own type — undefined for the virtual "New Applicants" column, which is never a real HiringStep. Only "interview" ever renders a Schedule Interview action on this column's cards. */
+  stageType?: HiringStepType;
+  onScheduleInterview?: (application: ApplicationCardData) => void;
 }
 
 // A fixed, sensible min width per column (not compressed to fit many
@@ -22,6 +26,8 @@ export function HiringPipelineColumn({
   count,
   applications,
   onMoveApplication,
+  stageType,
+  onScheduleInterview,
 }: HiringPipelineColumnProps) {
   return (
     <div className="flex w-72 shrink-0 flex-col gap-3">
@@ -45,6 +51,9 @@ export function HiringPipelineColumn({
               key={application.id}
               application={application}
               onMove={() => onMoveApplication(application)}
+              onScheduleInterview={
+                stageType === "interview" && onScheduleInterview ? () => onScheduleInterview(application) : undefined
+              }
             />
           ))
         )}

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AiScreeningCard } from "@/components/applications/AiScreeningCard";
 import { ApplicationDetailHeader } from "@/components/applications/ApplicationDetailHeader";
 import { ApplicationInfoCard } from "@/components/applications/ApplicationInfoCard";
+import { ApplicationInterviewsSection } from "@/components/applications/ApplicationInterviewsSection";
 import { CandidateInfoCard } from "@/components/applications/CandidateInfoCard";
 import { CvInfoCard } from "@/components/applications/CvInfoCard";
 import { JobInfoCard } from "@/components/applications/JobInfoCard";
@@ -83,6 +84,8 @@ export function ApplicationDetailPage() {
         <CvInfoCard cv={application.cv} />
         <ApplicationInfoCard application={application} />
       </div>
+
+      <ApplicationInterviewsSection application={application} />
 
       <AiScreeningCard applicationId={application.id} screening={application.screening} />
     </div>

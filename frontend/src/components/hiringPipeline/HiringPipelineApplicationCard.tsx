@@ -24,6 +24,8 @@ function screeningLabel(screening: ApplicationCardData["screening"]): string {
 export interface HiringPipelineApplicationCardProps {
   application: ApplicationCardData;
   onMove: () => void;
+  /** Present only for a card currently sitting in an interview-type stage — see HiringPipelineColumn's stageType prop. Never renders a Schedule Interview action otherwise. */
+  onScheduleInterview?: () => void;
 }
 
 // The candidate's name is deliberately plain text, not a link — "View
@@ -31,7 +33,7 @@ export interface HiringPipelineApplicationCardProps {
 // ApplicationsTable.tsx's own pattern), since a card also has an
 // interactive Move button and a link wrapping other interactive elements
 // is both invalid HTML and an accessibility hazard.
-export function HiringPipelineApplicationCard({ application, onMove }: HiringPipelineApplicationCardProps) {
+export function HiringPipelineApplicationCard({ application, onMove, onScheduleInterview }: HiringPipelineApplicationCardProps) {
   return (
     <Card>
       <CardContent className="space-y-2 p-3">
@@ -51,6 +53,16 @@ export function HiringPipelineApplicationCard({ application, onMove }: HiringPip
           <Button size="sm" onClick={onMove} aria-label={`Move ${application.candidate.full_name}`}>
             Move
           </Button>
+          {onScheduleInterview && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onScheduleInterview}
+              aria-label={`Schedule interview for ${application.candidate.full_name}`}
+            >
+              Schedule Interview
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

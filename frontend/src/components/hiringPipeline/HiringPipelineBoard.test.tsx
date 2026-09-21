@@ -8,11 +8,16 @@ import {
   buildHiringPipelineBoard,
   buildHiringPipelineBoardColumn,
   buildHiringPipelineNeedsAttentionApplication,
+  buildInterview,
 } from "@/test/fixtures";
 import { ApiError } from "@/services/api/client";
 import * as hiringPipelineBoardApi from "@/services/api/hiringPipelineBoard";
+import * as interviewsApi from "@/services/api/interviews";
+import * as usersApi from "@/services/api/users";
 
 vi.mock("@/services/api/hiringPipelineBoard");
+vi.mock("@/services/api/interviews");
+vi.mock("@/services/api/users");
 
 const JOB_ID = "job-a";
 
@@ -34,6 +39,8 @@ describe("HiringPipelineBoard", () => {
   beforeEach(() => {
     vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockReset();
     vi.mocked(hiringPipelineBoardApi.moveApplicationToHiringStep).mockReset();
+    vi.mocked(interviewsApi.listApplicationInterviews).mockReset();
+    vi.mocked(usersApi.listInterviewerCandidates).mockReset().mockResolvedValue({ users: [] });
   });
 
   // ===== FETCH / LOADING / ERRORS =====
@@ -739,6 +746,134 @@ describe("HiringPipelineBoard", () => {
       expect(screen.queryByRole("heading", { name: "Review" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Interview" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Assessment" })).not.toBeInTheDocument();
+    });
+  });
+
+  // ===== SCHEDULE INTERVIEW CONTEXTUAL ACTION =====
+  describe("schedule interview contextual action", () => {
+    it("exposes a Schedule Interview action for a candidate in an interview-type stage", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Final Interview",
+              type: "interview",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+
+      expect(await screen.findByRole("button", { name: "Schedule interview for Sarah Ahmed" })).toBeInTheDocument();
+    });
+
+    it("does not expose a Schedule Interview action for a non-interview stage", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              type: "review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+
+      await screen.findByRole("heading", { name: "Application Review" });
+      expect(screen.queryByRole("button", { name: /Schedule interview/ })).not.toBeInTheDocument();
+    });
+
+    it("does not expose a Schedule Interview action for New Applicants (never a real HiringStep)", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [],
+          unassigned: {
+            count: 1,
+            applications: [buildHiringPipelineApplicationCard({ candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+          },
+        })
+      );
+      renderBoard();
+
+      await screen.findByText("New Applicants");
+      expect(screen.queryByRole("button", { name: /Schedule interview/ })).not.toBeInTheDocument();
+    });
+
+    it("never requests an application's interviews on initial board render (no N+1 fetch per card)", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Final Interview",
+              type: "interview",
+              count: 2,
+              applications: [
+                buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } }),
+                buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "Omar Ali", email: "omar@example.test" } }),
+              ],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+
+      await screen.findByRole("heading", { name: "Final Interview" });
+      expect(interviewsApi.listApplicationInterviews).not.toHaveBeenCalled();
+    });
+
+    it("fetches only the clicked application's interviews, and opens the schedule form when none exists yet for this stage", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Final Interview",
+              type: "interview",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+        })
+      );
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({ interviews: [] });
+      renderBoard();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Schedule interview for Sarah Ahmed" }));
+
+      await waitFor(() => expect(interviewsApi.listApplicationInterviews).toHaveBeenCalledWith("a1", expect.anything()));
+      expect(await screen.findByRole("heading", { name: "Schedule interview" })).toBeInTheDocument();
+    });
+
+    it("opens the existing interview instead of the schedule form when an active one already exists for this exact stage", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Final Interview",
+              type: "interview",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+        })
+      );
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ id: "existing-interview-1", stage: { id: "step-interview", name: "Final Interview", type: "interview" }, status: "scheduled" })],
+      });
+      renderBoard();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Schedule interview for Sarah Ahmed" }));
+
+      await waitFor(() => expect(screen.queryByRole("heading", { name: "Schedule interview" })).not.toBeInTheDocument());
     });
   });
 

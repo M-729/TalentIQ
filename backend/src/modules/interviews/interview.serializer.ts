@@ -1,4 +1,5 @@
 import type { InterviewDoc } from "../../models/Interview.model";
+import type { LatestNotificationSummary } from "./interviewNotification.service";
 
 export interface UserRef {
   id: string;
@@ -32,6 +33,11 @@ export interface InterviewCalendarDTO {
   last_synced_at: string | null;
 }
 
+export interface LatestNotificationDTO {
+  category: string;
+  status: string;
+}
+
 export interface InterviewDTO {
   id: string;
   title: string;
@@ -45,6 +51,8 @@ export interface InterviewDTO {
   cancellation: InterviewCancellationDTO | null;
   /** null when this Interview has no Google Calendar integration at all. */
   calendar: InterviewCalendarDTO | null;
+  /** The most recent candidate email notification's category+status — null when none has ever been attempted. Full history lives at GET /interviews/:id/notifications. */
+  latest_notification: LatestNotificationDTO | null;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +62,26 @@ const UNKNOWN_USER_NAME = "Unknown";
 function resolveActor(userMap: Map<string, UserRef>, userId: string): ActorDTO {
   const user = userMap.get(userId);
   return { id: userId, name: user?.name ?? UNKNOWN_USER_NAME };
+}
+
+function buildInterviewers(doc: InterviewDoc, userMap: Map<string, UserRef>): InterviewerDTO[] {
+  return doc.interviewer_user_ids.map((id) => {
+    const userId = id.toString();
+    const user = userMap.get(userId);
+    return { id: userId, name: user?.name ?? UNKNOWN_USER_NAME, email: user?.email ?? "" };
+  });
+}
+
+/** Shared by serializeInterview and serializeInterviewListRow — the exact same "provider-neutral, owner-connection-derived" shape either way. */
+function buildCalendarDTO(doc: InterviewDoc, ownerConnectedMap: Map<string, boolean>): InterviewCalendarDTO | null {
+  if (!doc.calendar_provider) return null;
+  return {
+    provider: doc.calendar_provider,
+    connected: doc.calendar_owner_user_id ? (ownerConnectedMap.get(doc.calendar_owner_user_id.toString()) ?? false) : false,
+    sync_status: doc.calendar_sync_status,
+    meeting_url: doc.meeting_url ?? null,
+    last_synced_at: doc.calendar_last_synced_at ? doc.calendar_last_synced_at.toISOString() : null,
+  };
 }
 
 /**
@@ -82,14 +110,9 @@ function resolveActor(userMap: Map<string, UserRef>, userId: string): ActorDTO {
 export function serializeInterview(
   doc: InterviewDoc,
   userMap: Map<string, UserRef>,
-  ownerConnectedMap: Map<string, boolean> = new Map()
+  ownerConnectedMap: Map<string, boolean> = new Map(),
+  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map()
 ): InterviewDTO {
-  const interviewers: InterviewerDTO[] = doc.interviewer_user_ids.map((id) => {
-    const userId = id.toString();
-    const user = userMap.get(userId);
-    return { id: userId, name: user?.name ?? UNKNOWN_USER_NAME, email: user?.email ?? "" };
-  });
-
   return {
     id: doc.id,
     title: doc.title,
@@ -102,7 +125,7 @@ export function serializeInterview(
     ends_at: doc.ends_at.toISOString(),
     timezone: doc.timezone,
     status: doc.status,
-    interviewers,
+    interviewers: buildInterviewers(doc, userMap),
     scheduled_by: resolveActor(userMap, doc.scheduled_by.toString()),
     cancellation:
       doc.status === "cancelled"
@@ -115,15 +138,8 @@ export function serializeInterview(
             reason: doc.cancellation_reason ?? null,
           }
         : null,
-    calendar: doc.calendar_provider
-      ? {
-          provider: doc.calendar_provider,
-          connected: doc.calendar_owner_user_id ? (ownerConnectedMap.get(doc.calendar_owner_user_id.toString()) ?? false) : false,
-          sync_status: doc.calendar_sync_status,
-          meeting_url: doc.meeting_url ?? null,
-          last_synced_at: doc.calendar_last_synced_at ? doc.calendar_last_synced_at.toISOString() : null,
-        }
-      : null,
+    calendar: buildCalendarDTO(doc, ownerConnectedMap),
+    latest_notification: latestNotificationMap.get(doc.id) ?? null,
     // Always set by Mongoose (timestamps: { createdAt: "created_at", ... })
     // — the schema-inferred type just doesn't capture that as non-optional.
     created_at: doc.created_at!.toISOString(),
@@ -134,7 +150,111 @@ export function serializeInterview(
 export function serializeInterviews(
   docs: InterviewDoc[],
   userMap: Map<string, UserRef>,
-  ownerConnectedMap: Map<string, boolean> = new Map()
+  ownerConnectedMap: Map<string, boolean> = new Map(),
+  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map()
 ): InterviewDTO[] {
-  return docs.map((doc) => serializeInterview(doc, userMap, ownerConnectedMap));
+  return docs.map((doc) => serializeInterview(doc, userMap, ownerConnectedMap, latestNotificationMap));
+}
+
+export interface InterviewDetailDTO extends InterviewDTO {
+  /** null only if the owning Application/Candidate could not be resolved (defensive — should not happen in practice). */
+  candidate: CandidateRef | null;
+  job: JobRef | null;
+}
+
+/**
+ * The single-Interview detail endpoint's DTO — a superset of InterviewDTO
+ * that also names the candidate/job, since GET /interviews/:interviewId is
+ * reachable directly (e.g. from the company-wide /interviews list) without
+ * the caller already being on that Application's own detail page. The
+ * per-Application nested list (serializeInterview/serializeInterviews)
+ * deliberately keeps omitting them — that context already has its own
+ * Application detail page for candidate/job info.
+ */
+export function serializeInterviewDetail(
+  doc: InterviewDoc,
+  userMap: Map<string, UserRef>,
+  candidate: CandidateRef | null,
+  job: JobRef | null,
+  ownerConnectedMap: Map<string, boolean> = new Map(),
+  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map()
+): InterviewDetailDTO {
+  return {
+    ...serializeInterview(doc, userMap, ownerConnectedMap, latestNotificationMap),
+    candidate,
+    job,
+  };
+}
+
+export interface CandidateRef {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface JobRef {
+  id: string;
+  title: string;
+}
+
+export interface InterviewListRowDTO {
+  id: string;
+  title: string;
+  /** null only if the owning Application/Candidate could not be resolved (defensive — should not happen in practice). */
+  candidate: CandidateRef | null;
+  job: JobRef | null;
+  stage: { id: string; name: string; type: string };
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  status: string;
+  interviewers: InterviewerDTO[];
+  calendar: InterviewCalendarDTO | null;
+  latest_notification: LatestNotificationDTO | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InterviewListRowContext {
+  userMap: Map<string, UserRef>;
+  /** Keyed by Interview.application_id — see interview.service.ts's listInterviewsForCompany. */
+  candidateByApplicationId: Map<string, CandidateRef>;
+  /** Keyed by Interview.job_id. */
+  jobById: Map<string, JobRef>;
+  ownerConnectedMap?: Map<string, boolean>;
+  /** Keyed by Interview id — see interviewNotification.service.ts's batchLatestNotificationStatus. */
+  latestNotificationMap?: Map<string, LatestNotificationSummary>;
+}
+
+/**
+ * The company-wide /interviews list row — richer than serializeInterview
+ * (which is scoped to a single Application the caller already knows, so it
+ * never needs to name the candidate/job). Same exclusions apply: no raw
+ * Google event id, no calendar_owner_user_id, no company/internal fields.
+ */
+export function serializeInterviewListRow(doc: InterviewDoc, ctx: InterviewListRowContext): InterviewListRowDTO {
+  return {
+    id: doc.id,
+    title: doc.title,
+    candidate: ctx.candidateByApplicationId.get(doc.application_id.toString()) ?? null,
+    job: ctx.jobById.get(doc.job_id.toString()) ?? null,
+    stage: {
+      id: doc.hiring_step_id.toString(),
+      name: doc.stage_snapshot.name,
+      type: doc.stage_snapshot.type,
+    },
+    starts_at: doc.starts_at.toISOString(),
+    ends_at: doc.ends_at.toISOString(),
+    timezone: doc.timezone,
+    status: doc.status,
+    interviewers: buildInterviewers(doc, ctx.userMap),
+    calendar: buildCalendarDTO(doc, ctx.ownerConnectedMap ?? new Map()),
+    latest_notification: (ctx.latestNotificationMap ?? new Map()).get(doc.id) ?? null,
+    created_at: doc.created_at!.toISOString(),
+    updated_at: doc.updated_at!.toISOString(),
+  };
+}
+
+export function serializeInterviewListRows(docs: InterviewDoc[], ctx: InterviewListRowContext): InterviewListRowDTO[] {
+  return docs.map((doc) => serializeInterviewListRow(doc, ctx));
 }

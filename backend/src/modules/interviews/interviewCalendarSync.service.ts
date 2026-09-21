@@ -21,6 +21,10 @@ const NOT_CONNECTED_MESSAGE = "Connect your Google Calendar to schedule intervie
 const NO_INTEGRATION_MESSAGE = "This interview has no Google Calendar integration to synchronize.";
 const OWNER_DISCONNECTED_MESSAGE =
   "The Google account that owns this event is no longer connected. Ask them to reconnect, or contact an admin.";
+const MISSING_CALENDAR_PERMISSION_MESSAGE =
+  "The connected Google account did not grant Calendar permission. Reconnect Google Calendar and approve the Calendar permission this time.";
+const OWNER_MISSING_CALENDAR_PERMISSION_MESSAGE =
+  "The Google account that owns this event did not grant Calendar permission. Ask them to reconnect and approve the Calendar permission, or contact an admin.";
 
 /**
  * Never a raw Google error reaches the client — this is the one place a
@@ -218,6 +222,13 @@ export async function createGoogleCalendarEvent(companyId: string, userId: strin
   if (!connection) {
     throw new ConflictError(NOT_CONNECTED_MESSAGE);
   }
+  if (!connection.calendar_permission_granted) {
+    // Fails fast on our own verified record rather than letting this
+    // reach Google and get back a 403 whose `reason` may or may not
+    // cleanly say so (see googleCalendar.service.ts's mapGoogleApiError
+    // doc comment — a 403's reason is not always reliably diagnostic).
+    throw new ConflictError(MISSING_CALENDAR_PERMISSION_MESSAGE);
+  }
 
   const attendeeEmails = await resolveAttendeeEmails(interview);
   const eventInput = await buildEventInput(interview, attendeeEmails);
@@ -260,6 +271,10 @@ export async function syncGoogleCalendarEvent(companyId: string, interviewId: st
   if (!connection) {
     await markSyncFailed(interviewId, "authorization_required");
     throw new ConflictError(OWNER_DISCONNECTED_MESSAGE);
+  }
+  if (!connection.calendar_permission_granted) {
+    await markSyncFailed(interviewId, "authorization_required");
+    throw new ConflictError(OWNER_MISSING_CALENDAR_PERMISSION_MESSAGE);
   }
   const refreshToken = decryptConnectionRefreshToken(connection);
 
@@ -326,6 +341,10 @@ export async function bestEffortSyncAfterReschedule(interview: InterviewDoc): Pr
     await markSyncFailed(interview.id, "authorization_required");
     return (await Interview.findById(interview.id))!;
   }
+  if (!connection.calendar_permission_granted) {
+    await markSyncFailed(interview.id, "authorization_required");
+    return (await Interview.findById(interview.id))!;
+  }
   const refreshToken = decryptConnectionRefreshToken(connection);
 
   try {
@@ -357,6 +376,10 @@ export async function bestEffortSyncAfterCancel(interview: InterviewDoc): Promis
   const ownerUserId = interview.calendar_owner_user_id.toString();
   const connection = await getActiveConnection(ownerUserId);
   if (!connection) {
+    await markSyncFailed(interview.id, "authorization_required");
+    return (await Interview.findById(interview.id))!;
+  }
+  if (!connection.calendar_permission_granted) {
     await markSyncFailed(interview.id, "authorization_required");
     return (await Interview.findById(interview.id))!;
   }

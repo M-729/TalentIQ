@@ -9,6 +9,7 @@ import { HiringPipelineColumn } from "@/components/hiringPipeline/HiringPipeline
 import { HiringPipelineNeedsAttention } from "@/components/hiringPipeline/HiringPipelineNeedsAttention";
 import { HiringStepTypeBadge } from "@/components/hiringPipeline/HiringStepTypeBadge";
 import { MoveApplicationDialog } from "@/components/hiringPipeline/MoveApplicationDialog";
+import { PipelineScheduleInterviewGate } from "@/components/interviews/PipelineScheduleInterviewGate";
 import { useHiringPipelineBoard } from "@/hooks/useHiringPipelineBoard";
 import type { HiringPipelineApplicationCard } from "@/types/hiringPipelineBoard";
 
@@ -16,6 +17,12 @@ interface MoveTarget {
   application: HiringPipelineApplicationCard;
   currentStepId: string | null;
   currentLabel: string;
+}
+
+interface ScheduleTarget {
+  applicationId: string;
+  stepId: string;
+  stepName: string;
 }
 
 function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -61,6 +68,7 @@ export interface HiringPipelineBoardProps {
 export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipelineBoardProps) {
   const { board, isLoading, error, refetch } = useHiringPipelineBoard(jobId);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<ScheduleTarget | null>(null);
 
   if (isLoading) {
     return <BoardSkeleton />;
@@ -119,6 +127,10 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
               onMoveApplication={(application) =>
                 setMoveTarget({ application, currentStepId: stage.id, currentLabel: stage.name })
               }
+              stageType={stage.type}
+              onScheduleInterview={(application) =>
+                setScheduleTarget({ applicationId: application.id, stepId: stage.id, stepName: stage.name })
+              }
             />
           ))}
         </div>
@@ -133,6 +145,27 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
         availableStages={board.stages.map((stage) => ({ id: stage.id, name: stage.name }))}
         onRefetch={refetch}
       />
+
+      {/* Scheduling is always an explicit click here — never triggered by
+          moving a card into an interview-type stage. Mounted only while a
+          target is set, so it lazily fetches that ONE application's
+          interviews on demand rather than for every card up front. */}
+      {scheduleTarget && (
+        <PipelineScheduleInterviewGate
+          applicationId={scheduleTarget.applicationId}
+          stepId={scheduleTarget.stepId}
+          stepName={scheduleTarget.stepName}
+          onClose={() => setScheduleTarget(null)}
+          onScheduled={() => {
+            setScheduleTarget(null);
+            // Only the relevant data — a full board refetch, since a
+            // newly scheduled Interview doesn't change this application's
+            // stage/position, but this keeps the board's own read-model
+            // consistent with anything else that changed.
+            refetch();
+          }}
+        />
+      )}
     </div>
   );
 }

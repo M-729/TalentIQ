@@ -36,6 +36,8 @@ export interface UpsertConnectionParams {
   /** null when Google omitted it on a re-consent — see this function's doc comment. */
   refreshToken: string | null;
   scopes: string[];
+  /** Verified via Google's own token introspection — see googleCalendarOAuth.service.ts's exchangeCodeForTokens. Always (re)written on every connect/reconnect, unlike encrypted_refresh_token below. */
+  calendarPermissionGranted: boolean;
 }
 
 /**
@@ -58,12 +60,17 @@ export async function upsertConnection(params: UpsertConnectionParams): Promise<
     company_id: string;
     google_account_email: string;
     granted_scopes: string[];
+    calendar_permission_granted: boolean;
     connected_at: Date;
     encrypted_refresh_token?: EncryptedTokenPayload;
   } = {
     company_id: params.companyId,
     google_account_email: params.email,
     granted_scopes: params.scopes,
+    // Always re-written on every connect/reconnect — unlike
+    // encrypted_refresh_token below, there's no "Google omitted this"
+    // ambiguity here: every exchange verifies it fresh.
+    calendar_permission_granted: params.calendarPermissionGranted,
     connected_at: new Date(),
   };
   if (params.refreshToken) {
@@ -89,6 +96,7 @@ export async function upsertConnection(params: UpsertConnectionParams): Promise<
     google_account_email: params.email,
     encrypted_refresh_token: encryptToken(params.refreshToken),
     granted_scopes: params.scopes,
+    calendar_permission_granted: params.calendarPermissionGranted,
     connected_at: new Date(),
   });
 }

@@ -36,11 +36,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Applications", icon: FileText, to: "/applications" },
   { label: "Hiring Pipeline", icon: Workflow, to: "/hiring-pipeline" },
   { label: "Assessments", icon: ClipboardCheck },
-  { label: "Interviews", icon: CalendarDays },
+  // No `end` prop, matching Applications above — active for /interviews
+  // and /interviews/:id alike.
+  { label: "Interviews", icon: CalendarDays, to: "/interviews" },
   { label: "Emails", icon: Mail },
   { label: "Offers", icon: FileSignature },
   { label: "Analytics", icon: BarChart3 },
-  { label: "Settings", icon: Settings },
+  { label: "Settings", icon: Settings, to: "/settings/integrations" },
 ];
 
 export function Sidebar({ className }: { className?: string }) {

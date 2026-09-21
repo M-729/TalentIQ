@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Types } from "mongoose";
+import { INTERVIEW_STATUSES } from "../../models/Interview.model";
 import { isValidIanaTimeZone } from "../../utils/timezone";
 
 const objectIdString = (label: string) =>
@@ -12,6 +13,19 @@ export const applicationIdParamsSchema = z.object({
 export const interviewIdParamsSchema = z.object({
   interviewId: objectIdString("interview id"),
 });
+
+// Same pagination shape/defaults as applicationHr.validation.ts's
+// listApplicationsQuerySchema — a safe max limit so a client can't
+// request an unbounded page size.
+export const listInterviewsQuerySchema = z.object({
+  status: z.enum(INTERVIEW_STATUSES).optional(),
+  jobId: objectIdString("job id").optional(),
+  when: z.enum(["upcoming", "past"]).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+export type ListInterviewsQuery = z.infer<typeof listInterviewsQuerySchema>;
 
 const MAX_DURATION_MS = 8 * 60 * 60 * 1000;
 

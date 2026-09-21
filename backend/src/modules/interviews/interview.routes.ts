@@ -6,16 +6,19 @@ import {
   cancelInterviewHandler,
   createGoogleCalendarEventHandler,
   getInterviewHandler,
+  listInterviewsForCompanyHandler,
   listInterviewsHandler,
   rescheduleInterviewHandler,
   scheduleInterviewHandler,
   syncGoogleCalendarEventHandler,
 } from "./interview.controller";
+import { listInterviewNotificationsHandler } from "./interviewNotification.controller";
 import {
   applicationIdParamsSchema,
   cancelInterviewSchema,
   googleCalendarActionBodySchema,
   interviewIdParamsSchema,
+  listInterviewsQuerySchema,
   rescheduleInterviewSchema,
   scheduleInterviewSchema,
 } from "./interview.validation";
@@ -40,6 +43,12 @@ interviewRouter.get("/", validate({ params: applicationIdParamsSchema }), listIn
 export const interviewDetailRouter = Router();
 
 interviewDetailRouter.use(requireAuth, requireRole("HR", "ADMIN"));
+
+// Company-wide list for the /interviews page. Registered at the router's
+// own root — never collides with "/:interviewId" below regardless of
+// order (a request to the exact mount path only ever matches "/", one
+// requiring a path segment only ever matches "/:interviewId").
+interviewDetailRouter.get("/", validate({ query: listInterviewsQuerySchema }), listInterviewsForCompanyHandler);
 
 interviewDetailRouter.get("/:interviewId", validate({ params: interviewIdParamsSchema }), getInterviewHandler);
 interviewDetailRouter.patch(
@@ -67,4 +76,14 @@ interviewDetailRouter.post(
   "/:interviewId/google-calendar/sync",
   validate({ params: interviewIdParamsSchema, body: googleCalendarActionBodySchema }),
   syncGoogleCalendarEventHandler
+);
+
+// Full candidate-notification history for this Interview — see
+// interviewNotification.service.ts. Retry lives on its own top-level
+// route (interviewNotificationRetry.routes.ts) since it addresses a
+// notification directly by id, not nested under an interviewId.
+interviewDetailRouter.get(
+  "/:interviewId/notifications",
+  validate({ params: interviewIdParamsSchema }),
+  listInterviewNotificationsHandler
 );

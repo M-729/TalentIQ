@@ -8,6 +8,9 @@ import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { EditJobPage } from "@/pages/EditJobPage";
 import { HiringPipelinePage } from "@/pages/HiringPipelinePage";
+import { IntegrationsSettingsPage } from "@/pages/IntegrationsSettingsPage";
+import { InterviewDetailPage } from "@/pages/InterviewDetailPage";
+import { InterviewsPage } from "@/pages/InterviewsPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -51,6 +54,9 @@ export const router = createBrowserRouter([
           { path: "/applications/:applicationId", element: <ApplicationDetailPage /> },
           { path: "/applications/:applicationId/screening", element: <ApplicationScreeningPage /> },
           { path: "/hiring-pipeline", element: <HiringPipelinePage /> },
+          { path: "/interviews", element: <InterviewsPage /> },
+          { path: "/interviews/:interviewId", element: <InterviewDetailPage /> },
+          { path: "/settings/integrations", element: <IntegrationsSettingsPage /> },
         ],
       },
     ],

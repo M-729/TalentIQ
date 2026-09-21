@@ -64,6 +64,7 @@ export async function callbackHandler(req: Request, res: Response): Promise<void
       email: exchanged.accountEmail,
       refreshToken: exchanged.refreshToken,
       scopes: exchanged.scopes,
+      calendarPermissionGranted: exchanged.calendarPermissionGranted,
     });
 
     res.redirect(`${redirectBase}?googleCalendar=connected`);
@@ -87,6 +88,12 @@ export const statusHandler = asyncHandler(async (req: Request, res: Response) =>
     connected: true,
     account_email: connection.google_account_email,
     connected_at: connection.connected_at.toISOString(),
+    // Lets the frontend distinguish "connected and ready" from
+    // "connected but the required Calendar permission is missing" —
+    // never inferred/assumed, only ever set by verified token
+    // introspection at connect/reconnect time (see
+    // googleCalendarOAuth.service.ts's exchangeCodeForTokens).
+    calendar_permission_granted: connection.calendar_permission_granted,
   });
 });
 

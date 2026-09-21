@@ -550,6 +550,27 @@ describe("Interview scheduling API", () => {
       expect(res.body.interview.id).toBe(scheduleRes.body.interview.id);
     });
 
+    it("returns candidate and job on Interview detail (unlike the per-application list)", async () => {
+      const application = await createApplicationInInterviewStage();
+      const candidate = await Candidate.findById(application.candidate_id);
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      const res = await request(app)
+        .get(interviewUrl(scheduleRes.body.interview.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.body.interview.candidate).toEqual({ id: candidate!.id, name: candidate!.full_name, email: candidate!.email });
+      expect(res.body.interview.job).toEqual({ id: jobA.id, title: jobA.title });
+
+      // The per-application list deliberately omits these — that page
+      // already has its own candidate/job context.
+      const listRes = await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(listRes.body.interviews[0]).not.toHaveProperty("candidate");
+      expect(listRes.body.interviews[0]).not.toHaveProperty("job");
+    });
+
     it("returns 404 for cross-company Interview detail", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
@@ -572,7 +593,22 @@ describe("Interview scheduling API", () => {
 
       expect(JSON.stringify(scheduleRes.body)).not.toMatch(/__v|password|company_id|job_id|application_id/i);
       expect(Object.keys(scheduleRes.body.interview).sort()).toEqual(
-        ["id", "title", "stage", "starts_at", "ends_at", "timezone", "status", "interviewers", "scheduled_by", "cancellation", "calendar", "created_at", "updated_at"].sort()
+        [
+          "id",
+          "title",
+          "stage",
+          "starts_at",
+          "ends_at",
+          "timezone",
+          "status",
+          "interviewers",
+          "scheduled_by",
+          "cancellation",
+          "calendar",
+          "latest_notification",
+          "created_at",
+          "updated_at",
+        ].sort()
       );
     });
 
@@ -941,14 +977,20 @@ describe("Interview scheduling API", () => {
       expect(mockScreeningHistory).not.toHaveBeenCalled();
     });
 
-    it("scheduling an Interview does NOT send email", async () => {
+    // Scheduling now DOES attempt a candidate "Interview scheduled" email
+    // — this is the entire point of the Candidate Interview Email
+    // Notifications ticket. Full coverage (recipient derivation, content,
+    // delivery-failure isolation, retry, idempotency, etc.) lives in
+    // tests/interviewNotification.api.test.ts; this is just the
+    // product-rule sanity check that it's no longer silently skipped.
+    it("scheduling an Interview attempts a candidate notification email (see interviewNotification.api.test.ts for full coverage)", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
         .post(scheduleUrl(application.id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
-      expect(emailService.send).not.toHaveBeenCalled();
+      expect(emailService.send).toHaveBeenCalledTimes(1);
     });
 
     it("scheduling an Interview does NOT populate calendar/meeting fields (no Google call)", async () => {
