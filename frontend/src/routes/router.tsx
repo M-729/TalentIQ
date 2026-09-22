@@ -3,6 +3,7 @@ import { AppShell } from "@/layouts/AppShell";
 import { ApplicationDetailPage } from "@/pages/ApplicationDetailPage";
 import { ApplicationScreeningPage } from "@/pages/ApplicationScreeningPage";
 import { ApplicationsPage } from "@/pages/ApplicationsPage";
+import { AssessmentsPage } from "@/pages/AssessmentsPage";
 import { ApplyPage } from "@/pages/ApplyPage";
 import { CareersPage } from "@/pages/CareersPage";
 import { CreateJobPage } from "@/pages/CreateJobPage";
@@ -64,6 +65,7 @@ export const routeConfig: RouteObject[] = [
           { path: "/applications/:applicationId", element: <ApplicationDetailPage /> },
           { path: "/applications/:applicationId/screening", element: <ApplicationScreeningPage /> },
           { path: "/hiring-pipeline", element: <HiringPipelinePage /> },
+          { path: "/assessments", element: <AssessmentsPage /> },
           { path: "/interviews", element: <InterviewsPage /> },
           { path: "/interviews/:interviewId", element: <InterviewDetailPage /> },
           { path: "/settings/integrations", element: <IntegrationsSettingsPage /> },

@@ -8,6 +8,8 @@ import { InterviewFeedback } from "../../models/InterviewFeedback.model";
 import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { ConflictError, NotFoundError, PayloadTooLargeError } from "../../security/AppError";
 import { assertOwnedByCompany } from "../../security/companyScope";
+import { batchAssessmentsForCurrentStage } from "../assessments/applicationAssessment.service";
+import { batchLatestAssessmentEmailStatus } from "../assessments/applicationAssessmentEmail.service";
 import { getLatestScreeningSummaries } from "../applications/applicationHr.service";
 import {
   CORRUPT_CURRENT_STEP_MESSAGE,
@@ -21,6 +23,7 @@ import {
   serializeBoardJob,
   serializeBoardNeedsAttentionCard,
   serializeBoardStage,
+  type AssessmentSummaryDTO,
   type BoardApplicationCardDTO,
   type HiringPipelineBoardDTO,
   type InterviewSummaryDTO,
@@ -129,6 +132,44 @@ async function getInterviewSummaries(
 }
 
 /**
+ * Batch-resolves a compact Assessment status summary for every given
+ * (applicationId, hiringStepId) pair — only ever called for cards
+ * currently sitting in an assessment-type HiringStep. Two queries total
+ * regardless of how many cards need one, never one ApplicationAssessment/
+ * EmailNotification lookup per card — reuses
+ * applicationAssessment.service.ts's own batching helper (the exact same
+ * "current-stage-scoped assessment" resolution the Application Detail
+ * page's GET uses for one Application) plus
+ * applicationAssessmentEmail.service.ts's batched latest-notification-
+ * status helper, mirroring getInterviewSummaries's own two-query shape
+ * exactly.
+ */
+async function getAssessmentSummaries(
+  pairs: { applicationId: string; hiringStepId: string }[]
+): Promise<Map<string, AssessmentSummaryDTO>> {
+  const summaries = new Map<string, AssessmentSummaryDTO>();
+  if (pairs.length === 0) return summaries;
+
+  const assessmentByApplication = await batchAssessmentsForCurrentStage(pairs);
+  const emailStatuses = await batchLatestAssessmentEmailStatus([...assessmentByApplication.values()].map((a) => a.id));
+
+  for (const pair of pairs) {
+    const assessment = assessmentByApplication.get(pair.applicationId);
+    if (!assessment) {
+      summaries.set(pair.applicationId, { status: "not_configured", grade: null, email_status: null });
+      continue;
+    }
+    summaries.set(pair.applicationId, {
+      status: assessment.status,
+      grade: assessment.grade ?? null,
+      email_status: emailStatuses.get(assessment.id) ?? null,
+    });
+  }
+
+  return summaries;
+}
+
+/**
  * Read-only recruiter board for one Job's active hiring pipeline.
  *
  * This is an ACTIVE recruiter workflow endpoint — a soft-deleted Job is
@@ -220,6 +261,17 @@ export async function getHiringPipelineBoard(companyId: string, jobId: string): 
   }
   const interviewSummaries = await getInterviewSummaries(interviewPairs);
 
+  // Same shape as interviewPairs above, scoped to assessment-type steps.
+  const assessmentStepIds = new Set(steps.filter((step) => step.type === "assessment").map((step) => step.id));
+  const assessmentPairs: { applicationId: string; hiringStepId: string }[] = [];
+  for (const [stepId, apps] of byStepId) {
+    if (!assessmentStepIds.has(stepId)) continue;
+    for (const application of apps) {
+      assessmentPairs.push({ applicationId: application.id, hiringStepId: stepId });
+    }
+  }
+  const assessmentSummaries = await getAssessmentSummaries(assessmentPairs);
+
   function toCard(application: ApplicationDoc): BoardApplicationCardDTO | null {
     const candidate = candidateById.get(application.candidate_id.toString());
     // candidate_id is a required field and Candidates are never deleted
@@ -232,7 +284,8 @@ export async function getHiringPipelineBoard(companyId: string, jobId: string): 
       application,
       candidate,
       screeningSummaries.get(application.id),
-      interviewSummaries.get(application.id) ?? null
+      interviewSummaries.get(application.id) ?? null,
+      assessmentSummaries.get(application.id) ?? null
     );
   }
 

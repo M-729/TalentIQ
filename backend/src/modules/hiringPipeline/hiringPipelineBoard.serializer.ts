@@ -39,6 +39,23 @@ export interface InterviewSummaryDTO {
   feedback_total_count?: number;
 }
 
+// "not_configured" is a real, distinct state from `assessment_summary`
+// itself being `null` — same "in the right kind of stage but nothing
+// recorded yet" vs. "the question doesn't even apply" split
+// interview_summary already established. Deliberately reuses
+// ApplicationAssessment's own three-value status for pending/passed/failed
+// rather than re-declaring it, so this can never drift from the model.
+export const ASSESSMENT_SUMMARY_STATUSES = ["not_configured", "pending", "passed", "failed"] as const;
+export type AssessmentSummaryStatus = (typeof ASSESSMENT_SUMMARY_STATUSES)[number];
+
+export interface AssessmentSummaryDTO {
+  status: AssessmentSummaryStatus;
+  /** A hand-entered percentage, never derived from status — see ApplicationAssessment.model.ts. */
+  grade: number | null;
+  /** The most recent assessment_invitation notification's delivery status — null when no invitation has ever been sent, or when there's no assessment record at all. */
+  email_status: "pending" | "sent" | "failed" | null;
+}
+
 export interface BoardApplicationCardDTO {
   id: string;
   candidate: BoardCandidateDTO;
@@ -47,6 +64,7 @@ export interface BoardApplicationCardDTO {
   source?: string;
   screening: ScreeningSummaryDTO;
   interview_summary: InterviewSummaryDTO | null;
+  assessment_summary: AssessmentSummaryDTO | null;
 }
 
 export interface BoardNeedsAttentionCardDTO extends BoardApplicationCardDTO {
@@ -89,7 +107,8 @@ export function serializeBoardApplicationCard(
   application: ApplicationDoc,
   candidate: CandidateDoc,
   screeningSummary: ScreeningSummary | undefined,
-  interviewSummary: InterviewSummaryDTO | null = null
+  interviewSummary: InterviewSummaryDTO | null = null,
+  assessmentSummary: AssessmentSummaryDTO | null = null
 ): BoardApplicationCardDTO {
   return {
     id: application.id,
@@ -103,6 +122,7 @@ export function serializeBoardApplicationCard(
     source: application.source ?? undefined,
     screening: serializeScreeningSummary(screeningSummary),
     interview_summary: interviewSummary,
+    assessment_summary: assessmentSummary,
   };
 }
 
@@ -112,9 +132,10 @@ export function serializeBoardNeedsAttentionCard(
   screeningSummary: ScreeningSummary | undefined
 ): BoardNeedsAttentionCardDTO {
   return {
-    // Inconsistent/legacy data — never worth resolving an Interview
-    // summary for it (see BoardApplicationCardDTO's doc comment above).
-    ...serializeBoardApplicationCard(application, candidate, screeningSummary, null),
+    // Inconsistent/legacy data — never worth resolving an Interview/
+    // Assessment summary for it (see BoardApplicationCardDTO's doc
+    // comment above).
+    ...serializeBoardApplicationCard(application, candidate, screeningSummary, null, null),
     current_step_id: application.current_step_id ? application.current_step_id.toString() : null,
   };
 }

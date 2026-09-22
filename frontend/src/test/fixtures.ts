@@ -8,6 +8,7 @@ import type {
 } from "@/types/hiringPipelineBoard";
 import type { Interview, InterviewListRow } from "@/types/interview";
 import type { Screening } from "@/types/screening";
+import type { ApplicationAssessment, AssessmentHistoryItem, AssessmentListRow, AssessmentNotification } from "@/types/applicationAssessment";
 
 export function buildScreening(overrides: Partial<Screening> = {}): Screening {
   return {
@@ -85,6 +86,7 @@ export function buildHiringPipelineApplicationCard(
     applied_at: "2024-01-15T00:00:00.000Z",
     screening: { status: "not_started", has_screening: false },
     interview_summary: null,
+    assessment_summary: null,
     ...overrides,
   };
 }
@@ -146,6 +148,71 @@ export function buildApplicationDetail(overrides: Partial<ApplicationDetail> = {
     },
     screening: { status: "not_started", has_screening: false },
     current_step: null,
+    ...overrides,
+  };
+}
+
+export function buildApplicationAssessment(overrides: Partial<ApplicationAssessment> = {}): ApplicationAssessment {
+  return {
+    id: "assessment-1",
+    application_id: "application-1",
+    job_id: "job-1",
+    hiring_step_id: "step-1",
+    name: "Backend Technical Test",
+    external_url: "https://external-platform.example/test/abc",
+    status: "pending",
+    grade: null,
+    notes: null,
+    sent_at: null,
+    result_recorded_at: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// Defaults to is_current: true — the common case in tests that exercise
+// the ACTIVE assessment controls (mirroring the pre-history-feature
+// buildApplicationAssessment fixture's own implicit "this is the current
+// one" assumption). Pass is_current: false to build a historical item.
+export function buildAssessmentHistoryItem(overrides: Partial<AssessmentHistoryItem> = {}): AssessmentHistoryItem {
+  return {
+    ...buildApplicationAssessment(),
+    stage: { id: "step-1", name: "Technical Assessment", type: "assessment" },
+    is_current: true,
+    email_status: null,
+    ...overrides,
+  };
+}
+
+export function buildAssessmentNotification(overrides: Partial<AssessmentNotification> = {}): AssessmentNotification {
+  return {
+    id: "assessment-notification-1",
+    status: "sent",
+    subject: "Assessment Invitation – Backend Developer",
+    recipient_email: "sarah@candidate.test",
+    attempted_at: "2026-01-02T00:00:00.000Z",
+    sent_at: "2026-01-02T00:00:00.000Z",
+    failure_code: null,
+    attempt_count: 1,
+    created_at: "2026-01-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function buildAssessmentListRow(overrides: Partial<AssessmentListRow> = {}): AssessmentListRow {
+  return {
+    id: "assessment-1",
+    application_id: "application-1",
+    candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
+    job: { id: "job-1", title: "Backend Developer" },
+    name: "Backend Technical Test",
+    status: "pending",
+    grade: null,
+    email_status: null,
+    application_status: "in_process",
+    current_step: { id: "step-1", name: "Technical Assessment", type: "assessment" },
+    updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }

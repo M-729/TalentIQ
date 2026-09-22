@@ -56,18 +56,34 @@ describe("EmailNotification model", () => {
     expect(doc.triggered_by_user_id).toBeNull();
   });
 
-  it.each([
-    "company_id",
-    "application_id",
-    "candidate_id",
-    "category",
-    "recipient_email",
-    "subject",
-    "event_snapshot",
-    "mutation_version_at",
-  ])("requires %s", async (field) => {
+  it.each(["company_id", "application_id", "candidate_id", "category", "recipient_email", "subject"])(
+    "requires %s",
+    async (field) => {
+      const attrs = validAttrs() as Record<string, unknown>;
+      delete attrs[field];
+      await expect(EmailNotification.create(attrs)).rejects.toThrow();
+    }
+  );
+
+  // event_snapshot/mutation_version_at are no longer required AT THE
+  // SCHEMA LEVEL — they're specific to the interview_* category family
+  // (assessment_invitation rows use assessment_snapshot instead and don't
+  // use mutation_version_at at all; see EmailNotification.model.ts's own
+  // doc comments). Required-ness per category is enforced by the service
+  // layer that constructs each category's row
+  // (interviewNotification.service.ts always sets both for every
+  // interview_* row it creates), not by the schema.
+  it("allows event_snapshot and mutation_version_at to be omitted at the schema level", async () => {
     const attrs = validAttrs() as Record<string, unknown>;
-    delete attrs[field];
+    delete attrs.event_snapshot;
+    delete attrs.mutation_version_at;
+    const doc = await EmailNotification.create(attrs);
+    expect(doc.event_snapshot).toBeNull();
+    expect(doc.mutation_version_at).toBeNull();
+  });
+
+  it("still enforces event_snapshot's own required nested fields when event_snapshot IS provided", async () => {
+    const attrs = validAttrs({ event_snapshot: { ...validEventSnapshot(), candidate_name: undefined } });
     await expect(EmailNotification.create(attrs)).rejects.toThrow();
   });
 
@@ -83,20 +99,20 @@ describe("EmailNotification model", () => {
       const doc = await EmailNotification.create(
         validAttrs({ event_snapshot: validEventSnapshot({ meeting_url: "https://meet.google.com/abc-defg-hij" }) })
       );
-      expect(doc.event_snapshot.candidate_name).toBe("Sarah Ahmed");
-      expect(doc.event_snapshot.job_title).toBe("Backend Developer");
-      expect(doc.event_snapshot.interviewer_names).toEqual(["Alex Interviewer"]);
-      expect(doc.event_snapshot.meeting_url).toBe("https://meet.google.com/abc-defg-hij");
+      expect(doc.event_snapshot!.candidate_name).toBe("Sarah Ahmed");
+      expect(doc.event_snapshot!.job_title).toBe("Backend Developer");
+      expect(doc.event_snapshot!.interviewer_names).toEqual(["Alex Interviewer"]);
+      expect(doc.event_snapshot!.meeting_url).toBe("https://meet.google.com/abc-defg-hij");
     });
 
     it("allows a null meeting_url in the snapshot (no Meet link at that event)", async () => {
       const doc = await EmailNotification.create(validAttrs({ event_snapshot: validEventSnapshot({ meeting_url: null }) }));
-      expect(doc.event_snapshot.meeting_url).toBeNull();
+      expect(doc.event_snapshot!.meeting_url).toBeNull();
     });
 
     it("allows a null stage_name in the snapshot (e.g. a future non-interview category)", async () => {
       const doc = await EmailNotification.create(validAttrs({ event_snapshot: validEventSnapshot({ stage_name: null }) }));
-      expect(doc.event_snapshot.stage_name).toBeNull();
+      expect(doc.event_snapshot!.stage_name).toBeNull();
     });
 
     it.each(["candidate_name", "company_name", "job_title", "interview_title", "starts_at", "ends_at", "timezone"])(
@@ -168,6 +184,97 @@ describe("EmailNotification model", () => {
         ([spec, options]) => spec.interview_id === 1 && spec.category === 1 && spec.mutation_version_at === 1 && options.unique
       );
       expect(uniqueIndex).toBeDefined();
+    });
+  });
+
+  // ===== ASSESSMENT_INVITATION CATEGORY =====
+  describe("assessment_invitation category", () => {
+    // A monotonically increasing mutation_version_at per call — see
+    // applicationAssessmentEmail.service.ts's own doc comment on why every
+    // assessment_invitation row sets a genuinely distinct value here
+    // (avoids relying on real wall-clock timestamps never colliding within
+    // a fast-running test, and mirrors production, which uses Date.now()
+    // at send time for the exact same reason).
+    let mutationVersionCounter = 0;
+    function nextMutationVersionAt(): Date {
+      mutationVersionCounter += 1;
+      return new Date(2026, 0, 1, 0, 0, 0, mutationVersionCounter);
+    }
+
+    function validAssessmentAttrs(overrides: Record<string, unknown> = {}) {
+      return {
+        company_id: new Types.ObjectId(),
+        application_id: new Types.ObjectId(),
+        candidate_id: new Types.ObjectId(),
+        application_assessment_id: new Types.ObjectId(),
+        category: "assessment_invitation",
+        recipient_email: "sarah@candidate.test",
+        subject: "Assessment invitation — Backend Developer",
+        assessment_snapshot: {
+          candidate_name: "Sarah Ahmed",
+          company_name: "Company A",
+          job_title: "Backend Developer",
+          assessment_name: "Backend Technical Test",
+          external_url: "https://external-platform.example/test/abc",
+        },
+        mutation_version_at: nextMutationVersionAt(),
+        ...overrides,
+      };
+    }
+
+    it("persists an assessment_invitation row with no interview_id/event_snapshot at all", async () => {
+      const doc = await EmailNotification.create(validAssessmentAttrs());
+      expect(doc.interview_id).toBeNull();
+      expect(doc.event_snapshot).toBeNull();
+      expect(doc.assessment_snapshot?.assessment_name).toBe("Backend Technical Test");
+      expect(doc.assessment_snapshot?.external_url).toBe("https://external-platform.example/test/abc");
+    });
+
+    it("prevents two simultaneously PENDING invitations for the same assessment", async () => {
+      const applicationAssessmentId = new Types.ObjectId();
+      await EmailNotification.create(validAssessmentAttrs({ application_assessment_id: applicationAssessmentId, status: "pending" }));
+
+      await expect(
+        EmailNotification.create(validAssessmentAttrs({ application_assessment_id: applicationAssessmentId, status: "pending" }))
+      ).rejects.toThrow();
+    });
+
+    it("allows a second invitation for the same assessment once the first is no longer pending (sent)", async () => {
+      const applicationAssessmentId = new Types.ObjectId();
+      await EmailNotification.create(
+        validAssessmentAttrs({ application_assessment_id: applicationAssessmentId, status: "sent", sent_at: new Date() })
+      );
+
+      await expect(
+        EmailNotification.create(validAssessmentAttrs({ application_assessment_id: applicationAssessmentId, status: "pending" }))
+      ).resolves.toBeTruthy();
+    });
+
+    it("allows a second invitation for the same assessment once the first has failed", async () => {
+      const applicationAssessmentId = new Types.ObjectId();
+      await EmailNotification.create(
+        validAssessmentAttrs({ application_assessment_id: applicationAssessmentId, status: "failed", failure_code: "delivery_failed" })
+      );
+
+      await expect(
+        EmailNotification.create(validAssessmentAttrs({ application_assessment_id: applicationAssessmentId, status: "pending" }))
+      ).resolves.toBeTruthy();
+    });
+
+    it("never lets two DIFFERENT assessments' pending invitations collide with each other", async () => {
+      await EmailNotification.create(validAssessmentAttrs({ status: "pending" }));
+      await expect(EmailNotification.create(validAssessmentAttrs({ status: "pending" }))).resolves.toBeTruthy();
+    });
+
+    it("does not interact with the existing interview_id-based unique index at all (regression check)", async () => {
+      const interviewId = new Types.ObjectId();
+      const mutationVersionAt = new Date();
+      await EmailNotification.create(validAttrs({ interview_id: interviewId, mutation_version_at: mutationVersionAt }));
+      await EmailNotification.create(validAssessmentAttrs());
+
+      await expect(
+        EmailNotification.create(validAttrs({ interview_id: interviewId, mutation_version_at: mutationVersionAt }))
+      ).rejects.toThrow();
     });
   });
 });

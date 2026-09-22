@@ -545,7 +545,7 @@ describe("Candidate Interview Email Notifications", () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
       const { interviewId } = await scheduleOne();
       const scheduledNotification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
-      expect(scheduledNotification!.event_snapshot.meeting_url).toBeNull();
+      expect(scheduledNotification!.event_snapshot!.meeting_url).toBeNull();
 
       // A Meet link is added to the Interview LATER, after the failed event.
       await Interview.updateOne(
@@ -561,14 +561,14 @@ describe("Candidate Interview Email Notifications", () => {
       expect(lastCallArgs.text).toContain("Meeting details will be shared separately if applicable.");
 
       const reread = await EmailNotification.findById(scheduledNotification!.id);
-      expect(reread!.event_snapshot.meeting_url).toBeNull();
+      expect(reread!.event_snapshot!.meeting_url).toBeNull();
     });
 
     it("interviewer changes made AFTER a failed notification's event do not alter that notification's retried content", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
       const { interviewId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id] });
       const scheduledNotification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
-      expect(scheduledNotification!.event_snapshot.interviewer_names).toEqual(["Alex Interviewer"]);
+      expect(scheduledNotification!.event_snapshot!.interviewer_names).toEqual(["Alex Interviewer"]);
 
       const newInterviewer = await createUser({ companyId: companyA.id, email: "new-interviewer@a.test", role: "HR", name: "Nora New" });
       await Interview.updateOne({ _id: interviewId }, { $set: { interviewer_user_ids: [newInterviewer._id] } });

@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   // NOT also activate Jobs, since none of these paths start with /jobs.
   { label: "Applications", icon: FileText, to: "/applications" },
   { label: "Hiring Pipeline", icon: Workflow, to: "/hiring-pipeline" },
-  { label: "Assessments", icon: ClipboardCheck },
+  { label: "Assessments", icon: ClipboardCheck, to: "/assessments" },
   // No `end` prop, matching Applications above — active for /interviews
   // and /interviews/:id alike.
   { label: "Interviews", icon: CalendarDays, to: "/interviews" },

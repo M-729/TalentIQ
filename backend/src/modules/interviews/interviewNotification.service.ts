@@ -14,9 +14,8 @@ import { Company } from "../../models/Company.model";
 import { User } from "../../models/User.model";
 import { ConflictError, NotFoundError } from "../../security/AppError";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
-import { emailService } from "../../services/email/email.service";
 import type { EmailContent } from "../../services/email/email.types";
-import { mapSmtpError } from "../../services/email/emailFailureTaxonomy";
+import { attemptEmailDelivery } from "../../services/email/emailNotificationDelivery.service";
 import { formatZonedDate, formatZonedTimeRange } from "../../utils/timezone";
 import { buildInterviewScheduledEmail } from "../../services/email/templates/interviewScheduled.template";
 import { buildInterviewRescheduledEmail } from "../../services/email/templates/interviewRescheduled.template";
@@ -24,6 +23,20 @@ import { buildInterviewCancelledEmail } from "../../services/email/templates/int
 import { getAccessibleInterview } from "./interviewAccess.service";
 
 const NOT_RETRYABLE_MESSAGE = "Only failed notifications can be retried.";
+
+// This module only ever handles the three interview_* categories —
+// assessment_invitation is a fully separate business entity handled by
+// applicationAssessmentEmail.service.ts (its own retry endpoint), even
+// though both share the same underlying EmailNotification collection. See
+// EmailNotification.model.ts's own doc comment on why category-specific
+// fields (event_snapshot/mutation_version_at here, assessment_snapshot
+// there) aren't required at the schema level: required-ness per category
+// is enforced here, by construction, never by chance.
+type InterviewEmailCategory = Exclude<EmailNotificationCategory, "assessment_invitation">;
+
+function isInterviewCategory(category: EmailNotificationCategory): category is InterviewEmailCategory {
+  return category !== "assessment_invitation";
+}
 
 interface NotificationContext {
   companyId: string;
@@ -149,7 +162,7 @@ function buildCancelledContent(snapshot: EventSnapshot): EmailContent {
  * a given notification, regardless of what has happened to the Interview
  * since.
  */
-function buildContentForCategory(category: EmailNotificationCategory, snapshot: EventSnapshot): EmailContent {
+function buildContentForCategory(category: InterviewEmailCategory, snapshot: EventSnapshot): EmailContent {
   switch (category) {
     case "interview_scheduled":
       return buildScheduledContent(snapshot);
@@ -160,46 +173,8 @@ function buildContentForCategory(category: EmailNotificationCategory, snapshot: 
   }
 }
 
-/** Only the safe, already-normalized failure code is ever logged — never the raw SMTP error (see emailFailureTaxonomy.ts's mapSmtpError doc comment). */
-function logSafeDeliveryFailure(notification: EmailNotificationDoc): void {
-  console.error("[interviewNotification] delivery failed", {
-    notificationId: notification.id,
-    interviewId: notification.interview_id?.toString(),
-    category: notification.category,
-    failureCode: notification.failure_code,
-  });
-}
-
-/**
- * Attempts delivery for an already-persisted (pending or previously-
- * failed) notification and updates its status in place — used by both
- * the initial send and retry. Never throws: SMTP failure is recorded on
- * the document, not propagated, so a caller further up (an Interview
- * mutation handler, or the retry endpoint) never fails because of it.
- */
-async function attemptDelivery(notification: EmailNotificationDoc, content: EmailContent): Promise<void> {
-  notification.attempted_at = new Date();
-  notification.attempt_count += 1;
-  // Deterministic given the (frozen) snapshot — re-setting this on every
-  // attempt is a no-op in practice, not a source of drift.
-  notification.subject = content.subject;
-
-  try {
-    await emailService.send({ to: notification.recipient_email, subject: content.subject, text: content.text, html: content.html });
-    notification.status = "sent";
-    notification.sent_at = new Date();
-    notification.failure_code = null;
-  } catch (err) {
-    notification.status = "failed";
-    notification.failure_code = mapSmtpError(err);
-    logSafeDeliveryFailure(notification);
-  }
-
-  await notification.save();
-}
-
 interface CreateAndSendParams {
-  category: EmailNotificationCategory;
+  category: InterviewEmailCategory;
   interview: InterviewDoc;
   triggeredByUserId: string;
 }
@@ -286,7 +261,7 @@ async function createAndSendNotification(params: CreateAndSendParams): Promise<v
     throw err;
   }
 
-  await attemptDelivery(notification, content);
+  await attemptEmailDelivery(notification, content);
 }
 
 /**
@@ -359,15 +334,24 @@ export async function listNotificationsForInterview(interviewId: string, company
  */
 export async function retryNotification(notificationId: string, companyId: string): Promise<EmailNotificationDoc> {
   const notification = await EmailNotification.findOne({ _id: notificationId, company_id: companyId });
-  if (!notification) {
+  // Also denies an assessment_invitation notification's id here (this
+  // endpoint is interview-specific — see applicationAssessmentEmail
+  // .service.ts's own retry for that category) with the same safe 404 a
+  // genuinely nonexistent/cross-company id gets, never a distinguishable
+  // response.
+  if (!notification || !isInterviewCategory(notification.category)) {
     throw new NotFoundError("Notification not found");
   }
   if (notification.status !== "failed") {
     throw new ConflictError(NOT_RETRYABLE_MESSAGE);
   }
 
-  const content = buildContentForCategory(notification.category, notification.event_snapshot);
-  await attemptDelivery(notification, content);
+  // event_snapshot is guaranteed set for every interview_* category row
+  // (createAndSendNotification always provides it) — only optional at the
+  // schema level to also accommodate assessment_invitation rows, which
+  // never reach this line (guarded above).
+  const content = buildContentForCategory(notification.category, notification.event_snapshot!);
+  await attemptEmailDelivery(notification, content);
   return notification;
 }
 

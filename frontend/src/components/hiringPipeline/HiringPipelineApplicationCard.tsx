@@ -3,7 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateTime } from "@/lib/formatDate";
-import type { HiringPipelineApplicationCard as ApplicationCardData, InterviewSummary } from "@/types/hiringPipelineBoard";
+import type {
+  AssessmentSummary,
+  HiringPipelineApplicationCard as ApplicationCardData,
+  InterviewSummary,
+} from "@/types/hiringPipelineBoard";
 
 // Same date-only formatting convention already used by
 // ApplicationsTable.tsx's own local formatDate.
@@ -41,6 +45,38 @@ function InterviewStatusLine({ summary }: { summary: InterviewSummary }) {
       );
     case "cancelled":
       return <p className="text-xs text-muted-foreground">Interview · Cancelled</p>;
+  }
+}
+
+// Exact copy per state (see this ticket's explicit Part 21). `status` is
+// always the persisted ApplicationAssessment.status — grade is a
+// hand-entered percentage HR chose, never derived from status. The
+// "Email needs attention" hint is deliberately narrow: only while the
+// result is STILL pending (once a result exists, the email outcome is no
+// longer the most useful fact on a compact card) and only ever one extra
+// short line, never a second badge/button (Pipeline is status/triage
+// only — retry lives on Application Detail).
+function AssessmentStatusLine({ summary }: { summary: AssessmentSummary }) {
+  const emailNeedsAttention = summary.status === "pending" && summary.email_status === "failed";
+
+  switch (summary.status) {
+    case "not_configured":
+      return <p className="text-xs text-muted-foreground">Assessment · Not configured</p>;
+    case "pending":
+      return (
+        <p className="text-xs text-muted-foreground">
+          Assessment · Pending
+          {emailNeedsAttention && <span className="block">Email needs attention</span>}
+        </p>
+      );
+    case "passed":
+    case "failed":
+      return (
+        <p className="text-xs text-muted-foreground">
+          Assessment · {summary.status === "passed" ? "Passed" : "Failed"}
+          {summary.grade != null && <span className="block">Grade {summary.grade}%</span>}
+        </p>
+      );
   }
 }
 
@@ -109,6 +145,7 @@ export function HiringPipelineApplicationCard({
         {application.source && <p className="text-xs text-muted-foreground">Source: {application.source}</p>}
         <p className="text-xs text-muted-foreground">{screeningLabel(application.screening)}</p>
         {application.interview_summary && <InterviewStatusLine summary={application.interview_summary} />}
+        {application.assessment_summary && <AssessmentStatusLine summary={application.assessment_summary} />}
 
         <div className="flex flex-wrap gap-2 pt-1">
           <Button variant="outline" size="sm" asChild>

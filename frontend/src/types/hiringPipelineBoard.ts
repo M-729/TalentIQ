@@ -30,6 +30,20 @@ export interface InterviewSummary {
   feedback_total_count?: number;
 }
 
+// Mirrors backend hiringPipelineBoard.serializer.ts's AssessmentSummaryDTO
+// exactly. "not_configured" is a real, distinct state from the card's
+// `assessment_summary` field itself being `null` — same split
+// interview_summary/InterviewSummaryStatus already established. `grade`
+// is a hand-entered percentage, never derived from `status`.
+export const ASSESSMENT_SUMMARY_STATUSES = ["not_configured", "pending", "passed", "failed"] as const;
+export type AssessmentSummaryStatus = (typeof ASSESSMENT_SUMMARY_STATUSES)[number];
+
+export interface AssessmentSummary {
+  status: AssessmentSummaryStatus;
+  grade: number | null;
+  email_status: "pending" | "sent" | "failed" | null;
+}
+
 export interface HiringPipelineApplicationCard {
   id: string;
   candidate: {
@@ -43,6 +57,8 @@ export interface HiringPipelineApplicationCard {
   screening: ApplicationScreeningSummary;
   /** `null` whenever the card isn't currently in an interview-type stage (New Applicants, any non-interview stage, needs_attention) — never omitted, so a card component can always destructure it safely. */
   interview_summary: InterviewSummary | null;
+  /** `null` whenever the card isn't currently in an assessment-type stage — same rule as interview_summary above. */
+  assessment_summary: AssessmentSummary | null;
 }
 
 // "New Applicants" (current_step_id: null) is a virtual system column —

@@ -1409,4 +1409,140 @@ describe("HiringPipelineBoard", () => {
       expect(interviewsApi.listApplicationInterviews).not.toHaveBeenCalled();
     });
   });
+
+  // ===== ASSESSMENT STATUS ON CARD =====
+  describe("assessment status on card", () => {
+    async function renderAssessmentCard(assessmentSummary: HiringPipelineApplicationCard["assessment_summary"]) {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-assessment",
+              name: "Technical Assessment",
+              type: "assessment",
+              count: 1,
+              applications: [
+                buildHiringPipelineApplicationCard({
+                  id: "a1",
+                  candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
+                  screening: { status: "completed", has_screening: true, latest_score: 81 },
+                  assessment_summary: assessmentSummary,
+                }),
+              ],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Technical Assessment" });
+    }
+
+    // 22. Not configured
+    it('shows "Assessment · Not configured" when no assessment record exists', async () => {
+      await renderAssessmentCard({ status: "not_configured", grade: null, email_status: null });
+      expect(screen.getByText(/Assessment · Not configured/)).toBeInTheDocument();
+    });
+
+    // 23. Pending
+    it('shows "Assessment · Pending" for an assessment awaiting a result', async () => {
+      await renderAssessmentCard({ status: "pending", grade: null, email_status: "sent" });
+      expect(screen.getByText(/Assessment · Pending/)).toBeInTheDocument();
+    });
+
+    // 24. Passed
+    it('shows "Assessment · Passed" with no grade line when no grade exists', async () => {
+      await renderAssessmentCard({ status: "passed", grade: null, email_status: "sent" });
+      expect(screen.getByText(/Assessment · Passed/)).toBeInTheDocument();
+      expect(screen.queryByText(/Grade/)).not.toBeInTheDocument();
+    });
+
+    // 25. Passed + grade
+    it('shows "Assessment · Passed" with "Grade 84%"', async () => {
+      await renderAssessmentCard({ status: "passed", grade: 84, email_status: "sent" });
+      expect(screen.getByText(/Assessment · Passed/)).toBeInTheDocument();
+      expect(screen.getByText("Grade 84%")).toBeInTheDocument();
+    });
+
+    // 26. Failed
+    it('shows "Assessment · Failed" with no grade line when no grade exists', async () => {
+      await renderAssessmentCard({ status: "failed", grade: null, email_status: "sent" });
+      expect(screen.getByText(/Assessment · Failed/)).toBeInTheDocument();
+      expect(screen.queryByText(/Grade/)).not.toBeInTheDocument();
+    });
+
+    // 27. Failed + grade
+    it('shows "Assessment · Failed" with "Grade 48%"', async () => {
+      await renderAssessmentCard({ status: "failed", grade: 48, email_status: "sent" });
+      expect(screen.getByText(/Assessment · Failed/)).toBeInTheDocument();
+      expect(screen.getByText("Grade 48%")).toBeInTheDocument();
+    });
+
+    it('shows a compact "Email needs attention" hint only while pending and the email failed', async () => {
+      await renderAssessmentCard({ status: "pending", grade: null, email_status: "failed" });
+      expect(screen.getByText("Email needs attention")).toBeInTheDocument();
+    });
+
+    it('never shows "Email needs attention" once a result exists, even if the email failed', async () => {
+      await renderAssessmentCard({ status: "passed", grade: 84, email_status: "failed" });
+      expect(screen.queryByText("Email needs attention")).not.toBeInTheDocument();
+    });
+
+    it("shows no assessment status line for a card in a non-assessment stage", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              type: "review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", assessment_summary: null })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      expect(screen.queryByText(/Assessment ·/)).not.toBeInTheDocument();
+    });
+
+    // 28. no per-card assessment request — structural: the board response
+    // already carries assessment_summary; no assessment API module is even
+    // mocked/imported by this test file, so a per-card request would fail
+    // outright rather than silently succeed.
+    it("renders purely from the already-batched board response, with no separate per-card fetch", async () => {
+      await renderAssessmentCard({ status: "passed", grade: 90, email_status: "sent" });
+      expect(hiringPipelineBoardApi.getHiringPipelineBoard).toHaveBeenCalledTimes(1);
+    });
+
+    // 29. AI Match remains visible
+    it("keeps the AI Match / screening line visible alongside the assessment status", async () => {
+      await renderAssessmentCard({ status: "passed", grade: 90, email_status: "sent" });
+      expect(screen.getByText("AI Match 81%")).toBeInTheDocument();
+      expect(screen.getByText(/Assessment · Passed/)).toBeInTheDocument();
+    });
+
+    // 30. Interview cards unaffected
+    it("does not render an assessment line on an interview-stage card", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Technical Interview",
+              type: "interview",
+              count: 1,
+              applications: [
+                buildHiringPipelineApplicationCard({ id: "a1", interview_summary: { status: "not_scheduled" }, assessment_summary: null }),
+              ],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Technical Interview" });
+      expect(screen.getByText(/Interview · Not scheduled/)).toBeInTheDocument();
+      expect(screen.queryByText(/Assessment ·/)).not.toBeInTheDocument();
+    });
+  });
 });

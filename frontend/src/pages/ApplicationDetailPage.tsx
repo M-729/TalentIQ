@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AiScreeningCard } from "@/components/applications/AiScreeningCard";
+import { ApplicationAssessmentSection } from "@/components/applications/ApplicationAssessmentSection";
 import { ApplicationDetailHeader } from "@/components/applications/ApplicationDetailHeader";
 import { ApplicationInfoCard } from "@/components/applications/ApplicationInfoCard";
 import { ApplicationInterviewsSection } from "@/components/applications/ApplicationInterviewsSection";
@@ -86,6 +87,12 @@ export function ApplicationDetailPage() {
       </div>
 
       <ApplicationInterviewsSection application={application} />
+
+      {/* ApplicationAssessmentSection itself renders nothing unless the
+          CURRENT stage is assessment-type — never shown for review/
+          interview stages, and never auto-created just because it mounts
+          (see this ticket's explicit "no auto-create" rules). */}
+      <ApplicationAssessmentSection application={application} />
 
       <AiScreeningCard applicationId={application.id} screening={application.screening} />
     </div>

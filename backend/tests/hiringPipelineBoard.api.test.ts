@@ -10,6 +10,8 @@ import { AIScreening } from "../src/models/AIScreening.model";
 import { AIScreeningRun } from "../src/models/AIScreeningRun.model";
 import { Interview } from "../src/models/Interview.model";
 import { InterviewFeedback } from "../src/models/InterviewFeedback.model";
+import { ApplicationAssessment } from "../src/models/ApplicationAssessment.model";
+import { EmailNotification } from "../src/models/EmailNotification.model";
 import { createCompany, createUser } from "./helpers/factories";
 import type { CompanyDoc } from "../src/models/Company.model";
 import type { UserDoc } from "../src/models/User.model";
@@ -571,6 +573,236 @@ describe("Hiring Pipeline Board API", () => {
       await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const countAfter = await Interview.countDocuments();
       expect(countAfter).toBe(countBefore);
+    });
+  });
+
+  // ===== ASSESSMENT SUMMARY =====
+  describe("assessment_summary", () => {
+    async function assessmentStage() {
+      return HiringStep.create({ job_id: jobA.id, name: "Technical Assessment", type: "assessment", position: 2 });
+    }
+
+    // 38. assessment stage with none -> not configured
+    it("shows status not_configured for a candidate in an assessment stage with no assessment record", async () => {
+      const stage = await assessmentStage();
+      await createApplication({ status: "in_process", current_step_id: stage._id });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "not_configured", grade: null, email_status: null });
+    });
+
+    it("returns null assessment_summary for a card in a non-assessment stage", async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: review._id });
+      void application;
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
+      expect(reviewStage.applications[0].assessment_summary).toBeNull();
+    });
+
+    // 39. pending summary
+    it("shows status pending for an assessment awaiting a result", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        status: "pending",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "pending", grade: null, email_status: null });
+    });
+
+    // 40. passed summary
+    it("shows status passed with no grade", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        status: "passed",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "passed", grade: null, email_status: null });
+    });
+
+    // 41. passed + grade summary
+    it("shows status passed with a grade", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        status: "passed",
+        grade: 84,
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "passed", grade: 84, email_status: null });
+    });
+
+    // 42. failed summary
+    it("shows status failed with no grade", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        status: "failed",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "failed", grade: null, email_status: null });
+    });
+
+    // 43. failed + grade summary
+    it("shows status failed with a grade", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        status: "failed",
+        grade: 48,
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "failed", grade: 48, email_status: null });
+    });
+
+    // 44. email failure summary
+    it("includes email_status when an invitation has been sent/failed", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      const assessment = await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        status: "pending",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+      await EmailNotification.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        candidate_id: application.candidate_id,
+        application_assessment_id: assessment.id,
+        category: "assessment_invitation",
+        recipient_email: "candidate@test.local",
+        subject: "Assessment Invitation",
+        assessment_snapshot: {
+          candidate_name: "Sarah Ahmed",
+          company_name: "Company A",
+          job_title: "Software Engineer",
+          assessment_name: "Backend Technical Test",
+          external_url: "https://external-platform.example/test/abc",
+        },
+        status: "failed",
+        failure_code: "delivery_failed",
+        mutation_version_at: new Date(),
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
+      expect(stageCard.applications[0].assessment_summary).toEqual({ status: "pending", grade: null, email_status: "failed" });
+    });
+
+    // 45. no N+1
+    it("does not issue one ApplicationAssessment query per card (no N+1)", async () => {
+      const stage = await assessmentStage();
+      const a = await createApplication({ status: "in_process", current_step_id: stage._id });
+      const b = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: a.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Test A",
+        external_url: "https://external-platform.example/test/a",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: b.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Test B",
+        external_url: "https://external-platform.example/test/b",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const findSpy = jest.spyOn(ApplicationAssessment, "find");
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(findSpy).toHaveBeenCalledTimes(1);
+      findSpy.mockRestore();
+    });
+
+    // 46. Pipeline GET causes zero side effects
+    it("causes zero ApplicationAssessment/EmailNotification writes on a plain board read", async () => {
+      const stage = await assessmentStage();
+      const application = await createApplication({ status: "in_process", current_step_id: stage._id });
+      await ApplicationAssessment.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: stage.id,
+        name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+        created_by_user_id: hrA.id,
+        updated_by_user_id: hrA.id,
+      });
+
+      const countBefore = await ApplicationAssessment.countDocuments();
+      const emailCountBefore = await EmailNotification.countDocuments();
+      await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(await ApplicationAssessment.countDocuments()).toBe(countBefore);
+      expect(await EmailNotification.countDocuments()).toBe(emailCountBefore);
     });
   });
 
