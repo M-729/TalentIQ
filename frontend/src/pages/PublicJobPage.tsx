@@ -23,7 +23,7 @@ export function PublicJobPage() {
 
   return (
     <div className="min-h-svh bg-background">
-      <PublicHeader />
+      <PublicHeader backTo="/careers" backLabel="Back to open positions" />
 
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         {isLoading ? (

@@ -26,8 +26,10 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={["/careers/jobs/job-1"]}>
       <Routes>
+        <Route path="/careers" element={<div>Careers List Page</div>} />
         <Route path="/careers/jobs/:id" element={<PublicJobPage />} />
         <Route path="/careers/jobs/:id/apply" element={<div>Apply Page</div>} />
+        <Route path="/login" element={<div>Login Page</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -64,5 +66,69 @@ describe("PublicJobPage (existing public Job detail)", () => {
     renderPage();
 
     expect(await screen.findByText("Job not available")).toBeInTheDocument();
+  });
+
+  // Careers navigation polish: 1. shows "Back to open positions"
+  it('shows a "Back to open positions" link', async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Back to open positions" })).toBeInTheDocument();
+  });
+
+  // 2. it targets /careers
+  it('the "Back to open positions" link targets /careers', async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    const backLink = await screen.findByRole("link", { name: "Back to open positions" });
+    expect(backLink).toHaveAttribute("href", "/careers");
+  });
+
+  // 3. TalentIQ brand/logo targets /careers
+  it("the TalentIQ brand link targets /careers", async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    const brandLink = await screen.findByRole("link", { name: /TalentIQ/ });
+    expect(brandLink).toHaveAttribute("href", "/careers");
+  });
+
+  // 10. keyboard-accessible: the Back link is a real, focusable,
+  // Enter-activatable anchor, not a click-only handler.
+  it("navigates to /careers when the Back link is activated via the keyboard", async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    const backLink = await screen.findByRole("link", { name: "Back to open positions" });
+    backLink.focus();
+    expect(backLink).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(await screen.findByText("Careers List Page")).toBeInTheDocument();
+  });
+
+  // Recruiter login correction: 3. Job Detail also shows it
+  it('shows a "Recruiter login" link targeting /login, alongside the Back link', async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    const recruiterLoginLink = await screen.findByRole("link", { name: "Recruiter login" });
+    expect(recruiterLoginLink).toHaveAttribute("href", "/login");
+    // 6. existing Back link remains correct alongside it.
+    expect(screen.getByRole("link", { name: "Back to open positions" })).toHaveAttribute("href", "/careers");
+  });
+
+  // 7. keyboard accessible
+  it("navigates to /login when Recruiter login is activated via the keyboard", async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    const recruiterLoginLink = await screen.findByRole("link", { name: "Recruiter login" });
+    recruiterLoginLink.focus();
+    expect(recruiterLoginLink).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(await screen.findByText("Login Page")).toBeInTheDocument();
   });
 });

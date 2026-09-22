@@ -33,6 +33,7 @@ function renderPage() {
       <Routes>
         <Route path="/careers" element={<CareersPage />} />
         <Route path="/careers/jobs/:id" element={<div>Job Detail Page</div>} />
+        <Route path="/login" element={<div>Login Page</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -50,6 +51,46 @@ describe("CareersPage", () => {
     expect(await screen.findByRole("heading", { name: "Open Positions" })).toBeInTheDocument();
     expect(screen.getByText("Explore current opportunities and apply online.")).toBeInTheDocument();
     expect(screen.getByText("TalentIQ")).toBeInTheDocument();
+  });
+
+  // Careers navigation polish: 3. TalentIQ brand/logo targets /careers
+  // (even on /careers itself, for consistency across every public page).
+  it("the TalentIQ brand link targets /careers", async () => {
+    vi.mocked(publicJobsApi.listPublicJobs).mockResolvedValue({ jobs: [], pagination: buildPagination({ total: 0, totalPages: 0 }) });
+    renderPage();
+
+    const brandLink = await screen.findByRole("link", { name: /TalentIQ/ });
+    expect(brandLink).toHaveAttribute("href", "/careers");
+  });
+
+  // Recruiter login correction: 1. /careers shows "Recruiter login"
+  it('shows a "Recruiter login" link', async () => {
+    vi.mocked(publicJobsApi.listPublicJobs).mockResolvedValue({ jobs: [], pagination: buildPagination({ total: 0, totalPages: 0 }) });
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Recruiter login" })).toBeInTheDocument();
+  });
+
+  // 2. Recruiter login targets /login
+  it('the "Recruiter login" link targets /login', async () => {
+    vi.mocked(publicJobsApi.listPublicJobs).mockResolvedValue({ jobs: [], pagination: buildPagination({ total: 0, totalPages: 0 }) });
+    renderPage();
+
+    const recruiterLoginLink = await screen.findByRole("link", { name: "Recruiter login" });
+    expect(recruiterLoginLink).toHaveAttribute("href", "/login");
+  });
+
+  // 7. keyboard accessible
+  it("navigates to /login when Recruiter login is activated via the keyboard", async () => {
+    vi.mocked(publicJobsApi.listPublicJobs).mockResolvedValue({ jobs: [], pagination: buildPagination({ total: 0, totalPages: 0 }) });
+    renderPage();
+
+    const recruiterLoginLink = await screen.findByRole("link", { name: "Recruiter login" });
+    recruiterLoginLink.focus();
+    expect(recruiterLoginLink).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(await screen.findByText("Login Page")).toBeInTheDocument();
   });
 
   // 12. public Jobs render
