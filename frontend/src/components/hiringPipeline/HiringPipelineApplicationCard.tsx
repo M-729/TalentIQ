@@ -15,10 +15,18 @@ function formatDate(iso: string): string {
 // applied elsewhere. "Not screened" is shown as plain informational text,
 // never a fake 0%.
 function screeningLabel(screening: ApplicationCardData["screening"]): string {
-  if (screening.has_screening && screening.latest_score != null) {
-    return `${screening.latest_score}% Skill Coverage`;
+  switch (screening.status) {
+    case "completed":
+      return screening.latest_score != null ? `AI Match ${screening.latest_score}%` : "Screened";
+    case "processing":
+    case "pending":
+      return "AI Screening · Processing";
+    case "stale_processing":
+    case "failed":
+      return "AI Screening · Needs attention";
+    case "not_started":
+      return "Not screened";
   }
-  return "Not screened";
 }
 
 export interface HiringPipelineApplicationCardProps {

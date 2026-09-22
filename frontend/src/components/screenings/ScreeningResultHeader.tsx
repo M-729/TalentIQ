@@ -11,7 +11,8 @@ interface ScreeningResultHeaderProps {
   isCreating: boolean;
   createError: string | null;
   showSuccessFlash: boolean;
-  onRequestRerun: () => void;
+  /** Omitted in the normal completed-screening workflow (screening happens once, automatically, and the result stays stable) — an administrative rescreen mechanism, if one exists, is out of scope here. When omitted, no Rerun control is rendered at all. */
+  onRequestRerun?: () => void;
   onBackToLatest: () => void;
 }
 
@@ -45,23 +46,25 @@ export function ScreeningResultHeader({
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">AI Screening</h1>
               <p className="text-sm text-muted-foreground">Last screened: {formatDateTime(screening.created_at)}</p>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <Button onClick={onRequestRerun} disabled={isCreating}>
-                <RotateCcw className="size-4" aria-hidden="true" />
-                {isCreating ? "Analyzing CV and job requirements…" : "Re-run Screening"}
-              </Button>
-              {showSuccessFlash && (
-                <p className="flex items-center gap-1.5 text-xs font-medium text-success" role="status">
-                  <CheckCircle2 className="size-3.5" aria-hidden="true" />
-                  New screening complete
-                </p>
-              )}
-              {createError && (
-                <p className="max-w-xs text-right text-xs text-destructive" role="alert">
-                  {createError}
-                </p>
-              )}
-            </div>
+            {onRequestRerun && (
+              <div className="flex flex-col items-end gap-2">
+                <Button onClick={onRequestRerun} disabled={isCreating}>
+                  <RotateCcw className="size-4" aria-hidden="true" />
+                  {isCreating ? "Analyzing CV and job requirements…" : "Re-run Screening"}
+                </Button>
+                {showSuccessFlash && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-success" role="status">
+                    <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                    New screening complete
+                  </p>
+                )}
+                {createError && (
+                  <p className="max-w-xs text-right text-xs text-destructive" role="alert">
+                    {createError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

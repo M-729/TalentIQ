@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import * as screeningsApi from "@/services/api/screenings";
 import { ApiError } from "@/services/api/client";
-import type { Screening } from "@/types/screening";
+import type { Screening, ScreeningStatus } from "@/types/screening";
 
 interface UseLatestScreeningResult {
   screening: Screening | null;
+  /** Defaults to "not_started" until the first fetch resolves — matches the safe legacy fallback the backend itself uses. */
+  status: ScreeningStatus;
   isLoading: boolean;
   error: string | null;
   notFound: boolean;
@@ -19,6 +21,7 @@ interface UseLatestScreeningResult {
 // the new data actually arrives.
 export function useLatestScreening(applicationId: string | undefined): UseLatestScreeningResult {
   const [screening, setScreening] = useState<Screening | null>(null);
+  const [status, setStatus] = useState<ScreeningStatus>("not_started");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -36,9 +39,10 @@ export function useLatestScreening(applicationId: string | undefined): UseLatest
 
     screeningsApi
       .getLatestScreening(applicationId, controller.signal)
-      .then(({ screening: fetched }) => {
+      .then(({ screening: fetched, status: fetchedStatus }) => {
         if (cancelled) return;
         setScreening(fetched);
+        setStatus(fetchedStatus);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -60,5 +64,5 @@ export function useLatestScreening(applicationId: string | undefined): UseLatest
 
   const refetch = useCallback(() => setRefetchCount((c) => c + 1), []);
 
-  return { screening, isLoading, error, notFound, refetch };
+  return { screening, status, isLoading, error, notFound, refetch };
 }

@@ -4,9 +4,11 @@ import { Candidate } from "../../models/Candidate.model";
 import { Job } from "../../models/Job.model";
 import { HiringStep } from "../../models/HiringStep.model";
 import { AIScreening } from "../../models/AIScreening.model";
+import { AIScreeningRun } from "../../models/AIScreeningRun.model";
 import { NotFoundError } from "../../security/AppError";
 import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
 import { escapeRegExp } from "../../utils/regex";
+import { resolveReportedStatus } from "../../services/ai/screeningRun.service";
 import { getAccessibleApplication } from "./applicationAccess.service";
 import {
   serializeApplicationDetail,
@@ -30,40 +32,72 @@ export interface ListApplicationsResult {
 }
 
 /**
- * Latest stored AIScreening score/timestamp per application, in one
- * aggregation query regardless of how many applications are passed in —
- * this is what keeps the list endpoint from doing one screening lookup
- * per row (N+1). Reads only already-persisted AIScreening documents:
- * no Groq call, no R2 access, no CV parsing, and no score is ever
- * recalculated here.
+ * Latest stored AIScreening score/timestamp PLUS the current
+ * initial-screening lifecycle status, per application, in TWO batched
+ * queries total regardless of how many applications are passed in — this
+ * is what keeps the list/detail/Pipeline endpoints from doing one
+ * screening lookup per row (N+1). Reads only already-persisted
+ * AIScreening/AIScreeningRun documents: no Groq call, no R2 access, no CV
+ * parsing, and no score is ever recalculated here. Shared verbatim by
+ * applicationHr.service.ts's list/detail and
+ * hiringPipelineBoard.service.ts — a single source of truth for "what is
+ * this Application's screening state right now".
+ *
+ * Status resolution per application reuses
+ * screeningRun.service.ts's resolveReportedStatus (the exact same
+ * function getEffectiveScreeningState uses for a single Application) so
+ * stale-processing detection and the persisted-success-wins rule can
+ * never drift between the single-Application and batched read paths: a
+ * real AIScreeningRun row's own status is authoritative unless it's a
+ * "processing" row stuck past the configured timeout, in which case it
+ * reports as "stale_processing" (or "completed", if a screening was
+ * actually persisted despite the crash); absent a row entirely, a
+ * completed AIScreening (legacy data that predates this feature) reports
+ * as "completed"; absent both, "not_started". This function itself never
+ * writes — see reserveScreeningRunForProcessing for where a
+ * stale/actually-completed row is self-healed, once someone attempts to
+ * act on it.
  */
 export async function getLatestScreeningSummaries(applicationIds: string[]): Promise<Map<string, ScreeningSummary>> {
   if (applicationIds.length === 0) {
     return new Map();
   }
 
-  const results = await AIScreening.aggregate<{
-    _id: Types.ObjectId;
-    latestScore: number | null;
-    latestScreenedAt: Date;
-  }>([
-    { $match: { application_id: { $in: applicationIds.map((id) => new Types.ObjectId(id)) } } },
-    { $sort: { created_at: -1 } },
-    {
-      $group: {
-        _id: "$application_id",
-        latestScore: { $first: "$match.score" },
-        latestScreenedAt: { $first: "$created_at" },
+  const objectIds = applicationIds.map((id) => new Types.ObjectId(id));
+
+  const [screeningResults, runs] = await Promise.all([
+    AIScreening.aggregate<{
+      _id: Types.ObjectId;
+      latestScore: number | null;
+      latestScreenedAt: Date;
+    }>([
+      { $match: { application_id: { $in: objectIds } } },
+      { $sort: { created_at: -1 } },
+      {
+        $group: {
+          _id: "$application_id",
+          latestScore: { $first: "$match.score" },
+          latestScreenedAt: { $first: "$created_at" },
+        },
       },
-    },
+    ]),
+    AIScreeningRun.find({ application_id: { $in: objectIds } })
+      .select("application_id status attempted_at")
+      .lean(),
   ]);
 
+  const latestByApplication = new Map(screeningResults.map((result) => [result._id.toString(), result]));
+  const runByApplication = new Map(runs.map((run) => [run.application_id.toString(), run]));
+
   const summaries = new Map<string, ScreeningSummary>();
-  for (const result of results) {
-    summaries.set(result._id.toString(), {
-      hasScreening: true,
-      latestScore: result.latestScore,
-      latestScreenedAt: result.latestScreenedAt,
+  for (const applicationId of applicationIds) {
+    const latest = latestByApplication.get(applicationId);
+    const run = runByApplication.get(applicationId) ?? null;
+    const status = resolveReportedStatus(run, !!latest);
+    summaries.set(applicationId, {
+      status,
+      latestScore: latest?.latestScore ?? null,
+      latestScreenedAt: latest?.latestScreenedAt ?? null,
     });
   }
   return summaries;

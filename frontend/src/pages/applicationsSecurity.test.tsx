@@ -28,7 +28,7 @@ describe("Applications UI — safe language and no internal data leakage", () =>
 
   it("Applications list never uses hiring-judgment language for the screening score", async () => {
     vi.mocked(applicationsApi.getApplications).mockResolvedValue({
-      applications: [buildApplicationListRow({ screening: { has_screening: true, latest_score: 63 } })],
+      applications: [buildApplicationListRow({ screening: { status: "completed", has_screening: true, latest_score: 63 } })],
       pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
     });
 
@@ -49,7 +49,7 @@ describe("Applications UI — safe language and no internal data leakage", () =>
 
   it("Application detail never uses hiring-judgment language for the screening score", async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
-      application: buildApplicationDetail({ screening: { has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
+      application: buildApplicationDetail({ screening: { status: "completed", has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
     });
 
     const { container } = render(

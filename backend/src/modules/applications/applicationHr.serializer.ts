@@ -2,24 +2,31 @@ import type { ApplicationDoc } from "../../models/Application.model";
 import type { CandidateDoc } from "../../models/Candidate.model";
 import type { JobDoc } from "../../models/Job.model";
 import type { HiringStepDoc } from "../../models/HiringStep.model";
+import type { ReportedScreeningStatus } from "../../services/ai/screeningRun.service";
+
+/** "not_started" only ever appears for a legacy Application that predates the automatic-screening feature and has never been screened; "stale_processing" only ever appears for a "processing" run stuck past the configured timeout with no completed screening — see screeningRun.service.ts's ReportedScreeningStatus/resolveReportedStatus. */
+export type ScreeningStatus = ReportedScreeningStatus;
 
 export interface ScreeningSummary {
-  hasScreening: boolean;
+  status: ScreeningStatus;
   latestScore: number | null;
   latestScreenedAt: Date | null;
 }
 
 export interface ScreeningSummaryDTO {
+  status: ScreeningStatus;
+  /** Derived (status === "completed") — kept alongside `status` for existing consumers built before this field existed. */
   has_screening: boolean;
   latest_score?: number | null;
   latest_screened_at?: string;
 }
 
 export function serializeScreeningSummary(summary: ScreeningSummary | undefined): ScreeningSummaryDTO {
-  if (!summary || !summary.hasScreening) {
-    return { has_screening: false };
+  if (!summary || summary.status !== "completed") {
+    return { status: summary?.status ?? "not_started", has_screening: false };
   }
   return {
+    status: "completed",
     has_screening: true,
     latest_score: summary.latestScore,
     latest_screened_at: summary.latestScreenedAt?.toISOString(),

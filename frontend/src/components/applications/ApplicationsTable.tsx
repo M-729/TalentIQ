@@ -57,11 +57,11 @@ export function ApplicationsTable({ applications }: { applications: ApplicationL
                   <ApplicationStatusBadge status={application.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <ScreeningStatusBadge hasScreening={application.screening.has_screening} />
+                  <ScreeningStatusBadge status={application.screening.status} />
                   {/* A coverage percentage without a screening would
                       misleadingly read as "0% coverage" — only ever shown
-                      once has_screening is true and a score exists. */}
-                  {application.screening.has_screening && application.screening.latest_score != null && (
+                      once the screening actually completed and a score exists. */}
+                  {application.screening.status === "completed" && application.screening.latest_score != null && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {application.screening.latest_score}% Skill Coverage
                     </div>

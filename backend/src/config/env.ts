@@ -66,6 +66,15 @@ const envSchema = z.object({
   // code change.
   AI_SCREENING_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(20),
 
+  // How long an AIScreeningRun may sit in "processing" before it's treated
+  // as stale/interrupted (e.g. a backend crash/restart mid-screening) and
+  // becomes safely retryable — see screeningRun.service.ts's isRunStale.
+  // The single centralized source of this duration; never hard-code it
+  // elsewhere. 15 minutes comfortably exceeds a real screening's normal
+  // duration (CV extraction + one Groq call, seconds) while still
+  // recovering promptly after a crash.
+  AI_SCREENING_PROCESSING_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(15),
+
   // Google Calendar/Meet interview integration — optional, same rationale
   // as R2/SMTP/GROQ above: the backend (and the full test suite, which
   // mocks the Google provider entirely) runs fine without these.

@@ -62,3 +62,26 @@ const ERROR_NAME_TO_CODE_MAP: Record<string, Record<string, () => Error> | undef
   CvParseError: CV_PARSE_CODE_MAP,
   CvAnalysisError: CV_ANALYSIS_CODE_MAP,
 };
+
+const GENERIC_SCREENING_FAILURE_MESSAGE = "AI screening could not be completed. Please try again.";
+
+/**
+ * Same safe-message guarantee as mapScreeningError, but returns a plain
+ * string rather than an AppError to throw — for PERSISTING on an
+ * AIScreeningRun's failure_message (see screeningRun.service.ts), never
+ * for an HTTP response directly. Deliberately reuses mapScreeningError
+ * itself instead of a second hand-maintained code->message table: a
+ * recognized code always produces a NEW Error instance from one of the
+ * factories above (`mapped !== err`), so reading `.message` from it here
+ * can never accidentally leak a raw/unrecognized error's own message —
+ * only the unrecognized/passthrough case (where mapScreeningError returns
+ * the original error unchanged) falls back to the fixed generic message
+ * below.
+ */
+export function getSafeScreeningFailureMessage(err: unknown): string {
+  const mapped = mapScreeningError(err);
+  if (mapped !== err && mapped instanceof Error) {
+    return mapped.message;
+  }
+  return GENERIC_SCREENING_FAILURE_MESSAGE;
+}

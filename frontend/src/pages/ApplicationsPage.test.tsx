@@ -63,28 +63,48 @@ describe("ApplicationsPage", () => {
   });
 
   it('shows "Not screened" for an unscreened applicant', async () => {
-    mockPage([buildApplicationListRow({ screening: { has_screening: false } })]);
+    mockPage([buildApplicationListRow({ screening: { status: "not_started", has_screening: false } })]);
     renderPage();
     expect(await screen.findByText("Not screened")).toBeInTheDocument();
   });
 
   it('shows "Screened" for a screened applicant', async () => {
-    mockPage([buildApplicationListRow({ screening: { has_screening: true, latest_score: 63 } })]);
+    mockPage([buildApplicationListRow({ screening: { status: "completed", has_screening: true, latest_score: 63 } })]);
     renderPage();
     expect(await screen.findByText("Screened")).toBeInTheDocument();
   });
 
   it("displays the coverage percentage for a screened applicant", async () => {
-    mockPage([buildApplicationListRow({ screening: { has_screening: true, latest_score: 63 } })]);
+    mockPage([buildApplicationListRow({ screening: { status: "completed", has_screening: true, latest_score: 63 } })]);
     renderPage();
     expect(await screen.findByText("63% Skill Coverage")).toBeInTheDocument();
   });
 
   it("never shows 0% for an unscreened applicant", async () => {
-    mockPage([buildApplicationListRow({ screening: { has_screening: false } })]);
+    mockPage([buildApplicationListRow({ screening: { status: "not_started", has_screening: false } })]);
     renderPage();
     await screen.findByText("Not screened");
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
+  });
+
+  // 33. Applications list shows screening state (processing/failed)
+  it('shows "Processing" for an applicant whose initial screening is still running, with no score', async () => {
+    mockPage([buildApplicationListRow({ screening: { status: "processing", has_screening: false } })]);
+    renderPage();
+    expect(await screen.findByText("Processing")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it('shows "Needs attention" for an applicant whose initial screening failed', async () => {
+    mockPage([buildApplicationListRow({ screening: { status: "failed", has_screening: false } })]);
+    renderPage();
+    expect(await screen.findByText("Needs attention")).toBeInTheDocument();
+  });
+
+  it('shows "Interrupted" for an applicant whose initial screening stalled past the timeout', async () => {
+    mockPage([buildApplicationListRow({ screening: { status: "stale_processing", has_screening: false } })]);
+    renderPage();
+    expect(await screen.findByText("Interrupted")).toBeInTheDocument();
   });
 
   it("navigates to the correct detail route when View Application is clicked", async () => {

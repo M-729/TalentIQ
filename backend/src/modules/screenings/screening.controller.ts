@@ -9,8 +9,8 @@ export const createScreeningHandler = asyncHandler(async (req: Request, res: Res
 });
 
 export const getLatestScreeningHandler = asyncHandler(async (req: Request, res: Response) => {
-  const screening = await screeningService.getLatestScreening(req.params.applicationId!, req.auth!.companyId);
-  res.status(200).json({ screening: screening ? serializeScreening(screening) : null });
+  const { screening, status } = await screeningService.getLatestScreening(req.params.applicationId!, req.auth!.companyId);
+  res.status(200).json({ screening: screening ? serializeScreening(screening) : null, status });
 });
 
 export const getScreeningHistoryHandler = asyncHandler(async (req: Request, res: Response) => {

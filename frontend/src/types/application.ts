@@ -17,7 +17,18 @@ export interface SubmitApplicationInput {
 export const APPLICATION_STATUSES = ["applied", "in_process", "rejected", "offered", "hired"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
+// Mirrors backend applicationHr.serializer.ts's ScreeningStatus exactly.
+// "not_started" only ever appears for a legacy Application that predates
+// automatic screening and has never been screened. "stale_processing" is
+// a derived overlay for a "processing" run stuck past the configured
+// timeout (e.g. a backend crash mid-screening) with no completed result —
+// recoverable via an explicit Retry, unlike normal "processing".
+export const SCREENING_SUMMARY_STATUSES = ["not_started", "pending", "processing", "stale_processing", "completed", "failed"] as const;
+export type ScreeningSummaryStatus = (typeof SCREENING_SUMMARY_STATUSES)[number];
+
 export interface ApplicationScreeningSummary {
+  status: ScreeningSummaryStatus;
+  // Derived (status === "completed") — kept for existing call sites built before `status` existed.
   has_screening: boolean;
   // A coverage score, never a hiring judgment — see ScreeningStatusBadge.
   latest_score?: number | null;

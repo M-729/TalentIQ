@@ -15,6 +15,29 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 
 let cachedClient: Groq | null = null;
 
+// Same fail-closed guard as smtpEmail.service.ts's assertNotRunningUnderTest
+// — centralized at the one place a real Groq client is ever constructed.
+// Before automatic screening existed, every test that could reach this
+// pipeline always mocked it at a higher boundary (screeningHistory.service
+// or similar), so this path was never actually exercised in CI even if a
+// real GROQ_API_KEY happened to be present in a local backend/.env
+// (dotenv/config only fills in already-unset vars — see config/env.ts).
+// Automatic screening now calls this same pipeline from the public
+// application-submission flow, which several existing tests exercise
+// without mocking the screening pipeline at all (they only assert it
+// isn't awaited) — this guard is what keeps those tests from ever making
+// a real, billed Groq request even if a real key is present locally.
+function assertNotRunningUnderTest(): void {
+  if (env.NODE_ENV === "test") {
+    throw new AIServiceError(
+      "not_configured",
+      "Refusing to create a real Groq client while NODE_ENV=test. " +
+        "This test must mock the AI/screening pipeline (see tests/screening.api.test.ts or " +
+        "tests/candidateMatch.service.test.ts for the pattern) instead of exercising the real Groq provider."
+    );
+  }
+}
+
 function ensureConfigured(): { client: Groq; model: string } {
   if (!env.GROQ_API_KEY) {
     throw new AIServiceError(
@@ -22,6 +45,8 @@ function ensureConfigured(): { client: Groq; model: string } {
       "Groq AI is not configured. Set GROQ_API_KEY (and optionally GROQ_MODEL) in backend/.env."
     );
   }
+
+  assertNotRunningUnderTest();
 
   if (!cachedClient) {
     cachedClient = new Groq({ apiKey: env.GROQ_API_KEY });

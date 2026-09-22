@@ -230,19 +230,34 @@ describe("HiringPipelineBoard", () => {
       expect(links[0]).toHaveAttribute("href", "/applications/application-42");
     });
 
-    it('shows "Skill Coverage X%" for a screened application', async () => {
-      await renderWithOneCard({ screening: { has_screening: true, latest_score: 75 } });
-      expect(screen.getByText("75% Skill Coverage")).toBeInTheDocument();
+    it('shows "AI Match X%" for a screened application', async () => {
+      await renderWithOneCard({ screening: { status: "completed", has_screening: true, latest_score: 75 } });
+      expect(screen.getByText("AI Match 75%")).toBeInTheDocument();
     });
 
     it('shows "Not screened" for an unscreened application', async () => {
-      await renderWithOneCard({ screening: { has_screening: false } });
+      await renderWithOneCard({ screening: { status: "not_started", has_screening: false } });
       expect(screen.getByText("Not screened")).toBeInTheDocument();
     });
 
     it("never shows a fake 0% for an unscreened application", async () => {
-      await renderWithOneCard({ screening: { has_screening: false } });
-      expect(screen.queryByText(/0% Skill Coverage/)).not.toBeInTheDocument();
+      await renderWithOneCard({ screening: { status: "not_started", has_screening: false } });
+      expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
+    });
+
+    it('shows "AI Screening · Processing" while the initial screening is running', async () => {
+      await renderWithOneCard({ screening: { status: "processing", has_screening: false } });
+      expect(screen.getByText("AI Screening · Processing")).toBeInTheDocument();
+    });
+
+    it('shows "AI Screening · Needs attention" when the initial screening failed', async () => {
+      await renderWithOneCard({ screening: { status: "failed", has_screening: false } });
+      expect(screen.getByText("AI Screening · Needs attention")).toBeInTheDocument();
+    });
+
+    it('shows "AI Screening · Needs attention" for a stale/interrupted processing run', async () => {
+      await renderWithOneCard({ screening: { status: "stale_processing", has_screening: false } });
+      expect(screen.getByText("AI Screening · Needs attention")).toBeInTheDocument();
     });
 
     it("renders cards in exactly the order returned by the API (oldest first, not re-sorted)", async () => {
@@ -252,8 +267,8 @@ describe("HiringPipelineBoard", () => {
           unassigned: {
             count: 2,
             applications: [
-              buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Low Coverage", email: "low@test.com" }, screening: { has_screening: true, latest_score: 20 } }),
-              buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "High Coverage", email: "high@test.com" }, screening: { has_screening: true, latest_score: 95 } }),
+              buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Low Coverage", email: "low@test.com" }, screening: { status: "completed", has_screening: true, latest_score: 20 } }),
+              buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "High Coverage", email: "high@test.com" }, screening: { status: "completed", has_screening: true, latest_score: 95 } }),
             ],
           },
         })
@@ -889,7 +904,7 @@ describe("HiringPipelineBoard", () => {
     it("never uses candidate-ranking or hiring-judgment language anywhere on the board", async () => {
       vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
         buildHiringPipelineBoard({
-          unassigned: { count: 1, applications: [buildHiringPipelineApplicationCard({ screening: { has_screening: true, latest_score: 63 } })] },
+          unassigned: { count: 1, applications: [buildHiringPipelineApplicationCard({ screening: { status: "completed", has_screening: true, latest_score: 63 } })] },
         })
       );
       renderBoard();

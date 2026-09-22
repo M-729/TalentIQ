@@ -7,6 +7,7 @@ import { Candidate } from "../src/models/Candidate.model";
 import { Application } from "../src/models/Application.model";
 import { HiringStep, type HiringStepDoc } from "../src/models/HiringStep.model";
 import { AIScreening } from "../src/models/AIScreening.model";
+import { AIScreeningRun } from "../src/models/AIScreeningRun.model";
 import { createCompany, createUser } from "./helpers/factories";
 import type { CompanyDoc } from "../src/models/Company.model";
 import type { UserDoc } from "../src/models/User.model";
@@ -324,6 +325,7 @@ describe("Hiring Pipeline Board API", () => {
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening).toEqual({
+        status: "completed",
         has_screening: true,
         latest_score: 75,
         latest_screened_at: expect.any(String),
@@ -337,6 +339,74 @@ describe("Hiring Pipeline Board API", () => {
       const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.applications[0].screening.latest_score).toBe(90);
+    });
+
+    // 8. Pipeline GET causes zero AI calls — this reads only persisted
+    // AIScreeningRun/AIScreening documents (see applicationHr.service.ts's
+    // getLatestScreeningSummaries, shared verbatim by this endpoint); if it
+    // ever called AI, this would fail outright since GROQ_API_KEY is not
+    // configured in the test environment.
+    it("shows status: processing for an application whose initial screening is still running, with no score", async () => {
+      const application = await createApplication();
+      await AIScreeningRun.create({ application_id: application.id, job_id: jobA.id, status: "processing", attempt_count: 1 });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const card = res.body.unassigned.applications[0];
+      expect(card.screening).toEqual({ status: "processing", has_screening: false });
+    });
+
+    it("shows status: failed for an application whose initial screening failed", async () => {
+      const application = await createApplication();
+      await AIScreeningRun.create({
+        application_id: application.id,
+        job_id: jobA.id,
+        status: "failed",
+        failure_code: "ai_provider_failure",
+        attempt_count: 1,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const card = res.body.unassigned.applications[0];
+      expect(card.screening).toEqual({ status: "failed", has_screening: false });
+    });
+
+    // 12. Pipeline GET with a stale run causes zero AI calls — same
+    // persisted-data-only read path as above, now for a processing run
+    // stuck past the configured timeout.
+    it("shows status: stale_processing for an application whose initial screening stalled past the timeout", async () => {
+      const application = await createApplication();
+      await AIScreeningRun.create({
+        application_id: application.id,
+        job_id: jobA.id,
+        status: "processing",
+        attempted_at: new Date(Date.now() - 20 * 60 * 1000),
+        attempt_count: 1,
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      const card = res.body.unassigned.applications[0];
+      expect(card.screening).toEqual({ status: "stale_processing", has_screening: false });
+    });
+
+    it("shows status: completed when a completed AIScreening already exists for a stale run", async () => {
+      const application = await createApplication();
+      await AIScreeningRun.create({
+        application_id: application.id,
+        job_id: jobA.id,
+        status: "processing",
+        attempted_at: new Date(Date.now() - 20 * 60 * 1000),
+        attempt_count: 1,
+      });
+      await AIScreening.create(screeningFixtureFor(application.id, jobA.id, 82));
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const card = res.body.unassigned.applications[0];
+      expect(card.screening).toEqual({ status: "completed", has_screening: true, latest_score: 82, latest_screened_at: expect.any(String) });
     });
   });
 

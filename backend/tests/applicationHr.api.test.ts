@@ -6,6 +6,7 @@ import { Job, type JobDoc } from "../src/models/Job.model";
 import { Candidate, type CandidateDoc } from "../src/models/Candidate.model";
 import { Application, type ApplicationDoc, type ApplicationStatus } from "../src/models/Application.model";
 import { AIScreening } from "../src/models/AIScreening.model";
+import { AIScreeningRun } from "../src/models/AIScreeningRun.model";
 import { createCompany, createUser } from "./helpers/factories";
 import type { CompanyDoc } from "../src/models/Company.model";
 import type { UserDoc } from "../src/models/User.model";
@@ -430,7 +431,105 @@ describe("HR Applications Management API", () => {
         .get(`/api/v1/applications/${application.id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      expect(res.body.application.screening).toEqual({ has_screening: false });
+      expect(res.body.application.screening).toEqual({ has_screening: false, status: "not_started" });
+    });
+
+    it("reports status: processing while the initial screening is running, in both list and detail", async () => {
+      const { application, job } = await createApplication(companyA, hrA);
+      await AIScreeningRun.create({ application_id: application.id, job_id: job.id, status: "processing", attempt_count: 1 });
+
+      const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+      const detailRes = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(listRes.body.applications[0].screening).toEqual({ status: "processing", has_screening: false });
+      expect(detailRes.body.application.screening).toEqual({ status: "processing", has_screening: false });
+    });
+
+    // 3/10/11. stale processing becomes retryable; GET list/detail cause zero AI calls
+    it("reports status: stale_processing for a processing run stuck past the configured timeout, in both list and detail", async () => {
+      const { application, job } = await createApplication(companyA, hrA);
+      await AIScreeningRun.create({
+        application_id: application.id,
+        job_id: job.id,
+        status: "processing",
+        attempted_at: new Date(Date.now() - 20 * 60 * 1000),
+        attempt_count: 1,
+      });
+
+      const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+      const detailRes = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      // Both GETs succeed and report the derived status purely from
+      // persisted data — if either had attempted a real AI call,
+      // GROQ_API_KEY being unconfigured in this test environment would
+      // have failed the request outright rather than returning 200 with
+      // this exact derived status.
+      expect(listRes.status).toBe(200);
+      expect(detailRes.status).toBe(200);
+      expect(listRes.body.applications[0].screening).toEqual({ status: "stale_processing", has_screening: false });
+      expect(detailRes.body.application.screening).toEqual({ status: "stale_processing", has_screening: false });
+    });
+
+    // 8/9. stale run + existing successful AIScreening derives completed, in the list/detail read paths too
+    it("reports status: completed (never stale_processing) when a completed AIScreening already exists for a stale run", async () => {
+      const { application, job } = await createApplication(companyA, hrA);
+      await AIScreeningRun.create({
+        application_id: application.id,
+        job_id: job.id,
+        status: "processing",
+        attempted_at: new Date(Date.now() - 20 * 60 * 1000),
+        attempt_count: 1,
+      });
+      await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 77 } });
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.body.application.screening.status).toBe("completed");
+      expect(res.body.application.screening.latest_score).toBe(77);
+    });
+
+    it("reports status: failed after the initial screening fails, in both list and detail", async () => {
+      const { application, job } = await createApplication(companyA, hrA);
+      await AIScreeningRun.create({
+        application_id: application.id,
+        job_id: job.id,
+        status: "failed",
+        failure_code: "ai_provider_failure",
+        failure_message: "The AI provider is temporarily unavailable.",
+        attempt_count: 1,
+      });
+
+      const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+      const detailRes = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(listRes.body.applications[0].screening).toEqual({ status: "failed", has_screening: false });
+      expect(detailRes.body.application.screening).toEqual({ status: "failed", has_screening: false });
+      // Never leaks the internal failure_code/failure_message onto the
+      // list/detail summary DTO — that lives only in the full screening
+      // read path, and even there only ever a safe, mapped message.
+      expect(JSON.stringify(listRes.body)).not.toContain("ai_provider_failure");
+    });
+
+    it("reports status: completed (derived) for a legacy Application with an existing screening but no run row", async () => {
+      const { application, job } = await createApplication(companyA, hrA);
+      await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 88 } });
+      // Deliberately no AIScreeningRun row — simulates data that predates this feature.
+      expect(await AIScreeningRun.countDocuments({ application_id: application.id })).toBe(0);
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.body.application.screening.status).toBe("completed");
+      expect(res.body.application.screening.latest_score).toBe(88);
     });
 
     it("returns the latest screening score in the list and detail views", async () => {

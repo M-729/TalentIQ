@@ -58,7 +58,7 @@ export function buildApplicationListRow(overrides: Partial<ApplicationListRow> =
       department: "Engineering",
       status: "active",
     },
-    screening: { has_screening: false },
+    screening: { status: "not_started", has_screening: false },
     ...overrides,
   };
 }
@@ -82,7 +82,7 @@ export function buildHiringPipelineApplicationCard(
     candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
     status: "applied",
     applied_at: "2024-01-15T00:00:00.000Z",
-    screening: { has_screening: false },
+    screening: { status: "not_started", has_screening: false },
     ...overrides,
   };
 }
@@ -142,7 +142,7 @@ export function buildApplicationDetail(overrides: Partial<ApplicationDetail> = {
       mime_type: "application/pdf",
       size_bytes: 253952,
     },
-    screening: { has_screening: false },
+    screening: { status: "not_started", has_screening: false },
     current_step: null,
     ...overrides,
   };

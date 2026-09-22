@@ -7,6 +7,7 @@ import { isDuplicateKeyError } from "../../middleware/error.middleware";
 import { cvStorage } from "../../services/storage/cvStorage.service";
 import { emailService } from "../../services/email/email.service";
 import { buildApplicationConfirmationEmail } from "../../services/email/templates/applicationConfirmation.template";
+import { triggerInitialScreeningInBackground } from "../../services/ai/screeningRun.service";
 import { detectCvFileType } from "./cvFileSignature";
 import type { SubmitApplicationInput } from "./application.validation";
 
@@ -145,8 +146,9 @@ export async function submitPublicApplication(
   // losing the rare concurrent-duplicate race that step 6's pre-check
   // can't catch — the upload we just made is now orphaned and must be
   // cleaned up rather than left behind.
+  let application;
   try {
-    await Application.create({
+    application = await Application.create({
       job_id: job._id,
       candidate_id: candidate._id,
       status: "applied",
@@ -183,6 +185,18 @@ export async function submitPublicApplication(
     jobTitle: job.title,
     companyId: job.company_id.toString(),
   });
+
+  // Initial AI screening starts automatically here, exactly once, for
+  // every successfully created Application — deliberately NOT awaited:
+  // the candidate's response must not wait for a multi-second CV-
+  // extraction + AI round trip (this ticket's explicit latency rule).
+  // triggerInitialScreeningInBackground is a plain synchronous function
+  // that starts its own Promise chain with an always-attached `.catch`,
+  // so this can never become an unhandled rejection, and no AI failure
+  // here can ever roll back or fail the Application that already exists
+  // (see screeningRun.service.ts's own doc comment for the full
+  // one-time/concurrency contract and its documented limitations).
+  triggerInitialScreeningInBackground(application.id, job._id.toString());
 
   // 10: the controller sends the minimal success response.
 }

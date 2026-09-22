@@ -3,10 +3,15 @@ import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { ConflictError } from "../../security/AppError";
 import { getAccessibleApplication } from "../applications/applicationAccess.service";
 import {
-  createApplicationScreening,
   getApplicationScreeningHistory,
   getLatestApplicationScreening,
 } from "../../services/ai/screeningHistory.service";
+import {
+  getEffectiveScreeningState,
+  reserveScreeningRunForProcessing,
+  runAndFinalizeScreening,
+  type ReportedScreeningStatus,
+} from "../../services/ai/screeningRun.service";
 import { mapScreeningError } from "./screening.errors";
 
 /**
@@ -30,6 +35,18 @@ import { mapScreeningError } from "./screening.errors";
  * below, blocking it before any CV/R2/Groq work is attempted.
  */
 
+/**
+ * The single HR-facing "run the initial screening now" action — covers
+ * both this ticket's "Start Screening" (a legacy Application with no run
+ * row yet) and "Retry Screening" (an existing run currently "failed")
+ * cases identically, since both are really "attempt the one initial
+ * screening now" from a starting state that allows it. Concurrency and
+ * the "not available when pending/processing/completed" rule are both
+ * enforced by reserveScreeningRunForProcessing — this function adds only
+ * the HTTP-layer concerns (tenant authorization, active-Job gate, safe
+ * error mapping) on top of it, exactly as it already did for the
+ * pre-existing createApplicationScreening call.
+ */
 export async function createScreening(applicationId: string, companyId: string): Promise<AIScreeningDoc> {
   const application = await getAccessibleApplication(applicationId, companyId);
 
@@ -39,17 +56,28 @@ export async function createScreening(applicationId: string, companyId: string):
   }
 
   try {
-    return await createApplicationScreening(applicationId);
+    const run = await reserveScreeningRunForProcessing(applicationId, application.job_id.toString());
+    return await runAndFinalizeScreening(run);
   } catch (err) {
     throw mapScreeningError(err);
   }
 }
 
-export async function getLatestScreening(applicationId: string, companyId: string): Promise<AIScreeningDoc | null> {
+export interface LatestScreeningResult {
+  screening: AIScreeningDoc | null;
+  /** The current initial-screening lifecycle state — see screeningRun.service.ts's ReportedScreeningStatus/resolveReportedStatus for exactly how this is derived (including stale-processing detection and the persisted-success-wins rule). */
+  status: ReportedScreeningStatus;
+}
+
+export async function getLatestScreening(applicationId: string, companyId: string): Promise<LatestScreeningResult> {
   await getAccessibleApplication(applicationId, companyId);
 
   try {
-    return await getLatestApplicationScreening(applicationId);
+    const [screening, state] = await Promise.all([
+      getLatestApplicationScreening(applicationId),
+      getEffectiveScreeningState(applicationId),
+    ]);
+    return { screening, status: state.status };
   } catch (err) {
     throw mapScreeningError(err);
   }

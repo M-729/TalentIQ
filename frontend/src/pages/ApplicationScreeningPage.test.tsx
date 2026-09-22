@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApplicationScreeningPage } from "@/pages/ApplicationScreeningPage";
@@ -36,7 +36,7 @@ describe("ApplicationScreeningPage", () => {
   });
 
   it("fetches the latest screening on mount", async () => {
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: buildScreening() });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: buildScreening(), status: "completed" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
     renderPage();
@@ -45,7 +45,7 @@ describe("ApplicationScreeningPage", () => {
   });
 
   it("never calls createScreening automatically on mount, even when no screening exists", async () => {
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
     renderPage();
@@ -55,7 +55,7 @@ describe("ApplicationScreeningPage", () => {
   });
 
   it("shows the empty state with a Run AI Screening action when no screening exists", async () => {
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
     renderPage();
@@ -65,7 +65,7 @@ describe("ApplicationScreeningPage", () => {
 
   it("POSTs exactly once when Run AI Screening is clicked", async () => {
     const user = userEvent.setup();
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
     vi.mocked(screeningsApi.createScreening).mockResolvedValue({ screening: buildScreening() });
 
@@ -77,7 +77,7 @@ describe("ApplicationScreeningPage", () => {
 
   it("disables the button while the POST is in flight, preventing duplicate clicks", async () => {
     const user = userEvent.setup();
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
     let resolveCreate: (value: { screening: ReturnType<typeof buildScreening> }) => void = () => {};
     vi.mocked(screeningsApi.createScreening).mockReturnValue(
@@ -96,7 +96,7 @@ describe("ApplicationScreeningPage", () => {
 
   it("renders the result after a successful POST", async () => {
     const user = userEvent.setup();
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
     vi.mocked(screeningsApi.createScreening).mockResolvedValue({ screening: buildScreening() });
 
@@ -107,55 +107,104 @@ describe("ApplicationScreeningPage", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
   });
 
-  it("requires confirmation before a rerun when a screening already exists", async () => {
-    const user = userEvent.setup();
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: buildScreening() });
+  // Screening happens once, automatically, and the result stays stable —
+  // the normal completed-screening workflow no longer offers a Rerun
+  // control at all (see this ticket's explicit removal of the standard
+  // manual rerun UX; ScreeningResultHeader's onRequestRerun is simply
+  // never wired up from this page anymore, though the underlying
+  // component/dialog/backend capability still exist for a future
+  // administrative mechanism, out of scope here).
+  it("shows no Rerun control for a normal completed screening", async () => {
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: buildScreening(), status: "completed" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [buildScreening()] });
 
     renderPage();
-    const rerunButton = await screen.findByRole("button", { name: /re-run screening/i });
-    await user.click(rerunButton);
 
-    expect(await screen.findByText("Re-run AI screening?")).toBeInTheDocument();
+    expect(await screen.findByText("100%")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-run screening/i })).not.toBeInTheDocument();
     expect(screeningsApi.createScreening).not.toHaveBeenCalled();
   });
 
-  it("creates a new screening only after the rerun is confirmed", async () => {
-    const user = userEvent.setup();
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: buildScreening({ id: "first" }) });
-    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [buildScreening({ id: "first" })] });
-    vi.mocked(screeningsApi.createScreening).mockResolvedValue({
-      screening: buildScreening({ id: "second", match: { ...buildScreening().match, score: 63 } }),
-    });
+  it("shows a Processing message, with no Run/Retry button, while the initial screening is running", async () => {
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "processing" });
+    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /re-run screening/i }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /^re-run screening$/i }));
 
-    await waitFor(() => expect(screeningsApi.createScreening).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("63%")).toBeInTheDocument();
+    expect(await screen.findByText(/processing candidate cv/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screeningsApi.createScreening).not.toHaveBeenCalled();
   });
 
-  it("keeps the old screening visible if the rerun fails", async () => {
-    const user = userEvent.setup();
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: buildScreening() });
-    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [buildScreening()] });
-    vi.mocked(screeningsApi.createScreening).mockRejectedValue(new Error("boom"));
+  // Stale processing recovery — a "processing" run stuck past the
+  // configured timeout (e.g. a backend crash) is reported by the backend
+  // as "stale_processing" and must show a distinct "interrupted" message
+  // with an explicit Retry action, never an indefinite Processing state
+  // and never an automatic rerun just because the page was opened.
+  it('shows "Screening was interrupted" with a Retry Screening action for a stale processing run', async () => {
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "stale_processing" });
+    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /re-run screening/i }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /^re-run screening$/i }));
+
+    expect(await screen.findByText(/screening was interrupted/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry screening/i })).toBeInTheDocument();
+    expect(screeningsApi.createScreening).not.toHaveBeenCalled();
+  });
+
+  it("lets Retry succeed for a stale processing run, without auto-retrying on page load", async () => {
+    const user = userEvent.setup();
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "stale_processing" });
+    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+    vi.mocked(screeningsApi.createScreening).mockResolvedValue({ screening: buildScreening({ id: "recovered" }) });
+
+    renderPage();
+    await screen.findByText(/screening was interrupted/i);
+    expect(screeningsApi.createScreening).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /retry screening/i }));
 
     await waitFor(() => expect(screeningsApi.createScreening).toHaveBeenCalledTimes(1));
-    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(await screen.findByText("100%")).toBeInTheDocument();
+  });
+
+  it("shows a Retry Screening action, and lets it succeed, when the initial screening failed", async () => {
+    const user = userEvent.setup();
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "failed" });
+    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+    vi.mocked(screeningsApi.createScreening).mockResolvedValue({ screening: buildScreening({ id: "retry-success" }) });
+
+    renderPage();
+    const retryButton = await screen.findByRole("button", { name: /retry screening/i });
+    await user.click(retryButton);
+
+    await waitFor(() => expect(screeningsApi.createScreening).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("100%")).toBeInTheDocument();
+  });
+
+  it("disables the Retry Screening button while the retry is in flight, preventing a double submit", async () => {
+    const user = userEvent.setup();
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "failed" });
+    vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
+    let resolveCreate: (value: { screening: ReturnType<typeof buildScreening> }) => void = () => {};
+    vi.mocked(screeningsApi.createScreening).mockReturnValue(
+      new Promise((resolve) => {
+        resolveCreate = resolve;
+      })
+    );
+
+    renderPage();
+    const retryButton = await screen.findByRole("button", { name: /retry screening/i });
+    await user.click(retryButton);
+
+    await waitFor(() => expect(retryButton).toBeDisabled());
+    resolveCreate({ screening: buildScreening() });
   });
 
   it("renders history newest-first exactly as the API returns it, without re-sorting", async () => {
     const newest = buildScreening({ id: "second", created_at: "2024-02-01T00:00:00.000Z" });
     const oldest = buildScreening({ id: "first", created_at: "2024-01-01T00:00:00.000Z" });
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest, status: "completed" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [newest, oldest] });
 
     renderPage();
@@ -175,7 +224,7 @@ describe("ApplicationScreeningPage", () => {
       created_at: "2024-01-01T00:00:00.000Z",
       match: { ...buildScreening().match, score: 40 },
     });
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest, status: "completed" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [newest, oldest] });
 
     renderPage();
@@ -196,7 +245,7 @@ describe("ApplicationScreeningPage", () => {
       created_at: "2024-01-01T00:00:00.000Z",
       match: { ...buildScreening().match, score: 40 },
     });
-    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest });
+    vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest, status: "completed" });
     vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [newest, oldest] });
 
     renderPage();
@@ -212,7 +261,7 @@ describe("ApplicationScreeningPage", () => {
 
   describe("candidate/job context header", () => {
     it("shows the candidate's name", async () => {
-      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
       vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
       renderPage();
@@ -221,7 +270,7 @@ describe("ApplicationScreeningPage", () => {
     });
 
     it("shows the applied job title", async () => {
-      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
       vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
       renderPage();
@@ -230,7 +279,7 @@ describe("ApplicationScreeningPage", () => {
     });
 
     it("links Back to Application to the correct detail route", async () => {
-      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
       vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
       renderPage("app-1");
@@ -240,7 +289,7 @@ describe("ApplicationScreeningPage", () => {
     });
 
     it("still never auto-POSTs a screening, even with candidate/job context loaded", async () => {
-      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null });
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: null, status: "not_started" });
       vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [] });
 
       renderPage();
@@ -256,7 +305,7 @@ describe("ApplicationScreeningPage", () => {
         created_at: "2024-01-01T00:00:00.000Z",
         match: { ...buildScreening().match, score: 40 },
       });
-      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest });
+      vi.mocked(screeningsApi.getLatestScreening).mockResolvedValue({ screening: newest, status: "completed" });
       vi.mocked(screeningsApi.getScreeningHistory).mockResolvedValue({ screenings: [newest, oldest] });
 
       renderPage();

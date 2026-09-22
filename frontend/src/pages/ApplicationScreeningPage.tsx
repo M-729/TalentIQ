@@ -10,9 +10,8 @@ import { EducationCard } from "@/components/screenings/EducationCard";
 import { ExperienceCard } from "@/components/screenings/ExperienceCard";
 import { ExtractedSkillsCard } from "@/components/screenings/ExtractedSkillsCard";
 import { RequiredSkillBreakdown } from "@/components/screenings/RequiredSkillBreakdown";
-import { RerunConfirmDialog } from "@/components/screenings/RerunConfirmDialog";
 import { ScreeningDetailsCard } from "@/components/screenings/ScreeningDetailsCard";
-import { ScreeningEmptyState } from "@/components/screenings/ScreeningEmptyState";
+import { ScreeningEmptyState, type ScreeningEmptyStateVariant } from "@/components/screenings/ScreeningEmptyState";
 import { ScreeningHistoryList } from "@/components/screenings/ScreeningHistoryList";
 import { ScreeningPageContextHeader } from "@/components/screenings/ScreeningPageContextHeader";
 import { ScreeningResultHeader } from "@/components/screenings/ScreeningResultHeader";
@@ -42,7 +41,6 @@ export function ApplicationScreeningPage() {
 
   const [viewMode, setViewMode] = useState<"latest" | "historical">("latest");
   const [selectedHistoricalId, setSelectedHistoricalId] = useState<string | null>(null);
-  const [rerunDialogOpen, setRerunDialogOpen] = useState(false);
   const [showSuccessFlash, setShowSuccessFlash] = useState(false);
   const successFlashTimeout = useRef<number | undefined>(undefined);
 
@@ -62,18 +60,6 @@ export function ApplicationScreeningPage() {
     const result = await create.run();
     if (result) {
       setLatestOverride(result);
-      history.refetch();
-      flashSuccess();
-    }
-  }
-
-  async function handleConfirmRerun() {
-    const result = await create.run();
-    setRerunDialogOpen(false);
-    if (result) {
-      setLatestOverride(result);
-      setViewMode("latest");
-      setSelectedHistoricalId(null);
       history.refetch();
       flashSuccess();
     }
@@ -159,12 +145,28 @@ export function ApplicationScreeningPage() {
     );
   }
 
+  // Only ever reached with a null displayedScreening — a completed
+  // screening always has one. "pending" is folded into "processing" here
+  // (both mean "in flight, nothing to click"); it's an extremely
+  // transient state in practice since reservation immediately transitions
+  // into "processing" within the same request. "stale_processing" is its
+  // own distinct variant (Retry, unlike normal "processing") — see
+  // screeningRun.service.ts for how the backend derives it.
+  const emptyStateVariant: ScreeningEmptyStateVariant =
+    latest.status === "processing" || latest.status === "pending"
+      ? "processing"
+      : latest.status === "stale_processing"
+        ? "stale_processing"
+        : latest.status === "failed"
+          ? "failed"
+          : "not_started";
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {contextHeader}
 
       {!displayedScreening ? (
-        <ScreeningEmptyState isRunning={create.isCreating} onRun={handleRun} />
+        <ScreeningEmptyState variant={emptyStateVariant} isRunning={create.isCreating} onRun={handleRun} />
       ) : (
         <>
           <ScreeningResultHeader
@@ -173,7 +175,6 @@ export function ApplicationScreeningPage() {
             isCreating={create.isCreating}
             createError={create.error}
             showSuccessFlash={showSuccessFlash}
-            onRequestRerun={() => setRerunDialogOpen(true)}
             onBackToLatest={handleBackToLatest}
           />
 
@@ -199,13 +200,6 @@ export function ApplicationScreeningPage() {
           )}
         </>
       )}
-
-      <RerunConfirmDialog
-        open={rerunDialogOpen}
-        onOpenChange={setRerunDialogOpen}
-        onConfirm={handleConfirmRerun}
-        isCreating={create.isCreating}
-      />
     </div>
   );
 }

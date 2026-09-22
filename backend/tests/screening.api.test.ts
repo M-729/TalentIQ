@@ -5,6 +5,8 @@ import { signAccessToken } from "../src/security/tokens";
 import { Job } from "../src/models/Job.model";
 import { Candidate } from "../src/models/Candidate.model";
 import { Application } from "../src/models/Application.model";
+import { AIScreeningRun } from "../src/models/AIScreeningRun.model";
+import { AIScreening } from "../src/models/AIScreening.model";
 import { createCompany, createUser } from "./helpers/factories";
 import type { CompanyDoc } from "../src/models/Company.model";
 import type { UserDoc } from "../src/models/User.model";
@@ -311,17 +313,22 @@ describe("AI Screening API", () => {
       );
     });
 
-    it("creates another screening on a second explicit POST, never silently reusing the first", async () => {
+    // Under the automatic-one-time-screening model, a completed initial
+    // screening can no longer be re-triggered through this endpoint (see
+    // AIScreeningRun.model.ts / screeningRun.service.ts) — a second POST
+    // after a successful first one is rejected as a conflict rather than
+    // silently creating a second screening.
+    it("rejects a second POST after a successful first one, never creating a second screening", async () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture({ id: "first-screening" }));
-      mockCreate.mockResolvedValueOnce(screeningFixture({ id: "second-screening" }));
 
       const first = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const second = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(first.status).toBe(201);
       expect(first.body.screening.id).toBe("first-screening");
-      expect(second.body.screening.id).toBe("second-screening");
+      expect(second.status).toBe(409);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
     });
 
     it("maps a service failure to a safe HTTP error", async () => {
@@ -331,6 +338,118 @@ describe("AI Screening API", () => {
       const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(503);
+    });
+
+    // ===== RETRY =====
+    describe("retry (POST after a failed initial screening)", () => {
+      // 12. failed screening can retry / 15. retry succeeds and produces completed result
+      it("succeeds on retry after a first attempt failed, producing a completed screening", async () => {
+        const { application } = await createApplicationFor(companyA, hrA);
+        mockCreate.mockRejectedValueOnce(new CvAnalysisError("ai_provider_failure", "AI analysis provider request failed."));
+        mockCreate.mockResolvedValueOnce(screeningFixture({ id: "retry-success" }));
+
+        const first = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const second = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+        expect(first.status).toBe(503);
+        expect(second.status).toBe(201);
+        expect(second.body.screening.id).toBe("retry-success");
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+      });
+
+      // 16. retry failure remains failed
+      it("remains retryable after a second consecutive failure", async () => {
+        const { application } = await createApplicationFor(companyA, hrA);
+        mockCreate.mockRejectedValue(new CvAnalysisError("ai_provider_failure", "AI analysis provider request failed."));
+
+        const first = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const second = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+        expect(first.status).toBe(503);
+        expect(second.status).toBe(503);
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+      });
+
+      // 14. processing screening cannot retry
+      it("rejects a POST while this application's run is already processing", async () => {
+        const { application } = await createApplicationFor(companyA, hrA);
+        await AIScreeningRun.create({ application_id: application.id, job_id: application.job_id, status: "processing", attempt_count: 1 });
+
+        const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+        expect(res.status).toBe(409);
+        expect(mockCreate).not.toHaveBeenCalled();
+      });
+
+      // ===== STALE PROCESSING RECOVERY =====
+      describe("stale processing recovery", () => {
+        it("succeeds on retry when the run has been stuck processing past the configured timeout", async () => {
+          const { application } = await createApplicationFor(companyA, hrA);
+          await AIScreeningRun.create({
+            application_id: application.id,
+            job_id: application.job_id,
+            status: "processing",
+            attempted_at: new Date(Date.now() - 20 * 60 * 1000),
+            attempt_count: 1,
+          });
+          mockCreate.mockResolvedValueOnce(screeningFixture({ id: "recovered" }));
+
+          const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+          expect(res.status).toBe(201);
+          expect(res.body.screening.id).toBe("recovered");
+          expect(mockCreate).toHaveBeenCalledTimes(1);
+
+          const run = await AIScreeningRun.findOne({ application_id: application.id });
+          expect(run?.status).toBe("completed");
+          expect(run?.attempt_count).toBe(2);
+        });
+
+        it("rejects retry when the completed screening already exists for a stale run, without calling AI", async () => {
+          const { application } = await createApplicationFor(companyA, hrA);
+          await AIScreeningRun.create({
+            application_id: application.id,
+            job_id: application.job_id,
+            status: "processing",
+            attempted_at: new Date(Date.now() - 20 * 60 * 1000),
+            attempt_count: 1,
+          });
+          // A screening was actually persisted before the crash — the run
+          // row just never got updated to reflect it.
+          await AIScreening.create({
+            application_id: application.id,
+            job_id: application.job_id,
+            analysis: {
+              summary: "Solid candidate.",
+              skills: [],
+              experience: { yearsMentioned: 3, summary: "3 years." },
+              education: [],
+              strengths: [],
+              gaps: [],
+              requiredSkillEvidence: [],
+            },
+            match: {
+              score: 80,
+              scorable: true,
+              totalRequiredSkills: 1,
+              foundSkills: 1,
+              unclearSkills: 0,
+              missingSkills: 0,
+              matchedSkills: [],
+              unclearRequiredSkills: [],
+              missingRequiredSkills: [],
+              breakdown: [],
+            },
+            ai_metadata: { provider: "groq" },
+            score_formula_version: "required_skill_coverage_v1",
+          });
+
+          const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+          expect(res.status).toBe(409);
+          expect(mockCreate).not.toHaveBeenCalled();
+        });
+      });
     });
   });
 
@@ -357,7 +476,7 @@ describe("AI Screening API", () => {
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ screening: null });
+      expect(res.body).toEqual({ screening: null, status: "not_started" });
     });
 
     it("never calls createApplicationScreening", async () => {

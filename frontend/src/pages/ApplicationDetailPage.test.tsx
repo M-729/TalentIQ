@@ -124,7 +124,7 @@ describe("ApplicationDetailPage", () => {
 
   it('shows "Not screened" when the applicant has no screening', async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
-      application: buildApplicationDetail({ screening: { has_screening: false } }),
+      application: buildApplicationDetail({ screening: { status: "not_started", has_screening: false } }),
     });
     renderPage();
     expect((await screen.findAllByText("Not screened")).length).toBeGreaterThan(0);
@@ -132,7 +132,7 @@ describe("ApplicationDetailPage", () => {
 
   it('shows a "Run AI Screening" action when unscreened', async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
-      application: buildApplicationDetail({ screening: { has_screening: false } }),
+      application: buildApplicationDetail({ screening: { status: "not_started", has_screening: false } }),
     });
     renderPage();
     expect((await screen.findAllByRole("link", { name: /run ai screening/i })).length).toBeGreaterThan(0);
@@ -140,7 +140,7 @@ describe("ApplicationDetailPage", () => {
 
   it('shows "Screened" when the applicant has a screening', async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
-      application: buildApplicationDetail({ screening: { has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
+      application: buildApplicationDetail({ screening: { status: "completed", has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
     });
     renderPage();
     expect((await screen.findAllByText("Screened")).length).toBeGreaterThan(0);
@@ -148,10 +148,36 @@ describe("ApplicationDetailPage", () => {
 
   it("displays the coverage percentage when screened", async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
-      application: buildApplicationDetail({ screening: { has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
+      application: buildApplicationDetail({ screening: { status: "completed", has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
     });
     renderPage();
     expect((await screen.findAllByText(/Required Skill Coverage: 63%/)).length).toBeGreaterThan(0);
+  });
+
+  it('shows a Processing message, with no score, while the initial screening is running', async () => {
+    vi.mocked(applicationsApi.getApplication).mockResolvedValue({
+      application: buildApplicationDetail({ screening: { status: "processing", has_screening: false } }),
+    });
+    renderPage();
+    expect((await screen.findAllByText(/processing candidate cv/i)).length).toBeGreaterThan(0);
+  });
+
+  it('shows a "Screening was interrupted" Retry action for a stale processing run', async () => {
+    vi.mocked(applicationsApi.getApplication).mockResolvedValue({
+      application: buildApplicationDetail({ screening: { status: "stale_processing", has_screening: false } }),
+    });
+    renderPage();
+    expect((await screen.findAllByText(/interrupted/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("link", { name: /retry screening/i })).length).toBeGreaterThan(0);
+  });
+
+  it('shows a Retry Screening action, with no score, when the initial screening failed', async () => {
+    vi.mocked(applicationsApi.getApplication).mockResolvedValue({
+      application: buildApplicationDetail({ screening: { status: "failed", has_screening: false } }),
+    });
+    renderPage();
+    expect((await screen.findAllByRole("link", { name: /retry screening/i })).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Required Skill Coverage/)).not.toBeInTheDocument();
   });
 
   it("navigates to the screening page when View AI Screening is clicked, without POSTing", async () => {
@@ -159,7 +185,7 @@ describe("ApplicationDetailPage", () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
       application: buildApplicationDetail({
         id: "application-1",
-        screening: { has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" },
+        screening: { status: "completed", has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" },
       }),
     });
     renderPage("application-1");

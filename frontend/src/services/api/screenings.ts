@@ -1,12 +1,18 @@
 import { apiClient } from "@/services/api/client";
-import type { Screening } from "@/types/screening";
+import type { Screening, ScreeningStatus } from "@/types/screening";
+
+export interface LatestScreeningResponse {
+  screening: Screening | null;
+  status: ScreeningStatus;
+}
 
 // GET latest/history are plain database reads — they must never trigger an
 // AI call. Only createScreening() below does (a real Groq request), which
 // is why it's the only one ever wired to an explicit user action (a
-// button click), never to a useEffect on mount.
-export function getLatestScreening(applicationId: string, signal?: AbortSignal): Promise<{ screening: Screening | null }> {
-  return apiClient.get<{ screening: Screening | null }>(`/applications/${applicationId}/screenings/latest`, signal);
+// button click: Start Screening / Retry Screening), never to a useEffect
+// on mount.
+export function getLatestScreening(applicationId: string, signal?: AbortSignal): Promise<LatestScreeningResponse> {
+  return apiClient.get<LatestScreeningResponse>(`/applications/${applicationId}/screenings/latest`, signal);
 }
 
 export function getScreeningHistory(applicationId: string, signal?: AbortSignal): Promise<{ screenings: Screening[] }> {

@@ -11,9 +11,13 @@ function formatDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
-// Never POSTs from this page — the screening page is the single place
-// that owns running/re-running AI screening. This card only ever links
-// into it, whether the applicant is unscreened or already screened.
+// Never POSTs from this page — the dedicated screening page
+// (ApplicationScreeningPage) is the single place that owns running/
+// retrying AI screening; this card only ever links into it, whatever the
+// current state. Screening happens once, automatically, right after the
+// candidate applies (see this ticket) — there is deliberately no "Run"
+// action here for a normal (non-legacy) Application; only a legacy one
+// (status: "not_started") still offers to start it.
 export function AiScreeningCard({ applicationId, screening }: { applicationId: string; screening: ApplicationDetail["screening"] }) {
   return (
     <Card>
@@ -21,9 +25,9 @@ export function AiScreeningCard({ applicationId, screening }: { applicationId: s
         <CardTitle>AI Screening</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <ScreeningStatusBadge hasScreening={screening.has_screening} />
+        <ScreeningStatusBadge status={screening.status} />
 
-        {screening.has_screening ? (
+        {screening.status === "completed" ? (
           <>
             {screening.latest_score != null && (
               <p className="text-sm text-foreground">Required Skill Coverage: {screening.latest_score}%</p>
@@ -33,6 +37,27 @@ export function AiScreeningCard({ applicationId, screening }: { applicationId: s
             )}
             <Button asChild>
               <Link to={`/applications/${applicationId}/screening`}>View AI Screening</Link>
+            </Button>
+          </>
+        ) : screening.status === "processing" || screening.status === "pending" ? (
+          <>
+            {/* No indefinite spinner/animation implying the page must stay
+                open — HR can navigate away and the result will be there
+                when they come back. */}
+            <p className="text-sm text-muted-foreground">Processing candidate CV…</p>
+          </>
+        ) : screening.status === "stale_processing" ? (
+          <>
+            <p className="text-sm text-muted-foreground">Screening was interrupted before it could finish.</p>
+            <Button asChild>
+              <Link to={`/applications/${applicationId}/screening`}>Retry Screening</Link>
+            </Button>
+          </>
+        ) : screening.status === "failed" ? (
+          <>
+            <p className="text-sm text-muted-foreground">The initial automatic screening could not be completed.</p>
+            <Button asChild>
+              <Link to={`/applications/${applicationId}/screening`}>Retry Screening</Link>
             </Button>
           </>
         ) : (

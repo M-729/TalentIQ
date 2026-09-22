@@ -40,15 +40,19 @@ export function ApplicationDetailHeader({ application }: { application: Applicat
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
             <span className="text-sm text-muted-foreground">AI Screening:</span>
-            <ScreeningStatusBadge hasScreening={application.screening.has_screening} />
-            {application.screening.has_screening && application.screening.latest_score != null && (
+            <ScreeningStatusBadge status={application.screening.status} />
+            {application.screening.status === "completed" && application.screening.latest_score != null && (
               <span className="text-sm text-foreground">
                 Required Skill Coverage: {application.screening.latest_score}%
               </span>
             )}
             <Button size="sm" asChild className="ml-auto">
               <Link to={`/applications/${application.id}/screening`}>
-                {application.screening.has_screening ? "View AI Screening" : "Run AI Screening"}
+                {application.screening.status === "not_started"
+                  ? "Run AI Screening"
+                  : application.screening.status === "failed" || application.screening.status === "stale_processing"
+                    ? "Retry Screening"
+                    : "View AI Screening"}
               </Link>
             </Button>
           </div>

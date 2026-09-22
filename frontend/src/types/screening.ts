@@ -69,3 +69,17 @@ export interface Screening {
   score_formula_version: string;
   created_at: string;
 }
+
+// Mirrors backend screeningRun.service.ts's ReportedScreeningStatus, plus
+// "not_started" for a legacy Application that predates automatic
+// screening and has never been screened at all — see
+// screening.service.ts's getLatestScreening. Screening happens once,
+// automatically, right after a candidate applies; this is the current
+// state of that ONE initial attempt, never recomputed on read.
+//
+// "stale_processing" is a DERIVED overlay, never a value the backend
+// actually persists: a "processing" run stuck past the configured
+// timeout (e.g. a backend crash mid-screening) with no completed result
+// yet — recoverable via an explicit Retry, unlike normal "processing".
+export const SCREENING_STATUSES = ["not_started", "pending", "processing", "stale_processing", "completed", "failed"] as const;
+export type ScreeningStatus = (typeof SCREENING_STATUSES)[number];
