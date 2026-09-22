@@ -4,10 +4,12 @@ import { createApp } from "../src/app";
 import { signAccessToken } from "../src/security/tokens";
 import { Job, type JobDoc } from "../src/models/Job.model";
 import { Candidate } from "../src/models/Candidate.model";
-import { Application } from "../src/models/Application.model";
+import { Application, type ApplicationDoc } from "../src/models/Application.model";
 import { HiringStep, type HiringStepDoc } from "../src/models/HiringStep.model";
 import { AIScreening } from "../src/models/AIScreening.model";
 import { AIScreeningRun } from "../src/models/AIScreeningRun.model";
+import { Interview } from "../src/models/Interview.model";
+import { InterviewFeedback } from "../src/models/InterviewFeedback.model";
 import { createCompany, createUser } from "./helpers/factories";
 import type { CompanyDoc } from "../src/models/Company.model";
 import type { UserDoc } from "../src/models/User.model";
@@ -407,6 +409,168 @@ describe("Hiring Pipeline Board API", () => {
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening).toEqual({ status: "completed", has_screening: true, latest_score: 82, latest_screened_at: expect.any(String) });
+    });
+  });
+
+  // ===== INTERVIEW SUMMARY =====
+  describe("interview_summary", () => {
+    async function scheduleInterview(application: ApplicationDoc, overrides: Record<string, unknown> = {}) {
+      return Interview.create({
+        application_id: application.id,
+        job_id: jobA.id,
+        hiring_step_id: interview.id,
+        stage_snapshot: { name: interview.name, type: interview.type },
+        title: "Technical Interview",
+        starts_at: new Date("2025-01-15T14:00:00.000Z"),
+        ends_at: new Date("2025-01-15T15:00:00.000Z"),
+        timezone: "Asia/Beirut",
+        interviewer_user_ids: [hrA.id],
+        status: "scheduled",
+        scheduled_by: hrA.id,
+        ...overrides,
+      });
+    }
+
+    it("returns null interview_summary for a card in a non-interview stage", async () => {
+      await createApplication({ status: "in_process", current_step_id: review._id });
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
+      expect(reviewStage.applications[0].interview_summary).toBeNull();
+    });
+
+    it("returns null interview_summary for New Applicants", async () => {
+      await createApplication();
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.body.unassigned.applications[0].interview_summary).toBeNull();
+    });
+
+    it('shows status "not_scheduled" for a candidate in an interview stage with no Interview record', async () => {
+      await createApplication({ status: "in_process", current_step_id: interview._id });
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
+      expect(interviewStage.applications[0].interview_summary).toEqual({ status: "not_scheduled" });
+    });
+
+    it('shows status "scheduled" with starts_at/timezone for a candidate with a scheduled Interview', async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: interview._id });
+      await scheduleInterview(application);
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
+
+      expect(interviewStage.applications[0].interview_summary).toEqual({
+        status: "scheduled",
+        starts_at: "2025-01-15T14:00:00.000Z",
+        timezone: "Asia/Beirut",
+      });
+    });
+
+    it('shows status "cancelled" for a candidate whose Interview was cancelled', async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: interview._id });
+      await scheduleInterview(application, {
+        status: "cancelled",
+        cancelled_by: hrA.id,
+        cancelled_at: new Date(),
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
+      expect(interviewStage.applications[0].interview_summary).toEqual({ status: "cancelled" });
+    });
+
+    it('shows status "completed" with feedback counts for a completed Interview', async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: interview._id });
+      const hrA2 = await createUser({ companyId: companyA.id, email: "hr2@a.test", role: "HR" });
+      const completedInterview = await scheduleInterview(application, {
+        interviewer_user_ids: [hrA.id, hrA2.id],
+        status: "completed",
+        completed_by: hrA.id,
+        completed_at: new Date(),
+      });
+      await InterviewFeedback.create({
+        company_id: companyA.id,
+        interview_id: completedInterview.id,
+        application_id: application.id,
+        interviewer_user_id: hrA.id,
+        interviewer_snapshot: { name: "Test User", email: "hr@a.test" },
+        status: "submitted",
+        recommendation: "yes",
+        submitted_at: new Date(),
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
+
+      expect(interviewStage.applications[0].interview_summary).toEqual({
+        status: "completed",
+        feedback_submitted_count: 1,
+        feedback_total_count: 2,
+      });
+    });
+
+    it("never infers completed from a past starts_at/ends_at — Interview.status stays authoritative", async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: interview._id });
+      await scheduleInterview(application, {
+        starts_at: new Date("2020-01-01T00:00:00.000Z"),
+        ends_at: new Date("2020-01-01T01:00:00.000Z"),
+        status: "scheduled",
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
+      expect(interviewStage.applications[0].interview_summary.status).toBe("scheduled");
+    });
+
+    it("deterministically picks the most recently created Interview when more than one exists for the same stage", async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: interview._id });
+      await scheduleInterview(application, {
+        status: "cancelled",
+        cancelled_by: hrA.id,
+        cancelled_at: new Date(),
+        starts_at: new Date("2025-01-10T10:00:00.000Z"),
+        ends_at: new Date("2025-01-10T11:00:00.000Z"),
+      });
+      // A fresh Interview scheduled later for the same (application, stage)
+      // pair — allowed since the earlier one is no longer "scheduled" (see
+      // Interview.model.ts's partial unique index).
+      await scheduleInterview(application, {
+        starts_at: new Date("2025-02-01T10:00:00.000Z"),
+        ends_at: new Date("2025-02-01T11:00:00.000Z"),
+      });
+
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
+      expect(interviewStage.applications[0].interview_summary).toEqual({
+        status: "scheduled",
+        starts_at: "2025-02-01T10:00:00.000Z",
+        timezone: "Asia/Beirut",
+      });
+    });
+
+    it("does not issue one Interview query per card (no N+1)", async () => {
+      const a = await createApplication({ status: "in_process", current_step_id: interview._id });
+      const b = await createApplication({ status: "in_process", current_step_id: interview._id });
+      await scheduleInterview(a);
+      await scheduleInterview(b, { starts_at: new Date("2025-03-01T10:00:00.000Z"), ends_at: new Date("2025-03-01T11:00:00.000Z") });
+
+      const findSpy = jest.spyOn(Interview, "find");
+      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(findSpy).toHaveBeenCalledTimes(1);
+      findSpy.mockRestore();
+    });
+
+    it("causes zero Interview/Calendar/email side effects on a plain board read", async () => {
+      const application = await createApplication({ status: "in_process", current_step_id: interview._id });
+      await scheduleInterview(application);
+
+      const countBefore = await Interview.countDocuments();
+      await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const countAfter = await Interview.countDocuments();
+      expect(countAfter).toBe(countBefore);
     });
   });
 

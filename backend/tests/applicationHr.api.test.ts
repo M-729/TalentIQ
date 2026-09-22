@@ -5,6 +5,7 @@ import { signAccessToken } from "../src/security/tokens";
 import { Job, type JobDoc } from "../src/models/Job.model";
 import { Candidate, type CandidateDoc } from "../src/models/Candidate.model";
 import { Application, type ApplicationDoc, type ApplicationStatus } from "../src/models/Application.model";
+import { HiringStep } from "../src/models/HiringStep.model";
 import { AIScreening } from "../src/models/AIScreening.model";
 import { AIScreeningRun } from "../src/models/AIScreeningRun.model";
 import { createCompany, createUser } from "./helpers/factories";
@@ -309,6 +310,135 @@ describe("HR Applications Management API", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.applications).toEqual([]);
+    });
+  });
+
+  // ===== PIPELINE STAGE (current_step) IN LIST =====
+  describe("GET /api/v1/applications — pipeline stage / current_step", () => {
+    // 1. applied + no current step -> New Applicant (the frontend maps
+    // this; the backend contract is simply current_step: null).
+    it("returns null current_step for an applied application with no current stage", async () => {
+      const { application } = await createApplication(companyA, hrA, { status: "applied" });
+
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const row = res.body.applications.find((a: { id: string }) => a.id === application.id);
+      expect(row.current_step).toBeNull();
+      expect(row.status).toBe("applied");
+    });
+
+    // 2. in_process + Interview step -> actual stage name.
+    it("returns the current_step name/type for an in_process application sitting in an interview-type stage", async () => {
+      const { job, application } = await createApplication(companyA, hrA);
+      const step = await HiringStep.create({ job_id: job.id, name: "Technical Interview", type: "interview", position: 0 });
+      await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
+
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const row = res.body.applications.find((a: { id: string }) => a.id === application.id);
+      expect(row.current_step).toEqual({ id: step.id, name: "Technical Interview", type: "interview" });
+    });
+
+    // 3. in_process + Assessment step -> actual stage name.
+    it("returns the current_step name/type for an in_process application sitting in an assessment-type stage", async () => {
+      const { job, application } = await createApplication(companyA, hrA);
+      const step = await HiringStep.create({ job_id: job.id, name: "External Assessment", type: "assessment", position: 0 });
+      await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
+
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const row = res.body.applications.find((a: { id: string }) => a.id === application.id);
+      expect(row.current_step).toEqual({ id: step.id, name: "External Assessment", type: "assessment" });
+    });
+
+    it("reflects a renamed HiringStep immediately in the list, same as detail", async () => {
+      const { job, application } = await createApplication(companyA, hrA);
+      const step = await HiringStep.create({ job_id: job.id, name: "HR Review", type: "review", position: 0 });
+      await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
+      await HiringStep.updateOne({ _id: step._id }, { $set: { name: "Initial HR Review" } });
+
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const row = res.body.applications.find((a: { id: string }) => a.id === application.id);
+      expect(row.current_step.name).toBe("Initial HR Review");
+    });
+
+    // 4-6. rejected/offered/hired -> Application.status stays the terminal
+    // lifecycle value; current_step is whatever it happened to be (the
+    // frontend prefers status over current_step for these three).
+    it.each(["rejected", "offered", "hired"] as const)(
+      "keeps status %s intact regardless of current_step in the list response",
+      async (status) => {
+        const { job, application } = await createApplication(companyA, hrA);
+        const step = await HiringStep.create({ job_id: job.id, name: "Final Interview", type: "interview", position: 0 });
+        await Application.updateOne({ _id: application.id }, { $set: { status, current_step_id: step._id } });
+
+        const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+        const row = res.body.applications.find((a: { id: string }) => a.id === application.id);
+        expect(row.status).toBe(status);
+        expect(row.current_step).toEqual({ id: step.id, name: "Final Interview", type: "interview" });
+      }
+    );
+
+    // 7. No N+1 stage requests — one batched HiringStep query for the
+    // whole page, regardless of how many rows have a current_step.
+    it("does not issue one HiringStep query per row (no N+1)", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Backend Engineer", status: "active" });
+      const stepA = await HiringStep.create({ job_id: job.id, name: "Application Review", type: "review", position: 0 });
+      const stepB = await HiringStep.create({ job_id: job.id, name: "Technical Interview", type: "interview", position: 1 });
+
+      for (const step of [stepA, stepB, stepA]) {
+        const candidate = await Candidate.create({
+          full_name: "Taylor Example",
+          email: `candidate-${new Types.ObjectId().toString()}@test.local`,
+        });
+        const application = await Application.create({
+          job_id: job.id,
+          candidate_id: candidate.id,
+          cv_file: CV_FILE,
+          status: "in_process",
+          current_step_id: step._id,
+        });
+        void application;
+      }
+
+      const findSpy = jest.spyOn(HiringStep, "find");
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(findSpy).toHaveBeenCalledTimes(1);
+      findSpy.mockRestore();
+    });
+
+    it("does not query HiringStep at all when no row on the page has a current_step", async () => {
+      await createApplication(companyA, hrA, { status: "applied" });
+
+      const findSpy = jest.spyOn(HiringStep, "find");
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(findSpy).not.toHaveBeenCalled();
+      findSpy.mockRestore();
+    });
+
+    // 8. Existing AI Screening column/data is unaffected by this change.
+    it("still returns the screening summary unaffected, alongside current_step", async () => {
+      const { job, application } = await createApplication(companyA, hrA);
+      const step = await HiringStep.create({ job_id: job.id, name: "Technical Interview", type: "interview", position: 0 });
+      await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
+      await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 82 } });
+
+      const res = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const row = res.body.applications.find((a: { id: string }) => a.id === application.id);
+      expect(row.screening).toEqual({
+        status: "completed",
+        has_screening: true,
+        latest_score: 82,
+        latest_screened_at: expect.any(String),
+      });
+      expect(row.current_step).toEqual({ id: step.id, name: "Technical Interview", type: "interview" });
     });
   });
 

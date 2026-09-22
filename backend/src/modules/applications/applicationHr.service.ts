@@ -150,17 +150,25 @@ export async function listApplications(companyId: string, filters: ListApplicati
 
   const candidateIds = [...new Set(applications.map((application) => application.candidate_id.toString()))];
   const jobIds = [...new Set(applications.map((application) => application.job_id.toString()))];
+  const currentStepIds = [
+    ...new Set(applications.filter((application) => application.current_step_id).map((application) => application.current_step_id!.toString())),
+  ];
 
-  // Two more batched queries (never one per row) to resolve candidate/job
-  // context for the whole page at once.
-  const [candidates, jobs, screeningSummaries] = await Promise.all([
+  // Batched queries (never one per row) to resolve candidate/job/current-
+  // stage context for the whole page at once — the "Pipeline Stage" column
+  // needs the live HiringStep name, same batching precedent as
+  // getLatestScreeningSummaries below and hiringPipelineBoard.service.ts's
+  // own current-step resolution.
+  const [candidates, jobs, screeningSummaries, currentSteps] = await Promise.all([
     Candidate.find({ _id: { $in: candidateIds } }),
     Job.find({ _id: { $in: jobIds } }),
     getLatestScreeningSummaries(applications.map((application) => application.id)),
+    currentStepIds.length ? HiringStep.find({ _id: { $in: currentStepIds } }) : Promise.resolve([]),
   ]);
 
   const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
   const jobById = new Map(jobs.map((job) => [job.id, job]));
+  const currentStepById = new Map(currentSteps.map((step) => [step.id, step]));
 
   const rows: ApplicationListRowDTO[] = [];
   for (const application of applications) {
@@ -171,7 +179,8 @@ export async function listApplications(companyId: string, filters: ListApplicati
     // resolve. Guarded rather than asserted: skipping a row is safer
     // than serializing one with a missing candidate/job.
     if (!candidate || !job) continue;
-    rows.push(serializeApplicationListRow(application, candidate, job, screeningSummaries.get(application.id)));
+    const currentStep = application.current_step_id ? (currentStepById.get(application.current_step_id.toString()) ?? null) : null;
+    rows.push(serializeApplicationListRow(application, candidate, job, screeningSummaries.get(application.id), currentStep));
   }
 
   return { applications: rows, total };

@@ -59,6 +59,7 @@ export function buildApplicationListRow(overrides: Partial<ApplicationListRow> =
       status: "active",
     },
     screening: { status: "not_started", has_screening: false },
+    current_step: null,
     ...overrides,
   };
 }
@@ -83,6 +84,7 @@ export function buildHiringPipelineApplicationCard(
     status: "applied",
     applied_at: "2024-01-15T00:00:00.000Z",
     screening: { status: "not_started", has_screening: false },
+    interview_summary: null,
     ...overrides,
   };
 }

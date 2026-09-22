@@ -13,6 +13,23 @@ export interface HiringPipelineBoardJob {
   status: JobStatus;
 }
 
+// Mirrors backend hiringPipelineBoard.serializer.ts's InterviewSummaryDTO
+// exactly. "not_scheduled" is a real, distinct state from the card's
+// `interview_summary` field itself being `null` — see
+// HiringPipelineApplicationCard's doc comment below. `status` is always
+// the persisted Interview.status — never inferred from starts_at/ends_at
+// having passed.
+export const INTERVIEW_SUMMARY_STATUSES = ["not_scheduled", "scheduled", "completed", "cancelled"] as const;
+export type InterviewSummaryStatus = (typeof INTERVIEW_SUMMARY_STATUSES)[number];
+
+export interface InterviewSummary {
+  status: InterviewSummaryStatus;
+  starts_at?: string;
+  timezone?: string;
+  feedback_submitted_count?: number;
+  feedback_total_count?: number;
+}
+
 export interface HiringPipelineApplicationCard {
   id: string;
   candidate: {
@@ -24,6 +41,8 @@ export interface HiringPipelineApplicationCard {
   applied_at: string;
   source?: string;
   screening: ApplicationScreeningSummary;
+  /** `null` whenever the card isn't currently in an interview-type stage (New Applicants, any non-interview stage, needs_attention) — never omitted, so a card component can always destructure it safely. */
+  interview_summary: InterviewSummary | null;
 }
 
 // "New Applicants" (current_step_id: null) is a virtual system column —
@@ -63,4 +82,19 @@ export interface HiringPipelineBoard {
 export interface MoveApplicationHiringStepInput {
   step_id: string;
   note?: string;
+}
+
+// Mirrors backend hiringPipelineBoard.validation.ts's
+// bulkMoveApplicationsSchema exactly — company_id/status/interviewer/
+// assessment data are all backend-derived or simply never accepted.
+export interface BulkMoveApplicationsInput {
+  application_ids: string[];
+  target_hiring_step_id: string;
+}
+
+// Mirrors backend hiringPipelineBoard.service.ts's BulkMoveApplicationsResult.
+export interface BulkMoveApplicationsResult {
+  moved_count: number;
+  target_step: { id: string; name: string; type: string };
+  applications: { id: string; status: ApplicationStatus; current_step_id: string }[];
 }

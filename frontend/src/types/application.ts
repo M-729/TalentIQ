@@ -35,6 +35,12 @@ export interface ApplicationScreeningSummary {
   latest_screened_at?: string;
 }
 
+export interface ApplicationCurrentStepSummary {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export interface ApplicationListRow {
   id: string;
   status: ApplicationStatus;
@@ -54,6 +60,8 @@ export interface ApplicationListRow {
     status: string;
   };
   screening: ApplicationScreeningSummary;
+  /** Resolved from the LIVE HiringStep, mirroring ApplicationDetail.current_step — null when the application has no current stage, or (defensively) if it doesn't resolve. Presentation data only: `status` above remains the actual lifecycle/business-rule value. */
+  current_step: ApplicationCurrentStepSummary | null;
 }
 
 export interface ApplicationDetail {

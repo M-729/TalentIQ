@@ -52,6 +52,19 @@ export interface ApplicationListRowDTO {
     status: string;
   };
   screening: ScreeningSummaryDTO;
+  /**
+   * The application's current stage, resolved from the LIVE HiringStep —
+   * same shape/semantics as ApplicationDetailDTO.current_step (never a
+   * frozen snapshot; reflects a rename immediately). null when the
+   * Application has no current stage (still "applied", never moved into
+   * the active pipeline) or, defensively, if current_step_id doesn't
+   * resolve to a real HiringStep. This is presentation data only —
+   * Application.status remains the actual lifecycle/business-rule state
+   * and is still returned unchanged above; the frontend combines the two
+   * to show a "Pipeline Stage" column without inventing a new backend
+   * status model.
+   */
+  current_step: { id: string; name: string; type: string } | null;
 }
 
 /**
@@ -64,7 +77,8 @@ export function serializeApplicationListRow(
   application: ApplicationDoc,
   candidate: CandidateDoc,
   job: JobDoc,
-  screeningSummary: ScreeningSummary | undefined
+  screeningSummary: ScreeningSummary | undefined,
+  currentStep: HiringStepDoc | null = null
 ): ApplicationListRowDTO {
   return {
     id: application.id,
@@ -85,6 +99,7 @@ export function serializeApplicationListRow(
       status: job.status,
     },
     screening: serializeScreeningSummary(screeningSummary),
+    current_step: currentStep ? { id: currentStep.id, name: currentStep.name, type: currentStep.type } : null,
   };
 }
 

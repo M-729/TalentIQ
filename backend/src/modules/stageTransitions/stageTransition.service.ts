@@ -7,14 +7,26 @@ import { ConflictError, NotFoundError } from "../../security/AppError";
 import { getAccessibleApplication, getAccessibleApplicationForActiveJob } from "../applications/applicationAccess.service";
 import type { MoveApplicationStageInput } from "./stageTransition.validation";
 
-const TERMINAL_STATUSES: ReadonlySet<ApplicationStatus> = new Set(["rejected", "offered", "hired"]);
+// Exported so hiringPipelineBoard.service.ts's bulk-move path enforces the
+// EXACT same terminal/already-in-stage/corrupt-step business rules as this
+// single-move path, rather than a re-typed copy that could silently drift.
+export const TERMINAL_STATUSES: ReadonlySet<ApplicationStatus> = new Set(["rejected", "offered", "hired"]);
 
-const ALREADY_IN_STAGE_MESSAGE = "The application is already in this hiring stage.";
-const TERMINAL_STATE_MESSAGE =
+export const ALREADY_IN_STAGE_MESSAGE = "The application is already in this hiring stage.";
+export const TERMINAL_STATE_MESSAGE =
   "This application cannot be moved through the active hiring pipeline in its current status.";
 const CONCURRENT_MOVE_MESSAGE = "This application was just moved by someone else. Please refresh and try again.";
-const CORRUPT_CURRENT_STEP_MESSAGE =
+export const CORRUPT_CURRENT_STEP_MESSAGE =
   "This application's current hiring stage could not be resolved consistently.";
+
+// The one piece of status-transition logic a drift between single-move and
+// bulk-move would be easiest to get subtly wrong: "applied" is the only
+// non-terminal status this ever sees that isn't already "in_process"
+// (terminal statuses are rejected before this runs) — initial assignment
+// moves it forward; every subsequent move simply keeps it at "in_process".
+export function nextStatusAfterMove(fromStatus: ApplicationStatus): ApplicationStatus {
+  return fromStatus === "applied" ? "in_process" : fromStatus;
+}
 
 export interface MoveApplicationStageResult {
   application: ApplicationDoc;
@@ -96,11 +108,7 @@ export async function moveApplicationStage(
   }
 
   const fromStatus = application.status;
-  // "applied" is the only non-terminal status this function ever sees
-  // that isn't already "in_process" (terminal statuses were rejected
-  // above) — initial assignment moves it forward; every subsequent move
-  // simply keeps it at "in_process".
-  const toStatus: ApplicationStatus = fromStatus === "applied" ? "in_process" : fromStatus;
+  const toStatus: ApplicationStatus = nextStatusAfterMove(fromStatus);
 
   // requireAuth already confirmed this user exists and is active moments
   // before this call — a plain read, not part of the guarded/transactional

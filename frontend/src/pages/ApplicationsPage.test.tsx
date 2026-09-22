@@ -56,10 +56,97 @@ describe("ApplicationsPage", () => {
     expect(await screen.findByText("Frontend Developer")).toBeInTheDocument();
   });
 
-  it("renders the application status", async () => {
-    mockPage([buildApplicationListRow({ status: "in_process" })]);
+  it("labels the column header Pipeline Stage, not Status", async () => {
+    mockPage([buildApplicationListRow()]);
     renderPage();
-    expect(await screen.findByText("In Process")).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: "Pipeline Stage" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument();
+  });
+
+  // 1. applied + no current step -> New Applicant
+  it('shows "New Applicant" for an applied application with no current stage', async () => {
+    mockPage([buildApplicationListRow({ status: "applied", current_step: null })]);
+    renderPage();
+    expect(await screen.findByText("New Applicant")).toBeInTheDocument();
+  });
+
+  // 2. in_process + Interview step -> actual stage name
+  it("shows the actual HiringStep name for an in_process application in an interview-type stage", async () => {
+    mockPage([
+      buildApplicationListRow({
+        status: "in_process",
+        current_step: { id: "step-1", name: "Technical Interview", type: "interview" },
+      }),
+    ]);
+    renderPage();
+    expect(await screen.findByText("Technical Interview")).toBeInTheDocument();
+  });
+
+  // 3. in_process + Assessment step -> actual stage name
+  it("shows the actual HiringStep name for an in_process application in an assessment-type stage", async () => {
+    mockPage([
+      buildApplicationListRow({
+        status: "in_process",
+        current_step: { id: "step-2", name: "External Assessment", type: "assessment" },
+      }),
+    ]);
+    renderPage();
+    expect(await screen.findByText("External Assessment")).toBeInTheDocument();
+  });
+
+  // Never hard-codes a stage name — an arbitrary HR-configured name renders as-is.
+  it("never hard-codes a stage name — an arbitrary custom stage name renders as-is", async () => {
+    mockPage([
+      buildApplicationListRow({
+        status: "in_process",
+        current_step: { id: "step-3", name: "HR Review", type: "review" },
+      }),
+    ]);
+    renderPage();
+    expect(await screen.findByText("HR Review")).toBeInTheDocument();
+  });
+
+  // 4-6. rejected/offered/hired -> terminal lifecycle state wins over
+  // whatever current_step happens to still be set.
+  it.each([
+    ["rejected", "Rejected"],
+    ["offered", "Offered"],
+    ["hired", "Hired"],
+  ] as const)("shows %s as the pipeline stage for a %s application, even with a current_step set", async (status, label) => {
+    mockPage([
+      buildApplicationListRow({ status, current_step: { id: "step-4", name: "Final Interview", type: "interview" } }),
+    ]);
+    renderPage();
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("Final Interview")).not.toBeInTheDocument();
+  });
+
+  // 7. No N+1 stage requests — the pipeline stage comes back embedded in
+  // the same list response; the frontend never issues a request per row.
+  it("issues exactly one request for a page with several different pipeline stages", async () => {
+    mockPage([
+      buildApplicationListRow({ id: "a1", current_step: { id: "step-1", name: "Technical Interview", type: "interview" } }),
+      buildApplicationListRow({ id: "a2", current_step: { id: "step-2", name: "External Assessment", type: "assessment" } }),
+      buildApplicationListRow({ id: "a3", status: "applied", current_step: null }),
+    ]);
+    renderPage();
+    await screen.findByText("Technical Interview");
+    expect(applicationsApi.getApplications).toHaveBeenCalledTimes(1);
+  });
+
+  // 8. existing AI Screening column is unaffected by the pipeline-stage change.
+  it("still renders the AI Screening column correctly alongside the new Pipeline Stage column", async () => {
+    mockPage([
+      buildApplicationListRow({
+        status: "in_process",
+        current_step: { id: "step-1", name: "Technical Interview", type: "interview" },
+        screening: { status: "completed", has_screening: true, latest_score: 82 },
+      }),
+    ]);
+    renderPage();
+    expect(await screen.findByText("Technical Interview")).toBeInTheDocument();
+    expect(screen.getByText("Screened")).toBeInTheDocument();
+    expect(screen.getByText("82% Skill Coverage")).toBeInTheDocument();
   });
 
   it('shows "Not screened" for an unscreened applicant', async () => {

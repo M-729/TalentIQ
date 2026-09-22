@@ -14,6 +14,7 @@ import { ApiError } from "@/services/api/client";
 import * as hiringPipelineBoardApi from "@/services/api/hiringPipelineBoard";
 import * as interviewsApi from "@/services/api/interviews";
 import * as usersApi from "@/services/api/users";
+import type { HiringPipelineApplicationCard } from "@/types/hiringPipelineBoard";
 
 vi.mock("@/services/api/hiringPipelineBoard");
 vi.mock("@/services/api/interviews");
@@ -39,6 +40,7 @@ describe("HiringPipelineBoard", () => {
   beforeEach(() => {
     vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockReset();
     vi.mocked(hiringPipelineBoardApi.moveApplicationToHiringStep).mockReset();
+    vi.mocked(hiringPipelineBoardApi.bulkMoveApplications).mockReset();
     vi.mocked(interviewsApi.listApplicationInterviews).mockReset();
     vi.mocked(usersApi.listInterviewerCandidates).mockReset().mockResolvedValue({ users: [] });
   });
@@ -934,6 +936,477 @@ describe("HiringPipelineBoard", () => {
 
       const text = (document.body.textContent ?? "").toLowerCase();
       expect(text).not.toMatch(/google meet|schedule interview now|assessment sent|email sent/);
+    });
+  });
+
+  // ===== BULK SELECTION CHECKBOXES =====
+  describe("bulk selection checkboxes", () => {
+    async function renderWithTwoCandidatesInReview() {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              count: 2,
+              applications: [
+                buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } }),
+                buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "Omar Ali", email: "omar@example.test" } }),
+              ],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+    }
+
+    it("renders a checkbox for every movable candidate card", async () => {
+      await renderWithTwoCandidatesInReview();
+      expect(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Select Omar Ali" })).toBeInTheDocument();
+    });
+
+    it("selecting a checkbox does not navigate to the candidate's detail page", async () => {
+      await renderWithTwoCandidatesInReview();
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      expect(screen.queryByText("Application Detail Page")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Application Review" })).toBeInTheDocument();
+    });
+
+    it("the card's View Application link still works after selecting", async () => {
+      await renderWithTwoCandidatesInReview();
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      const links = screen.getAllByRole("link", { name: "View Application" });
+      expect(links[0]).toHaveAttribute("href", "/applications/a1");
+    });
+
+    it("toggles selection on and off", async () => {
+      await renderWithTwoCandidatesInReview();
+      const checkbox = screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }) as HTMLInputElement;
+      await userEvent.click(checkbox);
+      expect(checkbox.checked).toBe(true);
+      await userEvent.click(checkbox);
+      expect(checkbox.checked).toBe(false);
+    });
+
+    it("shows the Select All checkbox as checked once every candidate in the column is selected", async () => {
+      await renderWithTwoCandidatesInReview();
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Omar Ali" }));
+
+      const selectAll = screen.getByRole("checkbox", { name: "Select all in Application Review" }) as HTMLInputElement;
+      expect(selectAll.checked).toBe(true);
+    });
+
+    it("shows the Select All checkbox as indeterminate when only some candidates are selected", async () => {
+      await renderWithTwoCandidatesInReview();
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+
+      const selectAll = screen.getByRole("checkbox", { name: "Select all in Application Review" }) as HTMLInputElement;
+      expect(selectAll.indeterminate).toBe(true);
+    });
+
+    it("Select All selects every candidate in that column only", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+          unassigned: {
+            count: 1,
+            applications: [buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "Omar Ali", email: "omar@example.test" } })],
+          },
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select all in Application Review" }));
+
+      expect((screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }) as HTMLInputElement).checked).toBe(true);
+      // A different column's candidate must be untouched.
+      expect((screen.getByRole("checkbox", { name: "Select Omar Ali" }) as HTMLInputElement).checked).toBe(false);
+    });
+
+    it("clicking Select All again clears that column's selection", async () => {
+      await renderWithTwoCandidatesInReview();
+      const selectAll = screen.getByRole("checkbox", { name: "Select all in Application Review" });
+      await userEvent.click(selectAll);
+      await userEvent.click(selectAll);
+
+      expect((screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }) as HTMLInputElement).checked).toBe(false);
+      expect((screen.getByRole("checkbox", { name: "Select Omar Ali" }) as HTMLInputElement).checked).toBe(false);
+    });
+  });
+
+  // ===== SELECTION TOOLBAR =====
+  describe("selection toolbar", () => {
+    it("shows no toolbar when nothing is selected", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1" })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Move selected" })).not.toBeInTheDocument();
+    });
+
+    it("shows the selected count once a candidate is selected", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      expect(await screen.findByText("1 candidate selected")).toBeInTheDocument();
+    });
+
+    it("Clear selection empties the selection and hides the toolbar", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      await screen.findByText("1 candidate selected");
+
+      await userEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+
+      expect(screen.queryByText("1 candidate selected")).not.toBeInTheDocument();
+      expect((screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }) as HTMLInputElement).checked).toBe(false);
+    });
+  });
+
+  // ===== BULK MOVE DIALOG =====
+  describe("bulk move dialog", () => {
+    async function selectTwoAndOpenBulkDialog() {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              count: 2,
+              applications: [
+                buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } }),
+                buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "Omar Ali", email: "omar@example.test" } }),
+              ],
+            }),
+            buildHiringPipelineBoardColumn({ id: "step-interview", name: "Technical Interview", type: "interview", position: 1 }),
+            buildHiringPipelineBoardColumn({ id: "step-assessment", name: "Take-home Exam", type: "assessment", position: 2 }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select all in Application Review" }));
+      await userEvent.click(screen.getByRole("button", { name: "Move selected" }));
+      await screen.findByRole("heading", { name: "Move 2 candidates" });
+    }
+
+    it("opens showing the selected count and the Job's real dynamic stages", async () => {
+      await selectTwoAndOpenBulkDialog();
+      const select = screen.getByLabelText("Destination");
+      expect(select).toContainHTML("Technical Interview");
+      expect(select).toContainHTML("Take-home Exam");
+      // Never a hard-coded stage name that wasn't actually returned.
+      expect(select).not.toContainHTML("Offer");
+    });
+
+    it("excludes the current stage from the destination list", async () => {
+      await selectTwoAndOpenBulkDialog();
+      const select = screen.getByLabelText("Destination") as HTMLSelectElement;
+      const optionLabels = Array.from(select.options).map((o) => o.textContent);
+      expect(optionLabels.some((label) => label?.includes("Application Review"))).toBe(false);
+    });
+
+    it("shows a plain (non-destructive) confirmation with the selected count and destination", async () => {
+      await selectTwoAndOpenBulkDialog();
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Take-home Exam (Type: assessment)");
+
+      expect(await screen.findByText(/Move 2 candidates to "Take-home Exam"/)).toBeInTheDocument();
+    });
+
+    it("shows interview-specific consequence copy when the destination is an interview-type stage", async () => {
+      await selectTwoAndOpenBulkDialog();
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+
+      expect(
+        await screen.findByText(/Interviews will still need to be scheduled individually/)
+      ).toBeInTheDocument();
+    });
+
+    it("shows assessment-specific consequence copy when the destination is an assessment-type stage", async () => {
+      await selectTwoAndOpenBulkDialog();
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Take-home Exam (Type: assessment)");
+
+      expect(await screen.findByText(/Assessments are managed separately/)).toBeInTheDocument();
+    });
+
+    it("never uses destructive styling for the confirm action", async () => {
+      await selectTwoAndOpenBulkDialog();
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+
+      const confirmButton = screen.getByRole("button", { name: "Move Candidates" });
+      expect(confirmButton.className).not.toMatch(/destructive/);
+    });
+
+    it("blocks submission and explains when some (not all) selected candidates are already at the chosen destination", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Technical Interview",
+              type: "interview",
+              position: 1,
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a2", candidate: { id: "c2", full_name: "Omar Ali", email: "omar@example.test" } })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Omar Ali" }));
+      await userEvent.click(screen.getByRole("button", { name: "Move selected" }));
+      await screen.findByRole("heading", { name: "Move 2 candidates" });
+
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+
+      expect(await screen.findByText(/already in/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Move Candidates" })).toBeDisabled();
+    });
+  });
+
+  // ===== BULK MOVE PENDING / DOUBLE-SUBMIT =====
+  describe("bulk move pending state", () => {
+    it("disables the confirm button and prevents a duplicate request while pending", async () => {
+      let resolveMove: (value: { moved_count: number; target_step: { id: string; name: string; type: string }; applications: [] }) => void = () => {};
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+            buildHiringPipelineBoardColumn({ id: "step-interview", name: "Technical Interview", type: "interview", position: 1 }),
+          ],
+        })
+      );
+      vi.mocked(hiringPipelineBoardApi.bulkMoveApplications).mockReturnValue(
+        new Promise((resolve) => {
+          resolveMove = resolve;
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      await userEvent.click(screen.getByRole("button", { name: "Move selected" }));
+      await screen.findByRole("heading", { name: "Move 1 candidates" });
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+
+      const confirmButton = screen.getByRole("button", { name: "Move Candidates" });
+      await userEvent.click(confirmButton);
+      expect(screen.getByRole("button", { name: "Moving…" })).toBeDisabled();
+
+      resolveMove({ moved_count: 1, target_step: { id: "step-interview", name: "Technical Interview", type: "interview" }, applications: [] });
+      await waitFor(() => expect(hiringPipelineBoardApi.bulkMoveApplications).toHaveBeenCalledTimes(1));
+    });
+  });
+
+  // ===== BULK MOVE SUCCESS =====
+  describe("bulk move success", () => {
+    it("clears the selection and refetches the board after a successful bulk move", async () => {
+      const stageReview = buildHiringPipelineBoardColumn({
+        id: "step-review",
+        name: "Application Review",
+        count: 1,
+        applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+      });
+      const stageInterview = buildHiringPipelineBoardColumn({ id: "step-interview", name: "Technical Interview", type: "interview", position: 1, count: 0, applications: [] });
+
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard)
+        .mockResolvedValueOnce(buildHiringPipelineBoard({ stages: [stageReview, stageInterview] }))
+        .mockResolvedValueOnce(
+          buildHiringPipelineBoard({
+            stages: [
+              { ...stageReview, count: 0, applications: [] },
+              { ...stageInterview, count: 1, applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })] },
+            ],
+          })
+        );
+      vi.mocked(hiringPipelineBoardApi.bulkMoveApplications).mockResolvedValue({
+        moved_count: 1,
+        target_step: { id: "step-interview", name: "Technical Interview", type: "interview" },
+        applications: [{ id: "a1", status: "in_process", current_step_id: "step-interview" }],
+      });
+
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      await userEvent.click(screen.getByRole("button", { name: "Move selected" }));
+      await screen.findByRole("heading", { name: "Move 1 candidates" });
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+      await userEvent.click(screen.getByRole("button", { name: "Move Candidates" }));
+
+      await waitFor(() => expect(hiringPipelineBoardApi.getHiringPipelineBoard).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByRole("heading", { name: "Move 1 candidates" })).not.toBeInTheDocument());
+      expect(await screen.findByText("1 candidate moved to Technical Interview.")).toBeInTheDocument();
+      expect(screen.queryByText(/candidate selected/)).not.toBeInTheDocument();
+    });
+  });
+
+  // ===== BULK MOVE FAILURE =====
+  describe("bulk move failure", () => {
+    it("keeps the selection and explains that no candidates were moved on failure", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" } })],
+            }),
+            buildHiringPipelineBoardColumn({ id: "step-interview", name: "Technical Interview", type: "interview", position: 1 }),
+          ],
+        })
+      );
+      vi.mocked(hiringPipelineBoardApi.bulkMoveApplications).mockRejectedValue(new ApiError("conflict", 409));
+
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
+      await userEvent.click(screen.getByRole("button", { name: "Move selected" }));
+      await screen.findByRole("heading", { name: "Move 1 candidates" });
+      await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+      await userEvent.click(screen.getByRole("button", { name: "Move Candidates" }));
+
+      expect(
+        await screen.findByText("One or more selected candidates changed, or are already in that stage. Refresh the pipeline and try again.")
+      ).toBeInTheDocument();
+
+      // The dialog stays open (recovery is still possible) and the
+      // selection checkbox is still checked underneath it.
+      expect(screen.getByRole("heading", { name: "Move 1 candidates" })).toBeInTheDocument();
+    });
+  });
+
+  // ===== INTERVIEW STATUS ON CARD =====
+  describe("interview status on card", () => {
+    async function renderInterviewCard(interviewSummary: HiringPipelineApplicationCard["interview_summary"]) {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-interview",
+              name: "Technical Interview",
+              type: "interview",
+              count: 1,
+              applications: [
+                buildHiringPipelineApplicationCard({
+                  id: "a1",
+                  candidate: { id: "c1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
+                  interview_summary: interviewSummary,
+                }),
+              ],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Technical Interview" });
+    }
+
+    it('shows "Interview · Not scheduled" when no Interview exists yet', async () => {
+      await renderInterviewCard({ status: "not_scheduled" });
+      expect(screen.getByText(/Interview · Not scheduled/)).toBeInTheDocument();
+    });
+
+    it('shows "Interview · Scheduled" with the date/time for a scheduled Interview', async () => {
+      await renderInterviewCard({ status: "scheduled", starts_at: "2025-09-24T14:00:00.000Z", timezone: "UTC" });
+      expect(screen.getByText(/Interview · Scheduled/)).toBeInTheDocument();
+    });
+
+    it('shows "Interview · Completed" with the feedback count', async () => {
+      await renderInterviewCard({ status: "completed", feedback_submitted_count: 1, feedback_total_count: 2 });
+      expect(screen.getByText(/Interview · Completed/)).toBeInTheDocument();
+      expect(screen.getByText("Feedback 1/2")).toBeInTheDocument();
+    });
+
+    it('shows "Interview · Cancelled" for a cancelled Interview', async () => {
+      await renderInterviewCard({ status: "cancelled" });
+      expect(screen.getByText(/Interview · Cancelled/)).toBeInTheDocument();
+    });
+
+    it("shows no interview status line for a card in a non-interview stage", async () => {
+      vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+        buildHiringPipelineBoard({
+          stages: [
+            buildHiringPipelineBoardColumn({
+              id: "step-review",
+              name: "Application Review",
+              type: "review",
+              count: 1,
+              applications: [buildHiringPipelineApplicationCard({ id: "a1", interview_summary: null })],
+            }),
+          ],
+        })
+      );
+      renderBoard();
+      await screen.findByRole("heading", { name: "Application Review" });
+      expect(screen.queryByText(/Interview ·/)).not.toBeInTheDocument();
+    });
+
+    it("never renders a Join Meet action on the pipeline card", async () => {
+      await renderInterviewCard({ status: "scheduled", starts_at: "2025-09-24T14:00:00.000Z", timezone: "UTC" });
+      expect(screen.queryByRole("button", { name: /join meet/i })).not.toBeInTheDocument();
+    });
+
+    it("does not issue an extra Interview request just because interview_summary is already on the card", async () => {
+      await renderInterviewCard({ status: "scheduled", starts_at: "2025-09-24T14:00:00.000Z", timezone: "UTC" });
+      expect(interviewsApi.listApplicationInterviews).not.toHaveBeenCalled();
     });
   });
 });

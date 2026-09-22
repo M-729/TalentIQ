@@ -20,6 +20,25 @@ export interface BoardCandidateDTO {
   email: string;
 }
 
+// "not_scheduled" is a real, distinct state from `null` — it means "this
+// card IS in an interview-type stage, and simply has no Interview record
+// yet" (see Part 20's "Interview · Not scheduled" copy). `interview_summary`
+// itself is `null` whenever the question doesn't even apply (any
+// non-interview-type stage, New Applicants, or needs_attention) — see
+// getHiringPipelineBoard/getInterviewSummaries in hiringPipelineBoard
+// .service.ts. `Interview.status` is always authoritative here — never
+// inferred from `ends_at`/`starts_at` having passed.
+export const INTERVIEW_SUMMARY_STATUSES = ["not_scheduled", "scheduled", "completed", "cancelled"] as const;
+export type InterviewSummaryStatus = (typeof INTERVIEW_SUMMARY_STATUSES)[number];
+
+export interface InterviewSummaryDTO {
+  status: InterviewSummaryStatus;
+  starts_at?: string;
+  timezone?: string;
+  feedback_submitted_count?: number;
+  feedback_total_count?: number;
+}
+
 export interface BoardApplicationCardDTO {
   id: string;
   candidate: BoardCandidateDTO;
@@ -27,6 +46,7 @@ export interface BoardApplicationCardDTO {
   applied_at: string;
   source?: string;
   screening: ScreeningSummaryDTO;
+  interview_summary: InterviewSummaryDTO | null;
 }
 
 export interface BoardNeedsAttentionCardDTO extends BoardApplicationCardDTO {
@@ -68,7 +88,8 @@ export interface HiringPipelineBoardDTO {
 export function serializeBoardApplicationCard(
   application: ApplicationDoc,
   candidate: CandidateDoc,
-  screeningSummary: ScreeningSummary | undefined
+  screeningSummary: ScreeningSummary | undefined,
+  interviewSummary: InterviewSummaryDTO | null = null
 ): BoardApplicationCardDTO {
   return {
     id: application.id,
@@ -81,6 +102,7 @@ export function serializeBoardApplicationCard(
     applied_at: application.applied_at.toISOString(),
     source: application.source ?? undefined,
     screening: serializeScreeningSummary(screeningSummary),
+    interview_summary: interviewSummary,
   };
 }
 
@@ -90,7 +112,9 @@ export function serializeBoardNeedsAttentionCard(
   screeningSummary: ScreeningSummary | undefined
 ): BoardNeedsAttentionCardDTO {
   return {
-    ...serializeBoardApplicationCard(application, candidate, screeningSummary),
+    // Inconsistent/legacy data — never worth resolving an Interview
+    // summary for it (see BoardApplicationCardDTO's doc comment above).
+    ...serializeBoardApplicationCard(application, candidate, screeningSummary, null),
     current_step_id: application.current_step_id ? application.current_step_id.toString() : null,
   };
 }

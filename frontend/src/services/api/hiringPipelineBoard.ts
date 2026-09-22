@@ -1,5 +1,10 @@
 import { apiClient } from "@/services/api/client";
-import type { HiringPipelineBoard, MoveApplicationHiringStepInput } from "@/types/hiringPipelineBoard";
+import type {
+  BulkMoveApplicationsInput,
+  BulkMoveApplicationsResult,
+  HiringPipelineBoard,
+  MoveApplicationHiringStepInput,
+} from "@/types/hiringPipelineBoard";
 
 // The backend returns the board DTO directly as the response body (not
 // wrapped in { board: ... }) — see backend hiringPipelineBoard.controller.ts.
@@ -21,4 +26,17 @@ export function moveApplicationToHiringStep(
   input: MoveApplicationHiringStepInput
 ): Promise<MoveApplicationHiringStepResult> {
   return apiClient.patch<MoveApplicationHiringStepResult>(`/applications/${applicationId}/hiring-step`, input);
+}
+
+// The bulk counterpart — enforces the exact same backend business rules as
+// moveApplicationToHiringStep above (see hiringPipelineBoard.service.ts's
+// bulkMoveApplications), all-or-nothing. The frontend never trusts this
+// response's applications[] for optimistic UI state; the board is always
+// refetched after every attempt (success or failure), same rationale as
+// MoveApplicationDialog's onRefetch.
+export function bulkMoveApplications(
+  jobId: string,
+  input: BulkMoveApplicationsInput
+): Promise<BulkMoveApplicationsResult> {
+  return apiClient.patch<BulkMoveApplicationsResult>(`/jobs/${jobId}/hiring-pipeline/bulk-move`, input);
 }

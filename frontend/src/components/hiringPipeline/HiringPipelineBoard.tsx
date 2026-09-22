@@ -1,17 +1,21 @@
-import { useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobStatusBadge } from "@/components/jobs/JobStatusBadge";
+import { BulkMoveApplicationsDialog } from "@/components/hiringPipeline/BulkMoveApplicationsDialog";
 import { HiringPipelineBoardEmptyState } from "@/components/hiringPipeline/HiringPipelineBoardEmptyState";
 import { HiringPipelineColumn } from "@/components/hiringPipeline/HiringPipelineColumn";
 import { HiringPipelineNeedsAttention } from "@/components/hiringPipeline/HiringPipelineNeedsAttention";
+import { HiringPipelineSelectionToolbar } from "@/components/hiringPipeline/HiringPipelineSelectionToolbar";
 import { HiringStepTypeBadge } from "@/components/hiringPipeline/HiringStepTypeBadge";
 import { MoveApplicationDialog } from "@/components/hiringPipeline/MoveApplicationDialog";
 import { PipelineScheduleInterviewGate } from "@/components/interviews/PipelineScheduleInterviewGate";
 import { useHiringPipelineBoard } from "@/hooks/useHiringPipelineBoard";
 import type { HiringPipelineApplicationCard } from "@/types/hiringPipelineBoard";
+
+const SUCCESS_FLASH_MS = 4000;
 
 interface MoveTarget {
   application: HiringPipelineApplicationCard;
@@ -69,6 +73,36 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
   const { board, isLoading, error, refetch } = useHiringPipelineBoard(jobId);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<ScheduleTarget | null>(null);
+  // Ephemeral UI state only — never persisted to localStorage/the URL, and
+  // never carried across a Job change (this component is remounted via
+  // `key={selectedJobId}` in HiringPipelinePage.tsx, so a Job switch always
+  // starts from an empty Set with no extra code needed here).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMoveDialogOpen, setBulkMoveDialogOpen] = useState(false);
+  const [successFlash, setSuccessFlash] = useState<string | null>(null);
+
+  // Keeps the selection scoped to candidates that still visibly exist on
+  // the board after any refetch (a bulk move, a single move, a retry,
+  // or a background poll) — a selected id that quietly disappeared from
+  // both New Applicants and every stage (e.g. someone else moved it to a
+  // terminal status) is dropped rather than silently kept around.
+  useEffect(() => {
+    if (!board) return;
+    const visibleIds = new Set<string>([
+      ...board.unassigned.applications.map((application) => application.id),
+      ...board.stages.flatMap((stage) => stage.applications.map((application) => application.id)),
+    ]);
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => visibleIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [board]);
+
+  useEffect(() => {
+    if (!successFlash) return;
+    const timeout = window.setTimeout(() => setSuccessFlash(null), SUCCESS_FLASH_MS);
+    return () => window.clearTimeout(timeout);
+  }, [successFlash]);
 
   if (isLoading) {
     return <BoardSkeleton />;
@@ -82,8 +116,77 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
     return null;
   }
 
+  function toggleApplicationSelected(applicationId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) {
+        next.delete(applicationId);
+      } else {
+        next.add(applicationId);
+      }
+      return next;
+    });
+  }
+
+  // Scoped strictly to the column's own applicationIds (see Part 11) —
+  // never touches ids from another column. If every one of this column's
+  // candidates is already selected, the column deselects; otherwise it
+  // selects every one of its own candidates, leaving any other column's
+  // selection untouched either way.
+  function toggleSelectAllInColumn(applicationIds: string[]) {
+    setSelectedIds((current) => {
+      const allSelected = applicationIds.length > 0 && applicationIds.every((id) => current.has(id));
+      const next = new Set(current);
+      for (const id of applicationIds) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+
+  const currentStepIdByApplicationId = new Map<string, string | null>();
+  for (const application of board.unassigned.applications) {
+    currentStepIdByApplicationId.set(application.id, null);
+  }
+  for (const stage of board.stages) {
+    for (const application of stage.applications) {
+      currentStepIdByApplicationId.set(application.id, stage.id);
+    }
+  }
+  const candidateNameById = new Map<string, string>();
+  for (const application of board.unassigned.applications) {
+    candidateNameById.set(application.id, application.candidate.full_name);
+  }
+  for (const stage of board.stages) {
+    for (const application of stage.applications) {
+      candidateNameById.set(application.id, application.candidate.full_name);
+    }
+  }
+  const selectedApplications = [...selectedIds].map((id) => ({
+    id,
+    candidateName: candidateNameById.get(id) ?? "This candidate",
+    currentStepId: currentStepIdByApplicationId.get(id) ?? null,
+  }));
+
   return (
     <div className="space-y-4">
+      {successFlash && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm text-success"
+        >
+          <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+          <p>{successFlash}</p>
+        </div>
+      )}
+
+      <HiringPipelineSelectionToolbar
+        selectedCount={selectedIds.size}
+        onMoveSelected={() => setBulkMoveDialogOpen(true)}
+        onClearSelection={() => setSelectedIds(new Set())}
+      />
+
       <HiringPipelineNeedsAttention items={board.needs_attention} />
 
       <div className="space-y-1">
@@ -115,6 +218,9 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
             onMoveApplication={(application) =>
               setMoveTarget({ application, currentStepId: null, currentLabel: "New Applicants" })
             }
+            selectedIds={selectedIds}
+            onToggleApplicationSelected={toggleApplicationSelected}
+            onToggleSelectAll={toggleSelectAllInColumn}
           />
 
           {board.stages.map((stage) => (
@@ -131,6 +237,9 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
               onScheduleInterview={(application) =>
                 setScheduleTarget({ applicationId: application.id, stepId: stage.id, stepName: stage.name })
               }
+              selectedIds={selectedIds}
+              onToggleApplicationSelected={toggleApplicationSelected}
+              onToggleSelectAll={toggleSelectAllInColumn}
             />
           ))}
         </div>
@@ -144,6 +253,19 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
         currentStepId={moveTarget?.currentStepId ?? null}
         availableStages={board.stages.map((stage) => ({ id: stage.id, name: stage.name }))}
         onRefetch={refetch}
+      />
+
+      <BulkMoveApplicationsDialog
+        open={bulkMoveDialogOpen}
+        onOpenChange={setBulkMoveDialogOpen}
+        jobId={jobId}
+        selectedApplications={selectedApplications}
+        availableStages={board.stages.map((stage) => ({ id: stage.id, name: stage.name, type: stage.type }))}
+        onRefetch={refetch}
+        onMoved={(movedCount, targetStepName) => {
+          setSelectedIds(new Set());
+          setSuccessFlash(`${movedCount} candidate${movedCount === 1 ? "" : "s"} moved to ${targetStepName}.`);
+        }}
       />
 
       {/* Scheduling is always an explicit click here — never triggered by

@@ -7,7 +7,13 @@ import type { HiringStepType } from "@/types/hiringStep";
 // codebase's existing neutral/blue-ish tokens where one fits; interview
 // has no existing semantic token, so it uses Tailwind's own default
 // purple palette rather than inventing a new custom color.
-const TYPE_STYLES: Record<HiringStepType, string> = {
+//
+// Exported so other places that color-code by HiringStep TYPE (never by
+// the dynamic, HR-chosen stage name) can reuse this exact mapping instead
+// of duplicating it — see ApplicationsTable.tsx's PipelineStageBadge,
+// which needs these same colors but with the stage's actual name as the
+// label instead of the generic type label this component renders.
+export const HIRING_STEP_TYPE_STYLES: Record<HiringStepType, string> = {
   review: "bg-blue-500/10 text-blue-700",
   interview: "bg-purple-500/10 text-purple-700",
   assessment: "bg-warning/10 text-warning",
@@ -24,7 +30,7 @@ const TYPE_LABELS: Record<HiringStepType, string> = {
 export function HiringStepTypeBadge({ type }: { type: HiringStepType }) {
   return (
     <span
-      className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium", TYPE_STYLES[type])}
+      className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium", HIRING_STEP_TYPE_STYLES[type])}
     >
       <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
       {TYPE_LABELS[type]}

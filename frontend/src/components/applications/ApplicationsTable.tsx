@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ApplicationStatusBadge } from "@/components/applications/ApplicationStatusBadge";
+import { PipelineStageBadge } from "@/components/applications/PipelineStageBadge";
 import { ScreeningStatusBadge } from "@/components/applications/ScreeningStatusBadge";
 import type { ApplicationListRow } from "@/types/application";
 
@@ -29,7 +29,7 @@ export function ApplicationsTable({ applications }: { applications: ApplicationL
                 Applied
               </th>
               <th scope="col" className="px-4 py-3">
-                Status
+                Pipeline Stage
               </th>
               <th scope="col" className="px-4 py-3">
                 AI Screening
@@ -54,7 +54,7 @@ export function ApplicationsTable({ applications }: { applications: ApplicationL
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{formatDate(application.applied_at)}</td>
                 <td className="px-4 py-3">
-                  <ApplicationStatusBadge status={application.status} />
+                  <PipelineStageBadge application={application} />
                 </td>
                 <td className="px-4 py-3">
                   <ScreeningStatusBadge status={application.screening.status} />
