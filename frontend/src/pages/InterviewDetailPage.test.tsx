@@ -432,6 +432,162 @@ describe("InterviewDetailPage", () => {
     });
   });
 
+  // ===== COPY MEET LINK =====
+  describe("Copy Meet Link", () => {
+    beforeEach(() => {
+      Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    });
+
+    const SYNCED_WITH_MEET = {
+      provider: "google",
+      connected: true,
+      sync_status: "synced" as const,
+      meeting_url: "https://meet.google.com/xyz",
+      last_synced_at: null,
+    };
+
+    // 1 & 2. scheduled + meeting_url -> Join Meet and Copy Meet Link both shown
+    it("shows both Join Google Meet and Copy Meet Link for a scheduled interview with a meeting_url", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+
+      expect(await screen.findByRole("link", { name: /Join Google Meet/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Copy Meet Link" })).toBeInTheDocument();
+    });
+
+    // 3. no meeting_url -> Copy Meet Link absent
+    it("hides Copy Meet Link when there is no meeting_url", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: { ...SYNCED_WITH_MEET, meeting_url: null } }),
+      });
+      renderPage();
+
+      await screen.findByText("Synced");
+      expect(screen.queryByRole("button", { name: "Copy Meet Link" })).not.toBeInTheDocument();
+    });
+
+    // 4. Copy Meet Link writes exactly the persisted meeting_url
+    it("copies exactly the persisted meeting_url, never a reconstructed one", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Copy Meet Link" }));
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://meet.google.com/xyz");
+    });
+
+    // 5. successful copy produces feedback
+    it('shows "Meet link copied" feedback after a successful copy', async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Copy Meet Link" }));
+
+      expect(await screen.findByRole("button", { name: "Meet link copied" })).toBeInTheDocument();
+    });
+
+    // 6. clipboard failure produces safe feedback
+    it("shows a safe failure message when the clipboard write fails, without exposing the raw error", async () => {
+      Object.assign(navigator, { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("permission denied")) } });
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Copy Meet Link" }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toMatch(/Could not copy the Meet link/);
+      expect(alert.textContent).not.toMatch(/permission denied/);
+    });
+
+    // 7 & 8. completed Interview -> no active Join Meet / Copy Meet action
+    it("hides both Join Google Meet and Copy Meet Link for a completed interview, even though meeting_url is preserved", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "completed", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+
+      await screen.findByText("Completed", { selector: "span" });
+      expect(screen.queryByRole("link", { name: /Join Google Meet/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Copy Meet Link" })).not.toBeInTheDocument();
+    });
+
+    // 9 & 10. cancelled Interview -> no active Join Meet / Copy Meet action
+    it("hides both Join Google Meet and Copy Meet Link for a cancelled interview, even though meeting_url is preserved", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({
+          status: "cancelled",
+          cancellation: { cancelled_at: "2024-01-05T00:00:00.000Z", cancelled_by: { id: "u1", name: "Hana HR" }, reason: null },
+          calendar: SYNCED_WITH_MEET,
+        }),
+      });
+      renderPage();
+
+      await screen.findByText("Cancelled", { selector: "span" });
+      expect(screen.queryByRole("link", { name: /Join Google Meet/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Copy Meet Link" })).not.toBeInTheDocument();
+    });
+
+    // 11. unsynced eligible interview -> Add to Calendar shown per existing logic
+    it("still shows Add to Google Calendar (not replaced) when there is no calendar event yet", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "scheduled", calendar: null }) });
+      vi.mocked(googleCalendarApi.getGoogleCalendarStatus).mockResolvedValue({ connected: true, calendar_permission_granted: true });
+      renderPage();
+
+      expect(await screen.findByRole("button", { name: "Add to Google Calendar" })).toBeInTheDocument();
+    });
+
+    // 12. synced Interview does not show a duplicate Add to Calendar
+    it("never shows Add to Google Calendar once a calendar event already exists (synced)", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+
+      await screen.findByRole("button", { name: "Copy Meet Link" });
+      expect(screen.queryByRole("button", { name: "Add to Google Calendar" })).not.toBeInTheDocument();
+    });
+
+    // 13. calendar sync failure does not hide Join/Copy Meet
+    it("keeps Join Google Meet and Copy Meet Link available alongside a Calendar sync failure", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({
+          status: "scheduled",
+          calendar: { provider: "google", connected: true, sync_status: "failed", meeting_url: "https://meet.google.com/xyz", last_synced_at: null },
+        }),
+      });
+      renderPage();
+
+      expect(await screen.findByRole("button", { name: "Sync Calendar" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Join Google Meet/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Copy Meet Link" })).toBeInTheDocument();
+    });
+
+    // 14. action buttons are keyboard-accessible
+    it("makes Join Google Meet and Copy Meet Link reachable via Tab", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", calendar: SYNCED_WITH_MEET }),
+      });
+      renderPage();
+      await screen.findByRole("button", { name: "Copy Meet Link" });
+
+      const joinLink = screen.getByRole("link", { name: /Join Google Meet/ });
+      const copyButton = screen.getByRole("button", { name: "Copy Meet Link" });
+
+      joinLink.focus();
+      expect(joinLink).toHaveFocus();
+      await userEvent.tab();
+      expect(copyButton).toHaveFocus();
+    });
+  });
+
   // ===== ERROR / NOT FOUND =====
   describe("loading and errors", () => {
     it("shows a not-found state for a 404", async () => {

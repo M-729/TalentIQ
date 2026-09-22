@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { ApplicationInterviewsSection } from "@/components/applications/ApplicationInterviewsSection";
 import { buildApplicationDetail, buildInterview } from "@/test/fixtures";
@@ -159,6 +160,57 @@ describe("ApplicationInterviewsSection", () => {
 
       await screen.findByRole("link", { name: "Technical Interview" });
       expect(screen.queryByRole("link", { name: /Join Google Meet/ })).not.toBeInTheDocument();
+    });
+
+    it("shows Copy Meet Link alongside Join Google Meet for a scheduled interview with a meeting_url", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "scheduled", calendar: SYNCED_CALENDAR_WITH_MEET })],
+      });
+      renderSection();
+
+      expect(await screen.findByRole("button", { name: "Copy Meet Link" })).toBeInTheDocument();
+    });
+
+    it("copies the persisted meeting_url when Copy Meet Link is clicked", async () => {
+      Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "scheduled", calendar: SYNCED_CALENDAR_WITH_MEET })],
+      });
+      renderSection();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Copy Meet Link" }));
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://meet.google.com/abc-defg-hij");
+    });
+
+    it("hides Copy Meet Link for a scheduled interview with no meeting_url", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "scheduled", calendar: { ...SYNCED_CALENDAR_WITH_MEET, meeting_url: null } })],
+      });
+      renderSection();
+
+      await screen.findByRole("link", { name: "Technical Interview" });
+      expect(screen.queryByRole("button", { name: "Copy Meet Link" })).not.toBeInTheDocument();
+    });
+
+    it("hides Copy Meet Link for a completed interview, even though meeting_url is preserved in history", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "completed", calendar: SYNCED_CALENDAR_WITH_MEET })],
+      });
+      renderSection();
+
+      await screen.findByRole("link", { name: "Technical Interview" });
+      expect(screen.queryByRole("button", { name: "Copy Meet Link" })).not.toBeInTheDocument();
+    });
+
+    it("hides Copy Meet Link for a cancelled interview, even though meeting_url is preserved in history", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "cancelled", calendar: SYNCED_CALENDAR_WITH_MEET })],
+      });
+      renderSection();
+
+      await screen.findByRole("link", { name: "Technical Interview" });
+      expect(screen.queryByRole("button", { name: "Copy Meet Link" })).not.toBeInTheDocument();
     });
   });
 

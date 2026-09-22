@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InterviewCalendarBadge } from "@/components/interviews/InterviewCalendarBadge";
 import { InterviewStatusBadge } from "@/components/interviews/InterviewStatusBadge";
-import { JoinMeetLink, canJoinMeet } from "@/components/interviews/JoinMeetLink";
+import { CopyMeetLinkButton, JoinMeetLink, canJoinMeet } from "@/components/interviews/JoinMeetLink";
 import { ScheduleInterviewDialog } from "@/components/interviews/ScheduleInterviewDialog";
 import { useApplicationInterviews } from "@/hooks/useApplicationInterviews";
 import { formatDateTime } from "@/lib/formatDate";
@@ -112,6 +112,7 @@ export function ApplicationInterviewsSection({ application }: ApplicationIntervi
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <InterviewCalendarBadge calendar={interview.calendar} />
                   {canJoinMeet(interview) && <JoinMeetLink url={interview.calendar!.meeting_url!} />}
+                  {canJoinMeet(interview) && <CopyMeetLinkButton url={interview.calendar!.meeting_url!} />}
                 </div>
                 {notificationStatusLabel(interview.latest_notification) && (
                   <p

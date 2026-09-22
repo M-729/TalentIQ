@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { InterviewCalendarBadge } from "@/components/interviews/InterviewCalendarBadge";
-import { JoinMeetLink, canJoinMeet } from "@/components/interviews/JoinMeetLink";
+import { CopyMeetLinkButton, JoinMeetLink, canJoinMeet } from "@/components/interviews/JoinMeetLink";
 import { useGoogleCalendarEventActions } from "@/hooks/useGoogleCalendarEventActions";
 import { useGoogleCalendarStatus } from "@/hooks/useGoogleCalendarStatus";
 import type { Interview } from "@/types/interview";
@@ -35,8 +35,18 @@ export function InterviewCalendarActions({ interview, onUpdated }: InterviewCale
     if (updated) onUpdated(updated);
   }
 
+  // Whether to offer "Add to Google Calendar" at all — never when a
+  // Calendar event already exists (Part 7: never imply a second event can
+  // be created), and Google connection/permission-gated so this can never
+  // be clicked into a guaranteed failure. Unchanged logic, just named for
+  // the grouped action row below.
+  const showAddToCalendar = isActionable && !interview.calendar && isReady;
+  const showSyncCalendar =
+    isActionable && !!interview.calendar && (interview.calendar.sync_status === "pending" || interview.calendar.sync_status === "failed");
+  const showJoinMeet = canJoinMeet(interview);
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <InterviewCalendarBadge calendar={interview.calendar} />
 
       {error && (
@@ -44,12 +54,6 @@ export function InterviewCalendarActions({ interview, onUpdated }: InterviewCale
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p role="alert">{error}</p>
         </div>
-      )}
-
-      {isActionable && !interview.calendar && isReady && (
-        <Button type="button" size="sm" variant="outline" onClick={() => void handleCreate()} disabled={isSubmitting}>
-          {isSubmitting ? "Adding…" : "Add to Google Calendar"}
-        </Button>
       )}
 
       {isActionable && !interview.calendar && !isReady && (
@@ -70,13 +74,31 @@ export function InterviewCalendarActions({ interview, onUpdated }: InterviewCale
         </p>
       )}
 
-      {isActionable && interview.calendar && (interview.calendar.sync_status === "pending" || interview.calendar.sync_status === "failed") && (
-        <Button type="button" size="sm" variant="outline" onClick={() => void handleSync()} disabled={isSubmitting}>
-          {isSubmitting ? "Syncing…" : "Sync Calendar"}
-        </Button>
-      )}
+      {/* Grouped meeting actions — Join Meet is the one visually primary
+          (filled) button; Copy Meet Link and the calendar action are both
+          secondary (outline), matching this codebase's existing
+          default/outline Button convention. A Calendar sync failure never
+          hides Join Meet/Copy Meet Link — Google stays best-effort/optional
+          and these two read purely from the already-persisted
+          meeting_url, never from calendar sync state. */}
+      {(showJoinMeet || showAddToCalendar || showSyncCalendar) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {showJoinMeet && <JoinMeetLink url={interview.calendar!.meeting_url!} />}
+          {showJoinMeet && <CopyMeetLinkButton url={interview.calendar!.meeting_url!} />}
 
-      {canJoinMeet(interview) && <JoinMeetLink url={interview.calendar!.meeting_url!} />}
+          {showAddToCalendar && (
+            <Button type="button" size="sm" variant="outline" onClick={() => void handleCreate()} disabled={isSubmitting}>
+              {isSubmitting ? "Adding…" : "Add to Google Calendar"}
+            </Button>
+          )}
+
+          {showSyncCalendar && (
+            <Button type="button" size="sm" variant="outline" onClick={() => void handleSync()} disabled={isSubmitting}>
+              {isSubmitting ? "Syncing…" : "Sync Calendar"}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
