@@ -74,6 +74,11 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
                 </td>
                 <td className="px-4 py-3">
                   <InterviewStatusBadge status={interview.status} />
+                  {interview.status === "completed" && interview.feedback_progress && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Feedback {interview.feedback_progress.submitted}/{interview.feedback_progress.total}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1.5">

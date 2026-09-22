@@ -1,5 +1,6 @@
 import type { InterviewDoc } from "../../models/Interview.model";
 import type { LatestNotificationSummary } from "./interviewNotification.service";
+import type { FeedbackProgressSummary } from "./interviewFeedback.service";
 
 export interface UserRef {
   id: string;
@@ -22,6 +23,16 @@ export interface InterviewCancellationDTO {
   cancelled_at: string;
   cancelled_by: ActorDTO | null;
   reason: string | null;
+}
+
+export interface InterviewCompletionDTO {
+  completed_at: string;
+  completed_by: ActorDTO | null;
+}
+
+export interface FeedbackProgressDTO {
+  submitted: number;
+  total: number;
 }
 
 export interface InterviewCalendarDTO {
@@ -49,10 +60,14 @@ export interface InterviewDTO {
   interviewers: InterviewerDTO[];
   scheduled_by: ActorDTO;
   cancellation: InterviewCancellationDTO | null;
+  /** null unless status is "completed" — see interview.service.ts's completeInterview. */
+  completion: InterviewCompletionDTO | null;
   /** null when this Interview has no Google Calendar integration at all. */
   calendar: InterviewCalendarDTO | null;
   /** The most recent candidate email notification's category+status — null when none has ever been attempted. Full history lives at GET /interviews/:id/notifications. */
   latest_notification: LatestNotificationDTO | null;
+  /** null unless status is "completed" — how many of the assigned interviewers have submitted feedback so far. Full records live at GET /interviews/:id/feedback. */
+  feedback_progress: FeedbackProgressDTO | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,7 +126,8 @@ export function serializeInterview(
   doc: InterviewDoc,
   userMap: Map<string, UserRef>,
   ownerConnectedMap: Map<string, boolean> = new Map(),
-  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map()
+  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map(),
+  feedbackProgressMap: Map<string, FeedbackProgressSummary> = new Map()
 ): InterviewDTO {
   return {
     id: doc.id,
@@ -138,8 +154,20 @@ export function serializeInterview(
             reason: doc.cancellation_reason ?? null,
           }
         : null,
+    // Keyed on completed_at being present (not just status === "completed")
+    // — completeInterview() always sets both together, but this stays
+    // defensive against a document that reached "completed" status some
+    // other way (direct test/data fixture, future migration) without that
+    // metadata, rather than crashing the whole response for it.
+    completion: doc.completed_at
+      ? {
+          completed_at: doc.completed_at.toISOString(),
+          completed_by: doc.completed_by ? resolveActor(userMap, doc.completed_by.toString()) : null,
+        }
+      : null,
     calendar: buildCalendarDTO(doc, ownerConnectedMap),
     latest_notification: latestNotificationMap.get(doc.id) ?? null,
+    feedback_progress: feedbackProgressMap.get(doc.id) ?? null,
     // Always set by Mongoose (timestamps: { createdAt: "created_at", ... })
     // — the schema-inferred type just doesn't capture that as non-optional.
     created_at: doc.created_at!.toISOString(),
@@ -151,9 +179,10 @@ export function serializeInterviews(
   docs: InterviewDoc[],
   userMap: Map<string, UserRef>,
   ownerConnectedMap: Map<string, boolean> = new Map(),
-  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map()
+  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map(),
+  feedbackProgressMap: Map<string, FeedbackProgressSummary> = new Map()
 ): InterviewDTO[] {
-  return docs.map((doc) => serializeInterview(doc, userMap, ownerConnectedMap, latestNotificationMap));
+  return docs.map((doc) => serializeInterview(doc, userMap, ownerConnectedMap, latestNotificationMap, feedbackProgressMap));
 }
 
 export interface InterviewDetailDTO extends InterviewDTO {
@@ -177,10 +206,11 @@ export function serializeInterviewDetail(
   candidate: CandidateRef | null,
   job: JobRef | null,
   ownerConnectedMap: Map<string, boolean> = new Map(),
-  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map()
+  latestNotificationMap: Map<string, LatestNotificationSummary> = new Map(),
+  feedbackProgressMap: Map<string, FeedbackProgressSummary> = new Map()
 ): InterviewDetailDTO {
   return {
-    ...serializeInterview(doc, userMap, ownerConnectedMap, latestNotificationMap),
+    ...serializeInterview(doc, userMap, ownerConnectedMap, latestNotificationMap, feedbackProgressMap),
     candidate,
     job,
   };
@@ -209,8 +239,10 @@ export interface InterviewListRowDTO {
   timezone: string;
   status: string;
   interviewers: InterviewerDTO[];
+  completion: InterviewCompletionDTO | null;
   calendar: InterviewCalendarDTO | null;
   latest_notification: LatestNotificationDTO | null;
+  feedback_progress: FeedbackProgressDTO | null;
   created_at: string;
   updated_at: string;
 }
@@ -224,6 +256,8 @@ export interface InterviewListRowContext {
   ownerConnectedMap?: Map<string, boolean>;
   /** Keyed by Interview id — see interviewNotification.service.ts's batchLatestNotificationStatus. */
   latestNotificationMap?: Map<string, LatestNotificationSummary>;
+  /** Keyed by Interview id — see interviewFeedback.service.ts's batchFeedbackProgress. */
+  feedbackProgressMap?: Map<string, FeedbackProgressSummary>;
 }
 
 /**
@@ -248,8 +282,15 @@ export function serializeInterviewListRow(doc: InterviewDoc, ctx: InterviewListR
     timezone: doc.timezone,
     status: doc.status,
     interviewers: buildInterviewers(doc, ctx.userMap),
+    completion: doc.completed_at
+      ? {
+          completed_at: doc.completed_at.toISOString(),
+          completed_by: doc.completed_by ? resolveActor(ctx.userMap, doc.completed_by.toString()) : null,
+        }
+      : null,
     calendar: buildCalendarDTO(doc, ctx.ownerConnectedMap ?? new Map()),
     latest_notification: (ctx.latestNotificationMap ?? new Map()).get(doc.id) ?? null,
+    feedback_progress: (ctx.feedbackProgressMap ?? new Map()).get(doc.id) ?? null,
     created_at: doc.created_at!.toISOString(),
     updated_at: doc.updated_at!.toISOString(),
   };

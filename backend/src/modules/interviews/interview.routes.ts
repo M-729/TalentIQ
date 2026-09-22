@@ -4,6 +4,7 @@ import { requireRole } from "../../middleware/role.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import {
   cancelInterviewHandler,
+  completeInterviewHandler,
   createGoogleCalendarEventHandler,
   getInterviewHandler,
   listInterviewsForCompanyHandler,
@@ -14,14 +15,21 @@ import {
 } from "./interview.controller";
 import { listInterviewNotificationsHandler } from "./interviewNotification.controller";
 import {
+  listInterviewFeedbackHandler,
+  saveOwnFeedbackDraftHandler,
+  submitOwnFeedbackHandler,
+} from "./interviewFeedback.controller";
+import {
   applicationIdParamsSchema,
   cancelInterviewSchema,
+  completeInterviewSchema,
   googleCalendarActionBodySchema,
   interviewIdParamsSchema,
   listInterviewsQuerySchema,
   rescheduleInterviewSchema,
   scheduleInterviewSchema,
 } from "./interview.validation";
+import { saveFeedbackDraftSchema, submitFeedbackSchema } from "./interviewFeedback.validation";
 
 // mergeParams: true is required because :applicationId is defined on the
 // parent mount path in app.ts, not on any route declared in this router.
@@ -61,6 +69,11 @@ interviewDetailRouter.patch(
   validate({ params: interviewIdParamsSchema, body: cancelInterviewSchema }),
   cancelInterviewHandler
 );
+interviewDetailRouter.patch(
+  "/:interviewId/complete",
+  validate({ params: interviewIdParamsSchema, body: completeInterviewSchema }),
+  completeInterviewHandler
+);
 
 // "Create/synchronize this scheduled Interview into my connected Google
 // Calendar" — never creates a second Interview, only the ONE Calendar
@@ -86,4 +99,23 @@ interviewDetailRouter.get(
   "/:interviewId/notifications",
   validate({ params: interviewIdParamsSchema }),
   listInterviewNotificationsHandler
+);
+
+// Interview Feedback — only ever meaningful once the Interview is
+// completed (see interviewFeedback.service.ts); who is reading/writing is
+// always req.auth.userId, never a client-supplied interviewer id.
+interviewDetailRouter.get(
+  "/:interviewId/feedback",
+  validate({ params: interviewIdParamsSchema }),
+  listInterviewFeedbackHandler
+);
+interviewDetailRouter.put(
+  "/:interviewId/feedback/me",
+  validate({ params: interviewIdParamsSchema, body: saveFeedbackDraftSchema }),
+  saveOwnFeedbackDraftHandler
+);
+interviewDetailRouter.post(
+  "/:interviewId/feedback/me/submit",
+  validate({ params: interviewIdParamsSchema, body: submitFeedbackSchema }),
+  submitOwnFeedbackHandler
 );

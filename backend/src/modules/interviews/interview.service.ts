@@ -23,6 +23,7 @@ const DUPLICATE_ACTIVE_INTERVIEW_MESSAGE =
 const INVALID_INTERVIEWERS_MESSAGE = "One or more selected interviewers are not available.";
 const NOT_RESCHEDULABLE_MESSAGE = "This interview cannot be rescheduled because it is not currently scheduled.";
 const NOT_CANCELLABLE_MESSAGE = "This interview cannot be cancelled because it is not currently scheduled.";
+const NOT_COMPLETABLE_MESSAGE = "This interview cannot be marked as completed because it is not currently scheduled.";
 const CONCURRENT_CHANGE_MESSAGE = "This interview was just changed by someone else. Please refresh and try again.";
 
 /**
@@ -418,13 +419,69 @@ export async function cancelInterview(
 }
 
 /**
+ * Completion is always an explicit HR/Admin action — NEVER inferred from
+ * starts_at/ends_at passing, the Google Meet call ending, Google Calendar
+ * event state, or the Interview Detail page merely being opened (see this
+ * ticket's core product rule). Uses the ACTIVE-Job access variant, same as
+ * reschedule: a soft-deleted Job blocks completion (no new hiring
+ * progression past a deleted Job), while a merely CLOSED (but not deleted)
+ * Job still permits completing an existing Interview, since
+ * getAccessibleInterviewForActiveJob only gates on deleted_at, never on
+ * Job.status — see interviewAccess.service.ts's own doc comment.
+ *
+ * Cancelled -> completed is rejected (a cancelled Interview never
+ * happened). Completed -> complete again is a safe, idempotent no-op: it
+ * returns the already-completed Interview unchanged rather than throwing,
+ * and — critically — never re-writes completed_at/completed_by, so an
+ * accidental duplicate click/request never produces duplicate side effects
+ * (this endpoint triggers no notification/Calendar sync of any kind, but
+ * the idempotency contract matches reschedule/cancel's own regardless).
+ *
+ * Concurrency: the guarded findOneAndUpdate ({_id, status: "scheduled"})
+ * ensures only ONE of two simultaneous Complete requests can actually
+ * perform the write; the loser re-reads and — finding the winner's
+ * "completed" result — returns that success response rather than a
+ * spurious conflict, so two simultaneous Complete requests both resolve
+ * successfully with identical, non-duplicated final state.
+ */
+export async function completeInterview(companyId: string, userId: string, interviewId: string): Promise<InterviewDoc> {
+  const interview = await getAccessibleInterviewForActiveJob(interviewId, companyId);
+
+  if (interview.status === "completed") {
+    return interview;
+  }
+  if (interview.status !== "scheduled") {
+    throw new ConflictError(NOT_COMPLETABLE_MESSAGE);
+  }
+
+  const updated = await Interview.findOneAndUpdate(
+    { _id: interviewId, status: "scheduled" },
+    { $set: { status: "completed", completed_at: new Date(), completed_by: userId } },
+    { new: true }
+  );
+  if (updated) {
+    return updated;
+  }
+
+  // Lost the race to a concurrent request. If it completed the Interview,
+  // this is a successful idempotent no-op from this caller's perspective;
+  // any other current status is a genuine conflict (e.g. concurrently cancelled).
+  const current = await Interview.findById(interviewId);
+  if (current?.status === "completed") {
+    return current;
+  }
+  throw new ConflictError(NOT_COMPLETABLE_MESSAGE);
+}
+
+/**
  * Batches every User id referenced across the given Interviews
- * (interviewers + scheduled_by + cancelled_by, deduplicated) into ONE
- * query — never one lookup per Interview or per interviewer. Fetches
- * name+email for all of them regardless of role, since interviewers need
- * email in the DTO anyway (see interview.serializer.ts) and the marginal
- * cost of having it available for scheduled_by/cancelled_by too is
- * negligible; the serializer simply doesn't use it for those two roles.
+ * (interviewers + scheduled_by + cancelled_by + completed_by, deduplicated)
+ * into ONE query — never one lookup per Interview or per interviewer.
+ * Fetches name+email for all of them regardless of role, since interviewers
+ * need email in the DTO anyway (see interview.serializer.ts) and the
+ * marginal cost of having it available for scheduled_by/cancelled_by/
+ * completed_by too is negligible; the serializer simply doesn't use it for
+ * those roles.
  */
 export async function batchUserLookup(interviews: InterviewDoc[]): Promise<Map<string, UserRef>> {
   const ids = new Set<string>();
@@ -435,6 +492,9 @@ export async function batchUserLookup(interviews: InterviewDoc[]): Promise<Map<s
     ids.add(interview.scheduled_by.toString());
     if (interview.cancelled_by) {
       ids.add(interview.cancelled_by.toString());
+    }
+    if (interview.completed_by) {
+      ids.add(interview.completed_by.toString());
     }
   }
 

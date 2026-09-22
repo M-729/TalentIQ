@@ -604,8 +604,10 @@ describe("Interview scheduling API", () => {
           "interviewers",
           "scheduled_by",
           "cancellation",
+          "completion",
           "calendar",
           "latest_notification",
+          "feedback_progress",
           "created_at",
           "updated_at",
         ].sort()
@@ -814,6 +816,133 @@ describe("Interview scheduling API", () => {
     });
   });
 
+  // ===== COMPLETE =====
+  describe("complete", () => {
+    async function scheduleOne() {
+      const application = await createApplicationInInterviewStage();
+      const res = await request(app)
+        .post(scheduleUrl(application.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+      return { application, interviewId: res.body.interview.id as string };
+    }
+
+    // 1. scheduled -> completed succeeds
+    it("completes a scheduled Interview", async () => {
+      const { interviewId } = await scheduleOne();
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.interview.status).toBe("completed");
+    });
+
+    // 2. stores completed_at
+    it("stores completed_at", async () => {
+      const { interviewId } = await scheduleOne();
+      await request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const reread = await Interview.findById(interviewId);
+      expect(reread?.completed_at).toBeInstanceOf(Date);
+    });
+
+    // 3. stores completed_by
+    it("stores completed_by as the authenticated actor", async () => {
+      const { interviewId } = await scheduleOne();
+      await request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const reread = await Interview.findById(interviewId);
+      expect(reread?.completed_by?.toString()).toBe(hrA.id);
+    });
+
+    // 4. completed Interview returned correctly
+    it("returns safe completion metadata on the response DTO", async () => {
+      const { interviewId } = await scheduleOne();
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.body.interview.completion.completed_at).toEqual(expect.any(String));
+      expect(res.body.interview.completion.completed_by).toEqual({ id: hrA.id, name: hrA.name });
+    });
+
+    // 5. cancelled -> complete rejected
+    it("returns 409 for a cancelled Interview", async () => {
+      const { interviewId } = await scheduleOne();
+      await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.status).toBe(409);
+    });
+
+    // 6. duplicate Complete request is safe/no duplicate mutation
+    it("is idempotent — a second complete request is a safe no-op, not an error", async () => {
+      const { interviewId } = await scheduleOne();
+      const first = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      const before = await Interview.findById(interviewId);
+
+      const second = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      const after = await Interview.findById(interviewId);
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(after?.completed_at?.getTime()).toBe(before?.completed_at?.getTime());
+      expect(after?.updated_at?.getTime()).toBe(before?.updated_at?.getTime());
+    });
+
+    it("only allows one of two simultaneous complete requests to perform the write, both resolving successfully", async () => {
+      const { interviewId } = await scheduleOne();
+
+      const [resA, resB] = await Promise.all([
+        request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({}),
+        request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({}),
+      ]);
+
+      expect(resA.status).toBe(200);
+      expect(resB.status).toBe(200);
+      expect(resA.body.interview.completion.completed_at).toBe(resB.body.interview.completion.completed_at);
+    });
+
+    // 7. cross-company -> 404
+    it("returns 404 for a cross-company complete attempt", async () => {
+      const { interviewId } = await scheduleOne();
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrB, companyB.id))
+        .send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 401 for an unauthenticated request", async () => {
+      const { interviewId } = await scheduleOne();
+      const res = await request(app).patch(`${interviewUrl(interviewId)}/complete`).send({});
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects an unexpected field in the request body", async () => {
+      const { interviewId } = await scheduleOne();
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ outcome: "great candidate" });
+      expect(res.status).toBe(400);
+    });
+
+    it("never physically deletes the Interview document", async () => {
+      const { interviewId } = await scheduleOne();
+      await request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      expect(await Interview.findById(interviewId)).not.toBeNull();
+    });
+  });
+
   // ===== JOB LIFECYCLE =====
   describe("Job lifecycle rules", () => {
     it("allows scheduling for an active Job", async () => {
@@ -865,6 +994,23 @@ describe("Interview scheduling API", () => {
       expect(res.status).toBe(200);
     });
 
+    // 8. closed Job existing Interview can complete
+    it("allows completing an existing Interview for a closed (not deleted) Job", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+      await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
+
+      const res = await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.interview.status).toBe("completed");
+    });
+
     it("blocks NEW scheduling for a soft-deleted Job", async () => {
       const application = await createApplicationInInterviewStage();
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
@@ -888,6 +1034,22 @@ describe("Interview scheduling API", () => {
         .patch(`${interviewUrl(scheduleRes.body.interview.id)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
+      expect(res.status).toBe(404);
+    });
+
+    // 9. soft-deleted Job cannot progress through completion
+    it("blocks completion for a soft-deleted Job", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+      await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
+
+      const res = await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
       expect(res.status).toBe(404);
     });
 
@@ -965,6 +1127,28 @@ describe("Interview scheduling API", () => {
       expect(after?.current_step_id?.toString()).toBe(before?.current_step_id?.toString());
     });
 
+    // 39/40. completing an Interview must NEVER move the Application —
+    // completion is a TalentIQ workflow-state change on the Interview
+    // itself, not a pipeline transition. HR always decides pipeline
+    // movement explicitly and separately (see this ticket's Part 17).
+    it("completing an Interview does NOT change Application.status or Application.current_step_id", async () => {
+      const application = await createApplicationInInterviewStage();
+      const before = await Application.findById(application.id);
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+
+      const after = await Application.findById(application.id);
+      expect(after?.status).toBe(before?.status);
+      expect(after?.current_step_id?.toString()).toBe(before?.current_step_id?.toString());
+    });
+
     it("scheduling an Interview does NOT run AI", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
@@ -991,6 +1175,24 @@ describe("Interview scheduling API", () => {
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       expect(emailService.send).toHaveBeenCalledTimes(1);
+    });
+
+    // 10. completion sends no candidate email — completing an interview is
+    // a pure TalentIQ workflow-state change, never a candidate-facing event.
+    it("completing an Interview sends no candidate email", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+      emailService.send.mockClear();
+
+      await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+
+      expect(emailService.send).not.toHaveBeenCalled();
     });
 
     it("scheduling an Interview does NOT populate calendar/meeting fields (no Google call)", async () => {

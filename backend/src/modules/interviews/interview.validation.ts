@@ -101,6 +101,12 @@ export const cancelInterviewSchema = z
   })
   .strict();
 
+// Completion takes no business input at all — completed_at/completed_by
+// are entirely backend-derived (the authenticated actor + current time),
+// matching googleCalendarActionBodySchema's identical "no legitimate
+// client input" rationale below. `.strict()` rejects any unexpected field.
+export const completeInterviewSchema = z.object({}).strict();
+
 // POST create/sync accept no business input at all — every field
 // (provider, event id, meeting URL, owner) is backend-derived, and there
 // is no legitimate reason for a client to ever send provider metadata

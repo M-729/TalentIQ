@@ -58,6 +58,12 @@ export function cancelInterview(interviewId: string, input: CancelInterviewInput
   return apiClient.patch<{ interview: Interview }>(`/interviews/${interviewId}/cancel`, input);
 }
 
+// Always an explicit HR action — never inferred from starts_at/ends_at
+// passing or the Interview Detail page merely being opened.
+export function completeInterview(interviewId: string): Promise<{ interview: Interview }> {
+  return apiClient.patch<{ interview: Interview }>(`/interviews/${interviewId}/complete`, {});
+}
+
 // Explicit "Add to Google Calendar" — never called automatically when a page opens.
 export function createGoogleCalendarEvent(interviewId: string): Promise<{ interview: Interview }> {
   return apiClient.post<{ interview: Interview }>(`/interviews/${interviewId}/google-calendar`, {});

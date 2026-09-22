@@ -6,8 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CancelInterviewDialog } from "@/components/interviews/CancelInterviewDialog";
 import { InterviewCalendarActions } from "@/components/interviews/InterviewCalendarActions";
+import { InterviewFeedbackSection } from "@/components/interviews/InterviewFeedbackSection";
 import { InterviewNotificationsSection } from "@/components/interviews/InterviewNotificationsSection";
 import { InterviewStatusBadge } from "@/components/interviews/InterviewStatusBadge";
+import { InterviewTimeEndedNotice } from "@/components/interviews/InterviewTimeEndedNotice";
+import { MarkCompletedDialog } from "@/components/interviews/MarkCompletedDialog";
 import { RescheduleInterviewDialog } from "@/components/interviews/RescheduleInterviewDialog";
 import { useInterview } from "@/hooks/useInterview";
 import { formatDateTime } from "@/lib/formatDate";
@@ -29,6 +32,7 @@ export function InterviewDetailPage() {
   const { interview, applyUpdate, isLoading, error, notFound, refetch } = useInterview(interviewId);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [isMarkCompletedOpen, setIsMarkCompletedOpen] = useState(false);
 
   if (!interviewId) {
     return null;
@@ -105,16 +109,21 @@ export function InterviewDetailPage() {
         </div>
 
         {interview.status === "scheduled" && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => setIsRescheduleOpen(true)}>
               Reschedule
             </Button>
             <Button variant="destructive" size="sm" onClick={() => setIsCancelOpen(true)}>
               Cancel
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setIsMarkCompletedOpen(true)}>
+              Mark as Completed
+            </Button>
           </div>
         )}
       </div>
+
+      <InterviewTimeEndedNotice interview={interview} onMarkCompletedClick={() => setIsMarkCompletedOpen(true)} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
@@ -198,6 +207,20 @@ export function InterviewDetailPage() {
         </Card>
       )}
 
+      {interview.completion && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Completion</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="space-y-3">
+              <Field label="Completed at" value={formatDateTime(interview.completion.completed_at)} />
+              <Field label="Marked completed by" value={interview.completion.completed_by?.name} />
+            </dl>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Google Calendar</CardTitle>
@@ -213,6 +236,11 @@ export function InterviewDetailPage() {
           notification attempts. */}
       <InterviewNotificationsSection interviewId={interview.id} />
 
+      {/* Feedback only ever becomes available once the Interview is
+          completed (see backend interviewFeedback.service.ts) — never
+          rendered for a scheduled or cancelled Interview. */}
+      {interview.status === "completed" && <InterviewFeedbackSection interviewId={interview.id} />}
+
       {interview.status === "cancelled" && (
         <p className="text-xs text-muted-foreground">
           This interview is cancelled and read-only. <Link to="/interviews">Back to Interviews</Link>
@@ -226,6 +254,12 @@ export function InterviewDetailPage() {
         onRescheduled={handleUpdated}
       />
       <CancelInterviewDialog open={isCancelOpen} onOpenChange={setIsCancelOpen} interview={interview} onCancelled={handleUpdated} />
+      <MarkCompletedDialog
+        open={isMarkCompletedOpen}
+        onOpenChange={setIsMarkCompletedOpen}
+        interview={interview}
+        onCompleted={handleUpdated}
+      />
     </div>
   );
 }

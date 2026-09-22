@@ -87,3 +87,17 @@ export function getCalendarActionErrorMessage(err: unknown): string {
 export function getInterviewerDirectoryErrorMessage(_err: unknown): string {
   return "Interviewers could not be loaded. Please try again.";
 }
+
+export function getCompleteInterviewErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    switch (err.status) {
+      case 404:
+        return "This interview is no longer available.";
+      case 409:
+        return "This interview cannot be marked as completed right now. Refresh and try again.";
+      default:
+        return "The interview could not be marked as completed. Please try again.";
+    }
+  }
+  return "The interview could not be marked as completed. Please try again.";
+}

@@ -31,6 +31,16 @@ export interface InterviewCancellation {
   reason: string | null;
 }
 
+export interface InterviewCompletion {
+  completed_at: string;
+  completed_by: ActorRef | null;
+}
+
+export interface FeedbackProgress {
+  submitted: number;
+  total: number;
+}
+
 // null on the Interview itself means "no Google Calendar integration at
 // all yet" — never confuse that with sync_status: "not_connected", which
 // can't actually occur here (calendar is only ever non-null once a
@@ -55,9 +65,13 @@ export interface Interview {
   interviewers: InterviewerRef[];
   scheduled_by: ActorRef;
   cancellation: InterviewCancellation | null;
+  /** null unless status is "completed". */
+  completion: InterviewCompletion | null;
   calendar: InterviewCalendar | null;
   /** The most recent candidate email notification's category+status — null when none has ever been attempted. Full history is fetched separately (see services/api/interviewNotifications.ts). */
   latest_notification: LatestNotificationSummary | null;
+  /** null unless status is "completed" — how many assigned interviewers have submitted feedback. Full records are fetched separately (see services/api/interviewFeedback.ts). */
+  feedback_progress: FeedbackProgress | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,8 +101,10 @@ export interface InterviewListRow {
   timezone: string;
   status: InterviewStatus;
   interviewers: InterviewerRef[];
+  completion: InterviewCompletion | null;
   calendar: InterviewCalendar | null;
   latest_notification: LatestNotificationSummary | null;
+  feedback_progress: FeedbackProgress | null;
   created_at: string;
   updated_at: string;
 }

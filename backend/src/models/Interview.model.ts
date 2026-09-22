@@ -108,6 +108,14 @@ const interviewSchema = new Schema(
     cancelled_at: { type: Date, default: null },
     cancellation_reason: { type: String, trim: true, maxlength: 1000, default: null },
 
+    // Completion is always an explicit HR/Admin action (see
+    // interview.service.ts's completeInterview) — NEVER inferred from
+    // starts_at/ends_at passing, the Google Meet call ending, or the
+    // Interview Detail page being opened. Mirrors cancelled_by/cancelled_at
+    // naming exactly for the same one-way-transition reason.
+    completed_by: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    completed_at: { type: Date, default: null },
+
     // Google Calendar/Meet integration metadata — never client-controlled
     // (absent from every Zod schema in interview.validation.ts /
     // googleCalendar.validation.ts), never a secret/token (the actual

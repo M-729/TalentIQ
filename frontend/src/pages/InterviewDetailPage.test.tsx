@@ -9,6 +9,7 @@ import * as interviewsApi from "@/services/api/interviews";
 import * as googleCalendarApi from "@/services/api/googleCalendarIntegration";
 import * as usersApi from "@/services/api/users";
 import * as interviewNotificationsApi from "@/services/api/interviewNotifications";
+import * as interviewFeedbackApi from "@/services/api/interviewFeedback";
 import { formatDateTime } from "@/lib/formatDate";
 import type { InterviewDetail } from "@/types/interview";
 
@@ -16,6 +17,7 @@ vi.mock("@/services/api/interviews");
 vi.mock("@/services/api/googleCalendarIntegration");
 vi.mock("@/services/api/users");
 vi.mock("@/services/api/interviewNotifications");
+vi.mock("@/services/api/interviewFeedback");
 
 function buildDetail(overrides: Partial<InterviewDetail> = {}): InterviewDetail {
   return {
@@ -49,6 +51,11 @@ describe("InterviewDetailPage", () => {
       users: [{ id: "user-1", name: "Alex Interviewer", email: "alex@example.test" }],
     });
     vi.mocked(interviewNotificationsApi.listInterviewNotifications).mockReset().mockResolvedValue({ notifications: [] });
+    vi.mocked(interviewsApi.completeInterview).mockReset();
+    vi.mocked(interviewFeedbackApi.listInterviewFeedback).mockReset().mockResolvedValue({
+      interviewers: [],
+      viewer: { assigned: false, can_edit: false, feedback: null },
+    });
   });
 
   it("renders candidate, job, stage, and schedule details", async () => {
@@ -61,15 +68,18 @@ describe("InterviewDetailPage", () => {
     expect(screen.getByText("Asia/Beirut")).toBeInTheDocument();
   });
 
-  it("shows Reschedule and Cancel actions only for a scheduled interview", async () => {
-    vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "scheduled" }) });
+  it("shows Reschedule, Cancel, and Mark as Completed actions only for a scheduled interview", async () => {
+    vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+      interview: buildDetail({ status: "scheduled", ends_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() }),
+    });
     renderPage();
 
     expect(await screen.findByRole("button", { name: "Reschedule" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark as Completed" })).toBeInTheDocument();
   });
 
-  it("hides Reschedule and Cancel for a cancelled interview (read-only history)", async () => {
+  it("hides Reschedule, Cancel, and Mark as Completed for a cancelled interview (read-only history)", async () => {
     vi.mocked(interviewsApi.getInterview).mockResolvedValue({
       interview: buildDetail({ status: "cancelled", cancellation: { cancelled_at: "2024-01-02T00:00:00.000Z", cancelled_by: { id: "u1", name: "Hana HR" }, reason: "No longer needed" } }),
     });
@@ -78,16 +88,18 @@ describe("InterviewDetailPage", () => {
     await screen.findByText("Cancelled", { selector: "span" });
     expect(screen.queryByRole("button", { name: "Reschedule" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as Completed" })).not.toBeInTheDocument();
     expect(screen.getByText("No longer needed")).toBeInTheDocument();
   });
 
-  it("hides Reschedule and Cancel for a completed interview (read-only)", async () => {
+  it("hides Reschedule, Cancel, and Mark as Completed for a completed interview (read-only)", async () => {
     vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "completed" }) });
     renderPage();
 
     await screen.findByText("Completed", { selector: "span" });
     expect(screen.queryByRole("button", { name: "Reschedule" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as Completed" })).not.toBeInTheDocument();
   });
 
   // ===== RESCHEDULE =====
@@ -244,6 +256,111 @@ describe("InterviewDetailPage", () => {
       expect(await screen.findByText("Cancelled notification")).toBeInTheDocument();
       expect(screen.getByText("Sent")).toBeInTheDocument();
       expect(screen.getByText("Failed")).toBeInTheDocument();
+    });
+  });
+
+  // ===== COMPLETE =====
+  describe("complete", () => {
+    function futureEndsAt(): string {
+      return new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    }
+
+    it("requires confirmation before completing", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "scheduled", ends_at: futureEndsAt() }) });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Mark as Completed" }));
+      expect(await screen.findByRole("heading", { name: "Mark interview as completed?" })).toBeInTheDocument();
+      expect(interviewsApi.completeInterview).not.toHaveBeenCalled();
+    });
+
+    it("disables the confirm button while the request is pending, preventing a double submit", async () => {
+      let resolveFn: (value: { interview: InterviewDetail }) => void = () => {};
+      const pending = new Promise<{ interview: InterviewDetail }>((resolve) => {
+        resolveFn = resolve;
+      });
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "scheduled", ends_at: futureEndsAt() }) });
+      vi.mocked(interviewsApi.completeInterview).mockReturnValue(pending);
+      renderPage();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Mark as Completed" }));
+      await screen.findByRole("heading", { name: "Mark interview as completed?" });
+      const confirmButton = screen.getAllByRole("button", { name: "Mark as Completed" }).slice(-1)[0]!;
+      await userEvent.click(confirmButton);
+
+      const pendingButton = await screen.findByRole("button", { name: "Marking as completed…" });
+      expect(pendingButton).toBeDisabled();
+      expect(interviewsApi.completeInterview).toHaveBeenCalledTimes(1);
+
+      resolveFn({ interview: buildDetail({ status: "completed", completion: { completed_at: "2026-09-22T10:00:00.000Z", completed_by: { id: "u1", name: "Hana HR" } } }) });
+    });
+
+    it("updates the UI to Completed after a successful completion", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "scheduled", ends_at: futureEndsAt() }) });
+      vi.mocked(interviewsApi.completeInterview).mockResolvedValue({
+        interview: buildDetail({
+          status: "completed",
+          completion: { completed_at: "2026-09-22T10:00:00.000Z", completed_by: { id: "u1", name: "Hana HR" } },
+        }),
+      });
+      renderPage();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Mark as Completed" }));
+      await screen.findByRole("heading", { name: "Mark interview as completed?" });
+      const confirmButton = screen.getAllByRole("button", { name: "Mark as Completed" }).slice(-1)[0]!;
+      await userEvent.click(confirmButton);
+
+      await waitFor(() => expect(interviewsApi.completeInterview).toHaveBeenCalled());
+      expect(await screen.findByText("Completed", { selector: "span" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Mark as Completed" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Completion" })).toBeInTheDocument();
+    });
+
+    it("shows a time-ended reminder for a still-scheduled interview whose end time has passed", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", ends_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() }),
+      });
+      renderPage();
+
+      expect(await screen.findByText("Scheduled interview time has ended.")).toBeInTheDocument();
+    });
+
+    it("does not show the time-ended reminder for a still-future scheduled interview", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "scheduled", ends_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() }),
+      });
+      renderPage();
+
+      await screen.findByRole("button", { name: "Reschedule" });
+      expect(screen.queryByText("Scheduled interview time has ended.")).not.toBeInTheDocument();
+    });
+  });
+
+  // ===== FEEDBACK =====
+  describe("feedback section", () => {
+    it("shows the Interview Feedback section only once the interview is completed", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "completed" }) });
+      renderPage();
+
+      expect(await screen.findByRole("heading", { name: "Interview Feedback" })).toBeInTheDocument();
+    });
+
+    it("does not show the Interview Feedback section for a scheduled interview", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({ interview: buildDetail({ status: "scheduled" }) });
+      renderPage();
+
+      await screen.findByRole("button", { name: "Reschedule" });
+      expect(screen.queryByRole("heading", { name: "Interview Feedback" })).not.toBeInTheDocument();
+    });
+
+    it("does not show the Interview Feedback section for a cancelled interview", async () => {
+      vi.mocked(interviewsApi.getInterview).mockResolvedValue({
+        interview: buildDetail({ status: "cancelled", cancellation: { cancelled_at: "2024-01-02T00:00:00.000Z", cancelled_by: null, reason: null } }),
+      });
+      renderPage();
+
+      await screen.findByText("Cancelled", { selector: "span" });
+      expect(screen.queryByRole("heading", { name: "Interview Feedback" })).not.toBeInTheDocument();
     });
   });
 

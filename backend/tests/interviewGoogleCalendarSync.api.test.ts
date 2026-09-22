@@ -694,6 +694,65 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
   });
 
+  // ===== COMPLETE: NO CALENDAR MUTATION =====
+  // 11. completion performs no Google Calendar cancellation/update/create —
+  // marking an Interview completed is a pure TalentIQ workflow-state
+  // change; the Calendar event is historical and untouched.
+  describe("complete: no calendar mutation", () => {
+    it("does not call the Google Calendar provider at all when completing an Interview with a linked event", async () => {
+      const { interviewId } = await scheduleInterview();
+      await connectGoogle(hrA, companyA.id);
+      mockCreateEvent.mockResolvedValue(successResult());
+      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      mockCreateEvent.mockClear();
+
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.interview.status).toBe("completed");
+      expect(mockCreateEvent).not.toHaveBeenCalled();
+      expect(mockUpdateEvent).not.toHaveBeenCalled();
+      expect(mockCancelEvent).not.toHaveBeenCalled();
+      expect(mockGetEvent).not.toHaveBeenCalled();
+    });
+
+    it("preserves the existing meeting_url/calendar fields unchanged after completion", async () => {
+      const { interviewId } = await scheduleInterview();
+      await connectGoogle(hrA, companyA.id);
+      mockCreateEvent.mockResolvedValue(successResult());
+      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const before = await Interview.findById(interviewId);
+
+      await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+
+      const after = await Interview.findById(interviewId);
+      expect(after?.meeting_url).toBe(before?.meeting_url);
+      expect(after?.calendar_event_id).toBe(before?.calendar_event_id);
+      expect(after?.calendar_sync_status).toBe(before?.calendar_sync_status);
+    });
+
+    it("does not call the Google Calendar provider when completing an Interview with no linked event at all", async () => {
+      const { interviewId } = await scheduleInterview();
+
+      const res = await request(app)
+        .patch(`${interviewUrl(interviewId)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.interview.calendar).toBeNull();
+      expect(mockCreateEvent).not.toHaveBeenCalled();
+      expect(mockUpdateEvent).not.toHaveBeenCalled();
+      expect(mockCancelEvent).not.toHaveBeenCalled();
+    });
+  });
+
   // ===== RETRY / SYNC ENDPOINT =====
   describe("sync/retry endpoint", () => {
     it("returns 404 for a cross-company Interview", async () => {

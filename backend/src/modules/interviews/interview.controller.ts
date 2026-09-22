@@ -3,6 +3,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import * as interviewService from "./interview.service";
 import * as interviewCalendarSync from "./interviewCalendarSync.service";
 import * as interviewNotificationService from "./interviewNotification.service";
+import * as interviewFeedbackService from "./interviewFeedback.service";
 import { serializeInterview, serializeInterviewDetail, serializeInterviewListRows, serializeInterviews } from "./interview.serializer";
 import type {
   CancelInterviewInput,
@@ -25,6 +26,7 @@ export const listInterviewsForCompanyHandler = asyncHandler(async (req: Request,
   );
   const ownerConnectedMap = await interviewCalendarSync.batchOwnerConnectionStatus(interviews);
   const latestNotificationMap = await interviewNotificationService.batchLatestNotificationStatus(interviews.map((i) => i.id));
+  const feedbackProgressMap = await interviewFeedbackService.batchFeedbackProgress(interviews);
 
   res.status(200).json({
     interviews: serializeInterviewListRows(interviews, {
@@ -33,6 +35,7 @@ export const listInterviewsForCompanyHandler = asyncHandler(async (req: Request,
       jobById,
       ownerConnectedMap,
       latestNotificationMap,
+      feedbackProgressMap,
     }),
     pagination: {
       page: query.page,
@@ -73,7 +76,10 @@ export const listInterviewsHandler = asyncHandler(async (req: Request, res: Resp
   );
   const ownerConnectedMap = await interviewCalendarSync.batchOwnerConnectionStatus(interviews);
   const latestNotificationMap = await interviewNotificationService.batchLatestNotificationStatus(interviews.map((i) => i.id));
-  res.status(200).json({ interviews: serializeInterviews(interviews, userMap, ownerConnectedMap, latestNotificationMap) });
+  const feedbackProgressMap = await interviewFeedbackService.batchFeedbackProgress(interviews);
+  res
+    .status(200)
+    .json({ interviews: serializeInterviews(interviews, userMap, ownerConnectedMap, latestNotificationMap, feedbackProgressMap) });
 });
 
 // The one endpoint that names candidate/job (see
@@ -88,9 +94,18 @@ export const getInterviewHandler = asyncHandler(async (req: Request, res: Respon
   );
   const ownerConnectedMap = await interviewCalendarSync.batchOwnerConnectionStatus([interview]);
   const latestNotificationMap = await interviewNotificationService.batchLatestNotificationStatus([interview.id]);
-  res
-    .status(200)
-    .json({ interview: serializeInterviewDetail(interview, userMap, candidate, job, ownerConnectedMap, latestNotificationMap) });
+  const feedbackProgressMap = await interviewFeedbackService.batchFeedbackProgress([interview]);
+  res.status(200).json({
+    interview: serializeInterviewDetail(
+      interview,
+      userMap,
+      candidate,
+      job,
+      ownerConnectedMap,
+      latestNotificationMap,
+      feedbackProgressMap
+    ),
+  });
 });
 
 /**
@@ -148,6 +163,31 @@ export const cancelInterviewHandler = asyncHandler(async (req: Request, res: Res
   res
     .status(200)
     .json({ interview: serializeInterview(interview, userMap, ownerConnectedMap, latestNotificationMap) });
+});
+
+/**
+ * Explicit HR/Admin action only — see interviewService.completeInterview's
+ * own doc comment for the full idempotency/concurrency contract. Never
+ * sends a candidate email and never touches Google Calendar/Meet (this
+ * ticket's explicit Part 18/19 rules): completion is a pure TalentIQ
+ * workflow-state change, not a Calendar action, so unlike reschedule/
+ * cancel above, nothing here calls interviewNotificationService or
+ * interviewCalendarSync to trigger a new side effect. feedback_progress on
+ * the response will correctly read 0 submitted / N total immediately,
+ * since interviewFeedbackService.batchFeedbackProgress only counts
+ * "submitted" records (none can exist yet for a freshly-completed
+ * Interview).
+ */
+export const completeInterviewHandler = asyncHandler(async (req: Request, res: Response) => {
+  const interview = await interviewService.completeInterview(req.auth!.companyId, req.auth!.userId, req.params.interviewId!);
+
+  const userMap = await interviewService.batchUserLookup([interview]);
+  const ownerConnectedMap = await interviewCalendarSync.batchOwnerConnectionStatus([interview]);
+  const latestNotificationMap = await interviewNotificationService.batchLatestNotificationStatus([interview.id]);
+  const feedbackProgressMap = await interviewFeedbackService.batchFeedbackProgress([interview]);
+  res.status(200).json({
+    interview: serializeInterview(interview, userMap, ownerConnectedMap, latestNotificationMap, feedbackProgressMap),
+  });
 });
 
 // Explicit user-initiated actions (unlike the best-effort reschedule/

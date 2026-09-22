@@ -192,4 +192,60 @@ describe("ApplicationInterviewsSection", () => {
       expect(screen.queryByText(/^Email /)).not.toBeInTheDocument();
     });
   });
+
+  // ===== FEEDBACK PROGRESS (compact) =====
+  describe("feedback progress", () => {
+    // 27. completed Interview shows feedback count
+    it("shows a partial feedback progress count for a completed interview", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "completed", feedback_progress: { submitted: 1, total: 2 } })],
+      });
+      renderSection();
+
+      expect(await screen.findByText("Feedback 1 of 2 submitted")).toBeInTheDocument();
+    });
+
+    it('shows "Feedback complete" once every assigned interviewer has submitted', async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "completed", feedback_progress: { submitted: 2, total: 2 } })],
+      });
+      renderSection();
+
+      expect(await screen.findByText("Feedback complete")).toBeInTheDocument();
+    });
+
+    it("never renders full feedback content on the Application page, only the compact count", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "completed", feedback_progress: { submitted: 1, total: 2 } })],
+      });
+      renderSection();
+
+      await screen.findByText("Feedback 1 of 2 submitted");
+      expect(screen.queryByText(/Strong Yes|Summary|Strengths|Concerns/)).not.toBeInTheDocument();
+    });
+
+    it("shows no feedback progress line for a scheduled interview", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [buildInterview({ status: "scheduled", feedback_progress: null })],
+      });
+      renderSection();
+
+      await screen.findByRole("link", { name: "Technical Interview" });
+      expect(screen.queryByText(/^Feedback /)).not.toBeInTheDocument();
+    });
+
+    // 28. no N+1 feedback fetch per Interview row
+    it("never fetches feedback separately — progress comes from the already-batched Interview DTO", async () => {
+      vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+        interviews: [
+          buildInterview({ id: "i-1", status: "completed", feedback_progress: { submitted: 1, total: 2 } }),
+          buildInterview({ id: "i-2", status: "completed", feedback_progress: { submitted: 2, total: 2 } }),
+        ],
+      });
+      renderSection();
+
+      expect(await screen.findByText("Feedback 1 of 2 submitted")).toBeInTheDocument();
+      expect(interviewsApi.listApplicationInterviews).toHaveBeenCalledTimes(1);
+    });
+  });
 });

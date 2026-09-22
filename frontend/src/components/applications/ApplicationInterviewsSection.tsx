@@ -11,6 +11,7 @@ import { ScheduleInterviewDialog } from "@/components/interviews/ScheduleIntervi
 import { useApplicationInterviews } from "@/hooks/useApplicationInterviews";
 import { formatDateTime } from "@/lib/formatDate";
 import type { ApplicationDetail } from "@/types/application";
+import type { Interview } from "@/types/interview";
 import type { LatestNotificationSummary } from "@/types/interviewNotification";
 
 export interface ApplicationInterviewsSectionProps {
@@ -29,6 +30,19 @@ function notificationStatusLabel(latestNotification: LatestNotificationSummary |
     case "pending":
       return "Email sending…";
   }
+}
+
+// Compact one-liner only — never the full feedback content here (see this
+// ticket's explicit "do not render all detailed feedback on the
+// Application page" rule). "View Interview" (the existing title link) is
+// where the full breakdown lives. Already batched onto the Interview DTO
+// server-side (interview.feedback_progress), so this never triggers an
+// extra request per row.
+function feedbackProgressLabel(interview: Interview): string | null {
+  if (interview.status !== "completed" || !interview.feedback_progress) return null;
+  const { submitted, total } = interview.feedback_progress;
+  if (submitted >= total) return "Feedback complete";
+  return `Feedback ${submitted} of ${total} submitted`;
 }
 
 // Scheduling here is always an explicit HR click on "Schedule Interview"
@@ -105,6 +119,9 @@ export function ApplicationInterviewsSection({ application }: ApplicationIntervi
                   >
                     {notificationStatusLabel(interview.latest_notification)}
                   </p>
+                )}
+                {feedbackProgressLabel(interview) && (
+                  <p className="mt-1.5 text-xs text-muted-foreground">{feedbackProgressLabel(interview)}</p>
                 )}
               </li>
             ))}
