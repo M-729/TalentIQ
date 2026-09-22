@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobForm } from "@/components/jobs/JobForm";
+import { PublicJobLinkAction } from "@/components/jobs/PublicJobLinkAction";
 import { useJob } from "@/hooks/useJob";
 import * as jobsApi from "@/services/api/jobs";
 import { ApiError } from "@/services/api/client";
@@ -91,15 +92,18 @@ export function EditJobPage() {
         </Card>
       ) : (
         job && (
-          <JobForm
-            mode="edit"
-            job={job}
-            isSubmitting={isSubmitting}
-            serverError={serverError}
-            fieldErrors={fieldErrors}
-            onSubmit={handleSubmit}
-            onCancel={() => navigate("/jobs")}
-          />
+          <>
+            <PublicJobLinkAction job={job} />
+            <JobForm
+              mode="edit"
+              job={job}
+              isSubmitting={isSubmitting}
+              serverError={serverError}
+              fieldErrors={fieldErrors}
+              onSubmit={handleSubmit}
+              onCancel={() => navigate("/jobs")}
+            />
+          </>
         )
       )}
     </div>

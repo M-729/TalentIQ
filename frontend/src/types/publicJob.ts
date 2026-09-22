@@ -18,3 +18,19 @@ export interface PublicJob {
   published_at?: string;
   company_name?: string;
 }
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ListPublicJobsFilters {
+  search?: string;
+  location?: string;
+  employmentType?: string;
+  department?: string;
+  page: number;
+  limit: number;
+}

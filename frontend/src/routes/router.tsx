@@ -1,9 +1,10 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
 import { ApplicationDetailPage } from "@/pages/ApplicationDetailPage";
 import { ApplicationScreeningPage } from "@/pages/ApplicationScreeningPage";
 import { ApplicationsPage } from "@/pages/ApplicationsPage";
 import { ApplyPage } from "@/pages/ApplyPage";
+import { CareersPage } from "@/pages/CareersPage";
 import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { EditJobPage } from "@/pages/EditJobPage";
@@ -21,7 +22,12 @@ import { ProtectedRoute } from "@/routes/ProtectedRoute";
 // foundation (auth, protected shell, two placeholder pages). Each future
 // feature ticket (Candidates, Applications, Pipeline, ...) adds its own
 // route(s) here under the protected AppShell branch.
-export const router = createBrowserRouter([
+//
+// Exported separately from the created browser router (below) so tests can
+// build a createMemoryRouter from the exact same route tree — e.g. to
+// verify /careers stays reachable outside ProtectedRoute/AppShell while
+// /jobs stays behind it — without duplicating this route table.
+export const routeConfig: RouteObject[] = [
   {
     path: "/",
     element: <Navigate to="/dashboard" replace />,
@@ -33,6 +39,10 @@ export const router = createBrowserRouter([
   {
     // Public, candidate-facing — deliberately outside ProtectedRoute/AppShell:
     // candidates have no TalentIQ account and must never hit an auth wall here.
+    path: "/careers",
+    element: <CareersPage />,
+  },
+  {
     path: "/careers/jobs/:id",
     element: <PublicJobPage />,
   },
@@ -65,4 +75,6 @@ export const router = createBrowserRouter([
     path: "*",
     element: <NotFoundPage />,
   },
-]);
+];
+
+export const router = createBrowserRouter(routeConfig);

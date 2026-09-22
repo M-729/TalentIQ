@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Lock, Mail } from "lucide-react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconInput } from "@/components/ui/icon-input";
@@ -93,6 +93,13 @@ export function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        <p className="text-center text-sm text-muted-foreground">
+          Looking for a job?{" "}
+          <Link to="/careers" className="font-medium text-primary underline underline-offset-2">
+            Browse open positions
+          </Link>
+        </p>
       </div>
     </div>
   );
