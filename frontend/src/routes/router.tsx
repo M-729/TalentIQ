@@ -10,6 +10,8 @@ import { CareersPage } from "@/pages/CareersPage";
 import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { EditJobPage } from "@/pages/EditJobPage";
+import { EmailActivityPage } from "@/pages/EmailActivityPage";
+import { HiringAnalyticsPage } from "@/pages/HiringAnalyticsPage";
 import { HiringPipelinePage } from "@/pages/HiringPipelinePage";
 import { IntegrationsSettingsPage } from "@/pages/IntegrationsSettingsPage";
 import { InterviewDetailPage } from "@/pages/InterviewDetailPage";
@@ -24,11 +26,6 @@ import { SignupPage } from "@/pages/SignupPage";
 import { TeamSettingsPage } from "@/pages/TeamSettingsPage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 
-// Deliberately minimal for now: only the routes needed to demonstrate the
-// foundation (auth, protected shell, two placeholder pages). Each future
-// feature ticket (Candidates, Applications, Pipeline, ...) adds its own
-// route(s) here under the protected AppShell branch.
-//
 // Exported separately from the created browser router (below) so tests can
 // build a createMemoryRouter from the exact same route tree — e.g. to
 // verify /careers stays reachable outside ProtectedRoute/AppShell while
@@ -95,6 +92,8 @@ export const routeConfig: RouteObject[] = [
           { path: "/offers", element: <OffersPage /> },
           { path: "/interviews", element: <InterviewsPage /> },
           { path: "/interviews/:interviewId", element: <InterviewDetailPage /> },
+          { path: "/emails", element: <EmailActivityPage /> },
+          { path: "/analytics", element: <HiringAnalyticsPage /> },
           { path: "/settings/integrations", element: <IntegrationsSettingsPage /> },
           { path: "/settings/team", element: <TeamSettingsPage /> },
         ],

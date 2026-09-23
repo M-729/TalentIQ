@@ -114,4 +114,32 @@ describe("Sidebar navigation", () => {
     renderSidebarAt("/dashboard");
     expect(screen.queryByRole("link", { name: "Team" })).not.toBeInTheDocument();
   });
+
+  it("never renders a standalone Candidates destination", () => {
+    renderSidebarAt("/dashboard");
+    expect(screen.queryByRole("link", { name: "Candidates" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Candidates")).not.toBeInTheDocument();
+  });
+
+  it("renders Emails as an enabled link, not a disabled placeholder", () => {
+    renderSidebarAt("/dashboard");
+    const link = screen.getByRole("link", { name: "Emails" });
+    expect(link).toHaveAttribute("href", "/emails");
+  });
+
+  it("highlights Emails on /emails", () => {
+    renderSidebarAt("/emails");
+    expect(screen.getByRole("link", { name: "Emails" })).toHaveClass("bg-sidebar-accent");
+  });
+
+  it("renders Analytics as an enabled link, not a disabled placeholder", () => {
+    renderSidebarAt("/dashboard");
+    const link = screen.getByRole("link", { name: "Analytics" });
+    expect(link).toHaveAttribute("href", "/analytics");
+  });
+
+  it("highlights Analytics on /analytics", () => {
+    renderSidebarAt("/analytics");
+    expect(screen.getByRole("link", { name: "Analytics" })).toHaveClass("bg-sidebar-accent");
+  });
 });

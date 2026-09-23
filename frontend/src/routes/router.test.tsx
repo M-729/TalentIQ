@@ -149,4 +149,16 @@ describe("app router — public vs protected routes", () => {
     renderAt("/settings/team");
     expect(await screen.findByRole("heading", { name: "Sign in to your account" })).toBeInTheDocument();
   });
+
+  // Dashboard/Email Activity/Analytics — 29/53. /emails and /analytics
+  // are protected, same as every other authenticated destination.
+  it("redirects /emails to /login when logged out", async () => {
+    renderAt("/emails");
+    expect(await screen.findByRole("heading", { name: "Sign in to your account" })).toBeInTheDocument();
+  });
+
+  it("redirects /analytics to /login when logged out", async () => {
+    renderAt("/analytics");
+    expect(await screen.findByRole("heading", { name: "Sign in to your account" })).toBeInTheDocument();
+  });
 });

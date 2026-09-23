@@ -23,6 +23,9 @@ import { googleCalendarOAuthRouter } from "./modules/integrations/googleCalendar
 import { userRouter } from "./modules/users/user.routes";
 import { teamRouter } from "./modules/team/team.routes";
 import { companyInvitationResponseRouter } from "./modules/companyInvitationResponse/companyInvitationResponse.routes";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
+import { emailActivityRouter } from "./modules/emailActivity/emailActivity.routes";
+import { hiringAnalyticsRouter } from "./modules/hiringAnalytics/hiringAnalytics.routes";
 import { notFoundHandler } from "./middleware/notFound.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -73,6 +76,9 @@ export function createApp(): Express {
   app.use("/api/v1/users", userRouter);
   app.use("/api/v1/team", teamRouter);
   app.use("/api/v1/public/company-invitations", companyInvitationResponseRouter);
+  app.use("/api/v1/dashboard", dashboardRouter);
+  app.use("/api/v1/email-activity", emailActivityRouter);
+  app.use("/api/v1/hiring-analytics", hiringAnalyticsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -9,7 +9,6 @@ import {
   Mail,
   Settings,
   UserCog,
-  Users,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -24,14 +23,19 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-// The full future navigation (per the product's planned IA). Only items
-// with a `to` are actually routed yet — the rest are shown, disabled, so
-// the sidebar's final shape is visible now without linking to pages that
-// don't exist. Later tickets just add a route and flip the item on.
+// The full navigation. Only items with a `to` are actually routed — the
+// rest are shown, disabled, so the sidebar's final shape is visible
+// without linking to pages that don't exist. There is deliberately no
+// standalone "Candidates" destination: recruitment workflow in this
+// product is Application-centric (candidate identity/contact info is
+// always shown inline on Applications/Offers/Interviews/Assessments
+// views), and a separate Candidates page/route never existed beyond this
+// now-removed disabled placeholder — see Candidate.model.ts, which is
+// untouched and still the real, actively-referenced entity behind every
+// Application.
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
   { label: "Jobs", icon: Briefcase, to: "/jobs" },
-  { label: "Candidates", icon: Users },
   // No `end` prop, matching Jobs above — NavLink's default (non-end)
   // matching makes this active for /applications, /applications/:id, and
   // /applications/:id/screening alike, without any bespoke logic. It does
@@ -42,9 +46,9 @@ const NAV_ITEMS: NavItem[] = [
   // No `end` prop, matching Applications above — active for /interviews
   // and /interviews/:id alike.
   { label: "Interviews", icon: CalendarDays, to: "/interviews" },
-  { label: "Emails", icon: Mail },
+  { label: "Emails", icon: Mail, to: "/emails" },
   { label: "Offers", icon: FileSignature, to: "/offers" },
-  { label: "Analytics", icon: BarChart3 },
+  { label: "Analytics", icon: BarChart3, to: "/analytics" },
   { label: "Settings", icon: Settings, to: "/settings/integrations" },
   // ADMIN only — see TeamSettingsPage.tsx's own page-level redirect for HR.
   { label: "Team", icon: UserCog, to: "/settings/team", adminOnly: true },
