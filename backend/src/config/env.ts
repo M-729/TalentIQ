@@ -142,6 +142,16 @@ const envSchema = z.object({
   // own expiration set — see offerResponseToken.service.ts's
   // computeResponseTokenExpiry.
   OFFER_RESPONSE_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(14),
+
+  // How long a Team Member (HR) invitation link stays valid — see
+  // CompanyInvitation.model.ts / companyInvitationToken.service.ts. The
+  // single centralized source of this duration; never hard-code it
+  // elsewhere. A genuinely distinct concern from OFFER_RESPONSE_TOKEN_TTL_DAYS
+  // above (candidate offer response vs. staff invitation), so it gets its
+  // own config rather than reusing that one. 7 days comfortably covers an
+  // Admin inviting HR who may not check email daily, while still expiring
+  // stale invitations in a reasonable window.
+  COMPANY_INVITATION_TTL_DAYS: z.coerce.number().int().positive().default(7),
 });
 
 const parsed = envSchema.safeParse(process.env);

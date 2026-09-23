@@ -3,10 +3,10 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 
-function renderSidebarAt(path: string) {
+function renderSidebarAt(path: string, role?: "ADMIN" | "HR") {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Sidebar />
+      <Sidebar role={role} />
     </MemoryRouter>
   );
 }
@@ -96,5 +96,22 @@ describe("Sidebar navigation", () => {
   it("highlights Offers on /offers", () => {
     renderSidebarAt("/offers");
     expect(screen.getByRole("link", { name: "Offers" })).toHaveClass("bg-sidebar-accent");
+  });
+
+  it("shows Team for an ADMIN, linking to /settings/team", () => {
+    renderSidebarAt("/dashboard", "ADMIN");
+    const link = screen.getByRole("link", { name: "Team" });
+    expect(link).toHaveAttribute("href", "/settings/team");
+  });
+
+  it("never shows Team for an HR user", () => {
+    renderSidebarAt("/dashboard", "HR");
+    expect(screen.queryByRole("link", { name: "Team" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Team")).not.toBeInTheDocument();
+  });
+
+  it("never shows Team when role is not yet known (session still loading)", () => {
+    renderSidebarAt("/dashboard");
+    expect(screen.queryByRole("link", { name: "Team" })).not.toBeInTheDocument();
   });
 });

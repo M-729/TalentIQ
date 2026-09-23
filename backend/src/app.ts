@@ -21,6 +21,8 @@ import { offerCreateRouter, offerRouter } from "./modules/offers/offer.routes";
 import { offerResponseRouter } from "./modules/offerResponse/offerResponse.routes";
 import { googleCalendarOAuthRouter } from "./modules/integrations/googleCalendar/googleCalendarOAuth.routes";
 import { userRouter } from "./modules/users/user.routes";
+import { teamRouter } from "./modules/team/team.routes";
+import { companyInvitationResponseRouter } from "./modules/companyInvitationResponse/companyInvitationResponse.routes";
 import { notFoundHandler } from "./middleware/notFound.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 
@@ -69,6 +71,8 @@ export function createApp(): Express {
   app.use("/api/v1/public/offer-response", offerResponseRouter);
   app.use("/api/v1/integrations/google-calendar", googleCalendarOAuthRouter);
   app.use("/api/v1/users", userRouter);
+  app.use("/api/v1/team", teamRouter);
+  app.use("/api/v1/public/company-invitations", companyInvitationResponseRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

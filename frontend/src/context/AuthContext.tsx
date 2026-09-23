@@ -42,6 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(loggedInUser);
   };
 
+  const signup = async (input: { fullName: string; email: string; password: string; companyName: string }): Promise<void> => {
+    const { accessToken, user: newUser } = await authApi.companySignup(input);
+    setAccessToken(accessToken);
+    setUser(newUser);
+  };
+
+  const hydrateSession = (accessToken: string, hydratedUser: AuthUser): void => {
+    setAccessToken(accessToken);
+    setUser(hydratedUser);
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await authApi.logout();
@@ -58,6 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: user !== null,
     isLoading,
     login,
+    signup,
+    hydrateSession,
     logout,
   };
 

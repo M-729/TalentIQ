@@ -8,17 +8,20 @@ import {
   LayoutDashboard,
   Mail,
   Settings,
+  UserCog,
   Users,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@/types/auth";
 
 interface NavItem {
   label: string;
   icon: LucideIcon;
   to?: string; // absent = not built yet (rendered disabled, not a dead link)
+  adminOnly?: boolean;
 }
 
 // The full future navigation (per the product's planned IA). Only items
@@ -43,9 +46,19 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Offers", icon: FileSignature, to: "/offers" },
   { label: "Analytics", icon: BarChart3 },
   { label: "Settings", icon: Settings, to: "/settings/integrations" },
+  // ADMIN only — see TeamSettingsPage.tsx's own page-level redirect for HR.
+  { label: "Team", icon: UserCog, to: "/settings/team", adminOnly: true },
 ];
 
-export function Sidebar({ className }: { className?: string }) {
+// `role` is passed down from AppShell (which has access to the
+// authenticated user via AuthContext) rather than read here via useAuth()
+// directly — keeps Sidebar renderable in isolation without an
+// AuthProvider wrapper, matching Sidebar.test.tsx's existing convention.
+// Undefined (e.g. session still loading) simply hides every admin-only
+// item, never shows one speculatively.
+export function Sidebar({ className, role }: { className?: string; role?: UserRole }) {
+  const visibleItems = NAV_ITEMS.filter((item) => !item.adminOnly || role === "ADMIN");
+
   return (
     <nav
       aria-label="Main navigation"
@@ -57,7 +70,7 @@ export function Sidebar({ className }: { className?: string }) {
       </div>
 
       <ul className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
-        {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
+        {visibleItems.map(({ label, icon: Icon, to }) => (
           <li key={label}>
             {to ? (
               <NavLink

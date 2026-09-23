@@ -69,6 +69,30 @@ export const offerResponseRespondRateLimiter = rateLimit({
   message: { error: { message: "Too many requests, please try again later" } },
 });
 
+// Same rationale/shape as offerResponseLookupRateLimiter above, applied to
+// the public Company Invitation lookup (see companyInvitationResponse
+// .routes.ts) — a plausible target for token-guessing.
+export const companyInvitationLookupRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+  message: { error: { message: "Too many requests, please try again later" } },
+});
+
+// Same rationale/shape as offerResponseRespondRateLimiter above, applied
+// to the public Company Invitation accept endpoint — the actual mutating
+// (account-creating) action.
+export const companyInvitationAcceptRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+  message: { error: { message: "Too many requests, please try again later" } },
+});
+
 // Applied only to the explicit "run a new AI screening" route (a real,
 // paid Groq call) — never to the latest/history read routes, which are
 // plain database reads and share no limiter with this one. This route is

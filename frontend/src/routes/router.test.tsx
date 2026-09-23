@@ -6,11 +6,13 @@ import { routeConfig } from "@/routes/router";
 import * as authApi from "@/services/api/auth";
 import * as publicJobsApi from "@/services/api/publicJobs";
 import * as offerResponseApi from "@/services/api/offerResponse";
+import * as companyInvitationApi from "@/services/api/companyInvitation";
 import type { PublicJob } from "@/types/publicJob";
 
 vi.mock("@/services/api/auth");
 vi.mock("@/services/api/publicJobs");
 vi.mock("@/services/api/offerResponse");
+vi.mock("@/services/api/companyInvitation");
 
 function buildJob(overrides: Partial<PublicJob> = {}): PublicJob {
   return {
@@ -46,6 +48,7 @@ describe("app router — public vs protected routes", () => {
     });
     vi.mocked(publicJobsApi.getPublicJob).mockReset().mockResolvedValue({ job: buildJob() });
     vi.mocked(offerResponseApi.lookupOfferResponse).mockReset().mockResolvedValue({ response_state: "invalid" });
+    vi.mocked(companyInvitationApi.lookupCompanyInvitation).mockReset().mockResolvedValue({ state: "invalid" });
   });
 
   // 11. /careers accessible logged out
@@ -113,5 +116,37 @@ describe("app router — public vs protected routes", () => {
     await screen.findByText("This link is invalid or no longer available.");
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
+  });
+
+  // Company Onboarding — 1. /signup public.
+  it("renders /signup without redirecting to login when logged out", async () => {
+    renderAt("/signup");
+
+    expect(await screen.findByRole("heading", { name: "Create your TalentIQ workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in to your account" })).not.toBeInTheDocument();
+  });
+
+  // 19. public accept route accessible logged out.
+  it("renders /accept-invitation without redirecting to login when logged out", async () => {
+    renderAt("/accept-invitation#token=abc123");
+
+    expect(await screen.findByText("This invitation link is invalid or no longer available.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in to your account" })).not.toBeInTheDocument();
+  });
+
+  // 30. no authenticated sidebar
+  it("never renders HR navigation destinations on /accept-invitation", async () => {
+    renderAt("/accept-invitation#token=abc123");
+
+    await screen.findByText("This invitation link is invalid or no longer available.");
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
+  });
+
+  // 34. authenticated routing remains correct — /settings/team still
+  // protected, still redirects to /login when there is no session.
+  it("still redirects /settings/team to /login when logged out", async () => {
+    renderAt("/settings/team");
+    expect(await screen.findByRole("heading", { name: "Sign in to your account" })).toBeInTheDocument();
   });
 });

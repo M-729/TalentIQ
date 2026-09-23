@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
+import { AcceptInvitationPage } from "@/pages/AcceptInvitationPage";
 import { ApplicationDetailPage } from "@/pages/ApplicationDetailPage";
 import { ApplicationScreeningPage } from "@/pages/ApplicationScreeningPage";
 import { ApplicationsPage } from "@/pages/ApplicationsPage";
@@ -19,6 +20,8 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 import { OffersPage } from "@/pages/OffersPage";
 import { OfferResponsePage } from "@/pages/OfferResponsePage";
 import { PublicJobPage } from "@/pages/PublicJobPage";
+import { SignupPage } from "@/pages/SignupPage";
+import { TeamSettingsPage } from "@/pages/TeamSettingsPage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 
 // Deliberately minimal for now: only the routes needed to demonstrate the
@@ -38,6 +41,20 @@ export const routeConfig: RouteObject[] = [
   {
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    // Public self-service Company signup — outside ProtectedRoute/AppShell
+    // like /login, since there is no session yet.
+    path: "/signup",
+    element: <SignupPage />,
+  },
+  {
+    // Public, invitee-facing — reached from the Team Invitation email's
+    // Accept Invitation link. No TalentIQ account required to open it, no
+    // HR sidebar, same "outside ProtectedRoute/AppShell" rule as
+    // /offer-response below.
+    path: "/accept-invitation",
+    element: <AcceptInvitationPage />,
   },
   {
     // Public, candidate-facing — deliberately outside ProtectedRoute/AppShell:
@@ -79,6 +96,7 @@ export const routeConfig: RouteObject[] = [
           { path: "/interviews", element: <InterviewsPage /> },
           { path: "/interviews/:interviewId", element: <InterviewDetailPage /> },
           { path: "/settings/integrations", element: <IntegrationsSettingsPage /> },
+          { path: "/settings/team", element: <TeamSettingsPage /> },
         ],
       },
     ],

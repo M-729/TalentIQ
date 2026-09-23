@@ -2,15 +2,17 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { user } = useAuth();
 
   return (
     <div className="flex h-svh overflow-hidden bg-background">
       {/* Desktop sidebar */}
-      <Sidebar className="hidden md:flex" />
+      <Sidebar className="hidden md:flex" role={user?.role} />
 
       {/* Mobile off-canvas sidebar */}
       {mobileNavOpen && (
@@ -21,7 +23,7 @@ export function AppShell() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <Sidebar className={cn("relative z-50 flex shadow-xl")} />
+          <Sidebar className={cn("relative z-50 flex shadow-xl")} role={user?.role} />
         </div>
       )}
 

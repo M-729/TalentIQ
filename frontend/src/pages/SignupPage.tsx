@@ -1,27 +1,31 @@
 import { useState, type FormEvent } from "react";
-import { Lock, Mail } from "lucide-react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Briefcase, Lock, Mail, User } from "lucide-react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconInput } from "@/components/ui/icon-input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/services/api/client";
+import { getCompanySignupErrorMessage } from "@/lib/companySignupErrors";
 
-export function LoginPage() {
-  const { login, isAuthenticated, isLoading: isSessionLoading } = useAuth();
+// Public self-service Company signup — creates a brand-new Company and its
+// first (ADMIN) User, then signs them straight in, same as LoginPage.tsx.
+// No role selector, no company selector, no candidate signup here: this is
+// exclusively "start a brand-new TalentIQ workspace."
+export function SignupPage() {
+  const { signup, isAuthenticated, isLoading: isSessionLoading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/dashboard";
-
   if (!isSessionLoading && isAuthenticated) {
-    return <Navigate to={from} replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -29,10 +33,10 @@ export function LoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      await signup({ fullName, email, password, companyName });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof ApiError ? getCompanySignupErrorMessage(err) : "Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -48,13 +52,27 @@ export function LoginPage() {
 
         <Card>
           <CardHeader className="space-y-1.5 text-center">
-            <CardTitle className="text-2xl">Sign in to your account</CardTitle>
-            <CardDescription>HR and Admin access only.</CardDescription>
+            <CardTitle className="text-2xl">Create your TalentIQ workspace</CardTitle>
+            <CardDescription>Set up your company and get started in minutes.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="full-name">Full name</Label>
+                <IconInput
+                  icon={User}
+                  id="full-name"
+                  name="full-name"
+                  type="text"
+                  autoComplete="name"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Work email</Label>
                 <IconInput
                   icon={Mail}
                   id="email"
@@ -74,10 +92,25 @@ export function LoginPage() {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company-name">Company name</Label>
+                <IconInput
+                  icon={Briefcase}
+                  id="company-name"
+                  name="company-name"
+                  type="text"
+                  autoComplete="organization"
+                  required
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
                 />
               </div>
 
@@ -88,23 +121,16 @@ export function LoginPage() {
               )}
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in…" : "Sign in"}
+                {isSubmitting ? "Creating workspace…" : "Create workspace"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
         <p className="text-center text-sm text-muted-foreground">
-          Looking for a job?{" "}
-          <Link to="/careers" className="font-medium text-primary underline underline-offset-2">
-            Browse open positions
-          </Link>
-        </p>
-
-        <p className="text-center text-sm text-muted-foreground">
-          New to TalentIQ?{" "}
-          <Link to="/signup" className="font-medium text-primary underline underline-offset-2">
-            Create company
+          Already have an account?{" "}
+          <Link to="/login" className="font-medium text-primary underline underline-offset-2">
+            Log in
           </Link>
         </p>
       </div>
