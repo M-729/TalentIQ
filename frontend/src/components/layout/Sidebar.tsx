@@ -40,7 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   // and /interviews/:id alike.
   { label: "Interviews", icon: CalendarDays, to: "/interviews" },
   { label: "Emails", icon: Mail },
-  { label: "Offers", icon: FileSignature },
+  { label: "Offers", icon: FileSignature, to: "/offers" },
   { label: "Analytics", icon: BarChart3 },
   { label: "Settings", icon: Settings, to: "/settings/integrations" },
 ];

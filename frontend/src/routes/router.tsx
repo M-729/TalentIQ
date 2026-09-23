@@ -16,6 +16,8 @@ import { InterviewsPage } from "@/pages/InterviewsPage";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { OffersPage } from "@/pages/OffersPage";
+import { OfferResponsePage } from "@/pages/OfferResponsePage";
 import { PublicJobPage } from "@/pages/PublicJobPage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 
@@ -52,6 +54,13 @@ export const routeConfig: RouteObject[] = [
     element: <ApplyPage />,
   },
   {
+    // Public, candidate-facing — reached from the Offer email's Accept/
+    // Decline links. No TalentIQ account, no HR sidebar, same "outside
+    // ProtectedRoute/AppShell" rule as /careers above.
+    path: "/offer-response",
+    element: <OfferResponsePage />,
+  },
+  {
     element: <ProtectedRoute />,
     children: [
       {
@@ -66,6 +75,7 @@ export const routeConfig: RouteObject[] = [
           { path: "/applications/:applicationId/screening", element: <ApplicationScreeningPage /> },
           { path: "/hiring-pipeline", element: <HiringPipelinePage /> },
           { path: "/assessments", element: <AssessmentsPage /> },
+          { path: "/offers", element: <OffersPage /> },
           { path: "/interviews", element: <InterviewsPage /> },
           { path: "/interviews/:interviewId", element: <InterviewDetailPage /> },
           { path: "/settings/integrations", element: <IntegrationsSettingsPage /> },

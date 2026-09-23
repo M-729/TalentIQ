@@ -16,6 +16,9 @@ import { stageTransitionRouter } from "./modules/stageTransitions/stageTransitio
 import { interviewDetailRouter, interviewRouter } from "./modules/interviews/interview.routes";
 import { interviewNotificationRetryRouter } from "./modules/interviews/interviewNotificationRetry.routes";
 import { applicationAssessmentCreateRouter, applicationAssessmentRouter } from "./modules/assessments/applicationAssessment.routes";
+import { rejectionRouter } from "./modules/rejection/rejection.routes";
+import { offerCreateRouter, offerRouter } from "./modules/offers/offer.routes";
+import { offerResponseRouter } from "./modules/offerResponse/offerResponse.routes";
 import { googleCalendarOAuthRouter } from "./modules/integrations/googleCalendar/googleCalendarOAuth.routes";
 import { userRouter } from "./modules/users/user.routes";
 import { notFoundHandler } from "./middleware/notFound.middleware";
@@ -60,6 +63,10 @@ export function createApp(): Express {
   app.use("/api/v1/interview-notifications", interviewNotificationRetryRouter);
   app.use("/api/v1/applications/:applicationId/assessment", applicationAssessmentCreateRouter);
   app.use("/api/v1/application-assessments", applicationAssessmentRouter);
+  app.use("/api/v1/applications/:applicationId/reject", rejectionRouter);
+  app.use("/api/v1/applications/:applicationId/offer", offerCreateRouter);
+  app.use("/api/v1/offers", offerRouter);
+  app.use("/api/v1/public/offer-response", offerResponseRouter);
   app.use("/api/v1/integrations/google-calendar", googleCalendarOAuthRouter);
   app.use("/api/v1/users", userRouter);
 

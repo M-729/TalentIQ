@@ -44,6 +44,31 @@ export const applicationRateLimiter = rateLimit({
   message: { error: { message: "Too many applications submitted, please try again later" } },
 });
 
+// The public Offer response lookup (GET-equivalent, read-only — see
+// offerResponse.routes.ts) is a plausible target for token-guessing, so it
+// gets its own limiter rather than sharing publicRateLimiter's more
+// generous allowance meant for ordinary Careers browsing.
+export const offerResponseLookupRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+  message: { error: { message: "Too many requests, please try again later" } },
+});
+
+// Stricter still — this is the actual mutating "respond" action. Generous
+// enough to tolerate a genuine rapid double-click/retry, tight enough to
+// meaningfully slow down token-guessing against the respond endpoint.
+export const offerResponseRespondRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+  message: { error: { message: "Too many requests, please try again later" } },
+});
+
 // Applied only to the explicit "run a new AI screening" route (a real,
 // paid Groq call) — never to the latest/history read routes, which are
 // plain database reads and share no limiter with this one. This route is

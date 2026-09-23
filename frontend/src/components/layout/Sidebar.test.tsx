@@ -86,4 +86,15 @@ describe("Sidebar navigation", () => {
     renderSidebarAt("/settings/integrations");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveClass("bg-sidebar-accent");
   });
+
+  it("renders Offers as an enabled link, not a disabled placeholder", () => {
+    renderSidebarAt("/dashboard");
+    const link = screen.getByRole("link", { name: "Offers" });
+    expect(link).toHaveAttribute("href", "/offers");
+  });
+
+  it("highlights Offers on /offers", () => {
+    renderSidebarAt("/offers");
+    expect(screen.getByRole("link", { name: "Offers" })).toHaveClass("bg-sidebar-accent");
+  });
 });

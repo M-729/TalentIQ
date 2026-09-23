@@ -36,6 +36,8 @@ export function serializeScreeningSummary(summary: ScreeningSummary | undefined)
 export interface ApplicationListRowDTO {
   id: string;
   status: string;
+  /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). See Application.model.ts's FINAL_DECISION_VALUES doc comment. */
+  final_decision: string | null;
   source?: string;
   applied_at: string;
   candidate: {
@@ -83,6 +85,7 @@ export function serializeApplicationListRow(
   return {
     id: application.id,
     status: application.status,
+    final_decision: application.final_decision ?? null,
     source: application.source ?? undefined,
     applied_at: application.applied_at.toISOString(),
     candidate: {
@@ -106,6 +109,8 @@ export function serializeApplicationListRow(
 export interface ApplicationDetailDTO {
   id: string;
   status: string;
+  /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). See Application.model.ts's FINAL_DECISION_VALUES doc comment. */
+  final_decision: string | null;
   source?: string;
   applied_at: string;
   candidate: {
@@ -165,6 +170,7 @@ export function serializeApplicationDetail(
   return {
     id: application.id,
     status: application.status,
+    final_decision: application.final_decision ?? null,
     source: application.source ?? undefined,
     applied_at: application.applied_at.toISOString(),
     candidate: {

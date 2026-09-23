@@ -91,10 +91,57 @@ const envSchema = z.object({
   // with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
   GOOGLE_TOKEN_ENCRYPTION_KEY: z.string().optional(),
 
-  // Where the OAuth callback redirects the browser after success/failure
-  // (e.g. /settings/integrations?googleCalendar=connected) — not a
-  // secret, safe to default for local development.
-  FRONTEND_URL: z.string().default("http://localhost:5173"),
+  // The externally reachable origin of the TalentIQ frontend. Not a
+  // secret, safe to default for local development. This is the single
+  // centralized source of the public frontend origin — never hard-coded
+  // elsewhere — used both for where the Google OAuth callback redirects
+  // the browser after success/failure (e.g.
+  // /settings/integrations?googleCalendar=connected — see
+  // googleCalendarOAuth.controller.ts) and to build the candidate-facing
+  // Offer Accept/Decline email response links (see offerEmail.service.ts).
+  //
+  // IMPORTANT — "localhost" only resolves to the machine actually running
+  // the frontend dev server. A candidate opening an Offer email on their
+  // own phone/laptop cannot reach http://localhost:5173 — that always
+  // means THEIR device, not yours. This is fine for HR testing the app in
+  // its own browser, but it means a candidate Accept/Decline link sent
+  // while FRONTEND_URL is still the localhost default will never load for
+  // the candidate. To let a candidate actually open the link from another
+  // device during local development, set this to an explicitly configured,
+  // externally reachable URL for your dev frontend (e.g. a tunnel like
+  // ngrok, or a deployed preview) — TalentIQ deliberately never
+  // auto-discovers your LAN IP or otherwise exposes your dev machine on
+  // its own, since that would be a surprising, unrequested network
+  // exposure. In staging/production, set this to the real deployed
+  // frontend origin, e.g. https://talentiq.example.com.
+  //
+  // Validated as an http(s) URL only (javascript:/data:/file: and other
+  // schemes are rejected — this value is embedded directly into emails,
+  // so it must never be a script-executing or local-file URL) and
+  // normalized to strip any trailing slash, so every generated link
+  // (`${FRONTEND_URL}/some/path`) is never accidentally built with a
+  // double slash.
+  FRONTEND_URL: z
+    .string()
+    .default("http://localhost:5173")
+    .transform((value) => value.replace(/\/+$/, ""))
+    .pipe(
+      z
+        .string()
+        .url("FRONTEND_URL must be a valid http:// or https:// URL")
+        .regex(/^https?:\/\//i, "FRONTEND_URL must use the http:// or https:// scheme")
+    ),
+
+  // How long a candidate Offer response token (Accept/Decline email link)
+  // stays valid — see OfferResponseToken.model.ts / offerResponseToken
+  // .service.ts. The single centralized source of this duration; never
+  // hard-code it elsewhere. 14 days comfortably covers a candidate who
+  // doesn't check email daily while still expiring stale links in a
+  // reasonable window. The EFFECTIVE expiry is always
+  // min(now + this many days, Offer.expires_at) when the Offer has its
+  // own expiration set — see offerResponseToken.service.ts's
+  // computeResponseTokenExpiry.
+  OFFER_RESPONSE_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(14),
 });
 
 const parsed = envSchema.safeParse(process.env);

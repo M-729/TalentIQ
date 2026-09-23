@@ -463,6 +463,64 @@ describe("Candidate Interview Email Notifications", () => {
         .send({});
       expect(res.status).toBe(404);
     });
+
+    // Regression test for a category-guard inconsistency: isInterviewCategory
+    // once only excluded "assessment_invitation", silently treating
+    // "application_rejection" and "offer_sent" notifications as retryable
+    // through this interview-only endpoint too — even though the
+    // InterviewEmailCategory type (and this endpoint's own doc comment)
+    // always excluded all three. This endpoint must stay interview-only,
+    // same safe 404 as a genuinely nonexistent/cross-company id, for every
+    // non-interview category, not just assessment_invitation.
+    it("returns the same safe 404 for a non-interview category notification (application_rejection, offer_sent), not just assessment_invitation", async () => {
+      const rejection = await EmailNotification.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        candidate_id: candidate.id,
+        category: "application_rejection",
+        recipient_email: candidate.email,
+        subject: "Update on your application",
+        rejection_snapshot: { candidate_name: candidate.full_name, company_name: companyA.name, job_title: jobA.title },
+        status: "failed",
+        mutation_version_at: new Date(),
+      });
+      const offer = await EmailNotification.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        candidate_id: candidate.id,
+        category: "offer_sent",
+        recipient_email: candidate.email,
+        subject: "Your offer",
+        offer_snapshot: { candidate_name: candidate.full_name, company_name: companyA.name, job_title: jobA.title, offer_title: "Backend Engineer" },
+        status: "failed",
+        mutation_version_at: new Date(),
+      });
+      const assessment = await EmailNotification.create({
+        company_id: companyA.id,
+        application_id: application.id,
+        candidate_id: candidate.id,
+        category: "assessment_invitation",
+        recipient_email: candidate.email,
+        subject: "Complete your assessment",
+        assessment_snapshot: {
+          candidate_name: candidate.full_name,
+          company_name: companyA.name,
+          job_title: jobA.title,
+          assessment_name: "Backend Test",
+          external_url: "https://external-platform.example/test/abc",
+        },
+        status: "failed",
+        mutation_version_at: new Date(),
+      });
+
+      for (const notification of [rejection, offer, assessment]) {
+        const res = await request(app).post(retryUrl(notification.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+        expect(res.status).toBe(404);
+      }
+      // No email was ever (re-)sent through the interview-only retry path
+      // for any of these — the guard must reject before attempting delivery.
+      expect(mockSend).not.toHaveBeenCalled();
+    });
   });
 
   // ===== SECURITY =====

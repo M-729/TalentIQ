@@ -11,6 +11,7 @@ import { ApplicationInterviewsSection } from "@/components/applications/Applicat
 import { CandidateInfoCard } from "@/components/applications/CandidateInfoCard";
 import { CvInfoCard } from "@/components/applications/CvInfoCard";
 import { JobInfoCard } from "@/components/applications/JobInfoCard";
+import { OfferDecisionSection } from "@/components/applications/OfferDecisionSection";
 import { useApplication } from "@/hooks/useApplication";
 
 export function ApplicationDetailPage() {
@@ -95,6 +96,11 @@ export function ApplicationDetailPage() {
       <ApplicationAssessmentSection application={application} />
 
       <AiScreeningCard applicationId={application.id} screening={application.screening} />
+
+      {/* Every final hiring outcome (Reject, Offer, Accept/Decline, Hire) is
+          an explicit HR action here — always rendered, regardless of the
+          Application's current pipeline stage. */}
+      <OfferDecisionSection application={application} onApplicationChanged={refetch} />
     </div>
   );
 }

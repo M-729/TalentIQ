@@ -17,6 +17,8 @@ export const EMAIL_NOTIFICATION_CATEGORIES = [
   "interview_rescheduled",
   "interview_cancelled",
   "assessment_invitation",
+  "application_rejection",
+  "offer_sent",
 ] as const;
 export type EmailNotificationCategory = (typeof EMAIL_NOTIFICATION_CATEGORIES)[number];
 
@@ -105,6 +107,47 @@ const assessmentSnapshotSchema = new Schema(
 );
 
 /**
+ * The application_rejection category's own immutable snapshot — same
+ * "freeze the facts this ONE event actually says" contract as the schemas
+ * above. Deliberately contains NO rejection_reason field at all: that
+ * field is internal-only (see Application.model.ts's rejection_reason doc
+ * comment) and must never be capturable here even by future mistake — an
+ * internal reason simply has nowhere to go in this schema.
+ */
+const rejectionSnapshotSchema = new Schema(
+  {
+    candidate_name: { type: String, required: true, trim: true },
+    company_name: { type: String, required: true, trim: true },
+    job_title: { type: String, required: true, trim: true },
+  },
+  { _id: false }
+);
+
+/**
+ * The offer_sent category's own immutable snapshot — frozen from the
+ * Offer's terms at the exact moment "Send Offer" is clicked, so a later
+ * edit to a (hypothetical) draft never retroactively changes what an
+ * already-sent email said. Deliberately mirrors only the candidate-facing
+ * fields an offer can have (see this ticket's explicit Part 9 "do not
+ * include internal notes" rule) — internal_notes has no field here either,
+ * for the same reason rejection_reason has none above.
+ */
+const offerSnapshotSchema = new Schema(
+  {
+    candidate_name: { type: String, required: true, trim: true },
+    company_name: { type: String, required: true, trim: true },
+    job_title: { type: String, required: true, trim: true },
+    offer_title: { type: String, required: true, trim: true },
+    salary_amount: { type: Number, default: null },
+    salary_currency: { type: String, default: null },
+    start_date: { type: Date, default: null },
+    expires_at: { type: Date, default: null },
+    candidate_message: { type: String, trim: true, default: null },
+  },
+  { _id: false }
+);
+
+/**
  * Real notification history/audit — deliberately NOT a boolean
  * `email_sent` flag on Interview. One document per real business email
  * *event* (an Interview being scheduled, a specific reschedule, a
@@ -135,6 +178,11 @@ const emailNotificationSchema = new Schema(
     // partial unique index below apply ONLY to assessment notifications —
     // see that index's own doc comment.
     application_assessment_id: { type: Schema.Types.ObjectId, ref: "ApplicationAssessment" },
+    // The offer_sent category's own business-entity id — same role/same
+    // "deliberately no default, genuinely absent for every other category"
+    // rationale as application_assessment_id above, so its own partial
+    // unique index below can never interact with any other category.
+    offer_id: { type: Schema.Types.ObjectId, ref: "Offer" },
 
     category: { type: String, enum: EMAIL_NOTIFICATION_CATEGORIES, required: true },
 
@@ -157,6 +205,13 @@ const emailNotificationSchema = new Schema(
     // assessmentSnapshotSchema's own doc comment. Mirrors event_snapshot's
     // role exactly, for the other category family.
     assessment_snapshot: { type: assessmentSnapshotSchema, default: null },
+    // application_rejection / offer_sent categories' own immutable
+    // snapshots — same role as the two above, for their own category
+    // families. Required-ness per category is enforced in each category's
+    // own service (rejection.service.ts / offerEmail.service.ts), not here,
+    // matching this file's existing convention exactly.
+    rejection_snapshot: { type: rejectionSnapshotSchema, default: null },
+    offer_snapshot: { type: offerSnapshotSchema, default: null },
 
     status: { type: String, enum: EMAIL_NOTIFICATION_STATUSES, required: true, default: "pending" },
     failure_code: { type: String, enum: [...EMAIL_FAILURE_CODES, null], default: null },
@@ -175,16 +230,32 @@ const emailNotificationSchema = new Schema(
     // The persisted Interview.updated_at value AT THE MOMENT this
     // notification's underlying mutation was committed — see this
     // ticket's Part 9. This is what makes duplicate-event detection
-    // deterministic: a genuine second reschedule always produces a new
-    // Interview.updated_at (and therefore a new row here), while two
-    // accidental/duplicate calls for the SAME already-committed mutation
-    // share the same value and collide on the unique index below rather
-    // than creating a second notification. Only interview_* categories use
-    // this field at all — assessment_invitation uses a different
-    // concurrency mechanism (see the partial index below), since a
-    // "Send Assessment"/"Send Again" click isn't a side effect of some
-    // other mutation with its own natural version stamp the way
-    // schedule/reschedule/cancel are.
+    // deterministic for interview_* categories specifically: a genuine
+    // second reschedule always produces a new Interview.updated_at (and
+    // therefore a new row here), while two accidental/duplicate calls for
+    // the SAME already-committed mutation share the same value and
+    // collide on the unique index below rather than creating a second
+    // notification.
+    //
+    // For every OTHER category (assessment_invitation, offer_sent,
+    // application_rejection), this field carries NO idempotency meaning
+    // at all — each of those rows just sets it to `new Date()` purely so
+    // it can never collide with an unrelated row of the same category on
+    // the legacy index below (interview_id defaults to null for all of
+    // them, so without a genuinely distinct value here every row of a
+    // given category would share the exact same {null, category, null}
+    // key). Their REAL duplicate-send protection is each category's own
+    // invariant instead: assessment_invitation uses a dedicated partial
+    // index scoped to application_assessment_id (see below); offer_sent
+    // relies on the Offer's own atomic draft->sent transition guard (an
+    // Offer can only ever be sent once, full stop — see
+    // offerEmail.service.ts's sendOffer); application_rejection relies on
+    // the Application's own atomic non-terminal->rejected transition
+    // guard, executed inside the SAME transaction as the notification
+    // create (see rejection.service.ts's rejectApplication) — an
+    // Application can only ever be rejected once. Do not read
+    // mutation_version_at as meaningful business data for these
+    // categories; it is index-compatibility plumbing only.
     mutation_version_at: { type: Date, default: null },
   },
   {
@@ -194,15 +265,21 @@ const emailNotificationSchema = new Schema(
 
 // One notification per (interview, category, mutation) — see
 // mutation_version_at's own doc comment above for exactly what this
-// prevents and what it deliberately still allows (a second, later,
-// genuinely distinct reschedule). Deliberately UNCHANGED from before the
-// assessment_invitation category existed — every assessment_invitation
-// row still sets its own real, distinct mutation_version_at value (see
-// applicationAssessmentEmail.service.ts) specifically so it can never
-// collide with another assessment row here, without needing to alter this
-// index's options (MongoDB rejects/conflicts on redefining an existing
-// index's options without a drop, which is riskier than just giving every
-// row a genuinely unique value for this field).
+// prevents for interview_* categories, and why every OTHER category
+// (assessment_invitation, offer_sent, application_rejection) merely
+// avoids colliding on it rather than relying on it for anything.
+// Deliberately UNCHANGED, on purpose, since it first predated
+// assessment_invitation: every non-interview row just sets its own real,
+// distinct mutation_version_at value instead (see
+// applicationAssessmentEmail.service.ts, offerEmail.service.ts,
+// rejection.service.ts) so it can never collide with another row of that
+// category here. Do NOT alter this index's key pattern or options in a
+// routine feature ticket — MongoDB rejects/conflicts on redefining an
+// EXISTING index's options without an explicit drop (a real incident
+// earlier in this codebase's history), which is a production migration
+// concern, not something to fold into an unrelated change; giving every
+// non-interview row a genuinely distinct value here is the safe
+// workaround, not a index redesign.
 emailNotificationSchema.index({ interview_id: 1, category: 1, mutation_version_at: 1 }, { unique: true });
 
 // Serves "this Interview's full notification history, newest first" (the
@@ -234,6 +311,45 @@ emailNotificationSchema.index(
 // Serves "this assessment's full notification history, newest first".
 emailNotificationSchema.index({ application_assessment_id: 1, created_at: -1 });
 
+/**
+ * The application_rejection double-send/double-click guard — same
+ * mechanism and rationale as the application_assessment_id partial index
+ * above, scoped by category value directly (via the partial filter)
+ * rather than a new dedicated id field, since application_id is already
+ * present and required on every row. At most one "pending" rejection email
+ * may exist per Application at a time; a concurrent second "Reject
+ * Candidate" submission's own create() collides here and is treated as
+ * already in flight (see rejection.service.ts). Once resolved (sent/
+ * failed), the row no longer matches this partial filter — not that a
+ * second one could ever legitimately be created afterward anyway, since an
+ * Application can only be rejected once (rejected is terminal).
+ */
+emailNotificationSchema.index(
+  { application_id: 1, category: 1 },
+  { unique: true, partialFilterExpression: { category: "application_rejection", status: "pending" } }
+);
+
+/**
+ * The offer_sent double-send/double-click guard — mirrors the
+ * application_assessment_id partial index above exactly, scoped to
+ * offer_id instead. At most one "pending" offer_sent row may exist per
+ * Offer at a time; a concurrent second "Send Offer" click collides here.
+ * Unlike assessment_invitation (which allows repeated "Send Again" events
+ * over an assessment's lifetime), an Offer is only ever sent ONCE — a
+ * revised offer is a brand-new Offer document (see Offer.model.ts's own
+ * doc comment) — so in practice this Offer can never have more than one
+ * offer_sent row total, resolved or not; this index still uses the same
+ * proven "pending" partial-filter shape rather than a plain unique index,
+ * for consistency with this file's one established double-send pattern.
+ */
+emailNotificationSchema.index(
+  { offer_id: 1, category: 1 },
+  { unique: true, partialFilterExpression: { offer_id: { $exists: true }, status: "pending" } }
+);
+
+// Serves "this Offer's full notification history, newest first".
+emailNotificationSchema.index({ offer_id: 1, created_at: -1 });
+
 export type EmailNotificationDoc = HydratedDocument<InferSchemaType<typeof emailNotificationSchema>>;
 
 // The plain (non-Mongoose-subdocument) shape callers build to persist a
@@ -245,5 +361,9 @@ export type EventSnapshot = InferSchemaType<typeof eventSnapshotSchema>;
 
 // Same rationale as EventSnapshot above, for the assessment_invitation category.
 export type AssessmentSnapshot = InferSchemaType<typeof assessmentSnapshotSchema>;
+
+// Same rationale as EventSnapshot above, for the application_rejection / offer_sent categories.
+export type RejectionSnapshot = InferSchemaType<typeof rejectionSnapshotSchema>;
+export type OfferSnapshot = InferSchemaType<typeof offerSnapshotSchema>;
 
 export const EmailNotification = model("EmailNotification", emailNotificationSchema);

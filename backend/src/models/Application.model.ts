@@ -4,6 +4,18 @@ import { Schema, model, type InferSchemaType, type HydratedDocument } from "mong
 export const APPLICATION_STATUSES = ["applied", "in_process", "rejected", "offered", "hired"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
+// The set of TRULY final outcomes `final_decision` may record — narrower
+// than APPLICATION_STATUSES on purpose. "offered" alone is deliberately
+// NOT a final decision: it means an offer is out and awaiting the
+// candidate's response, not that HR has reached a final outcome yet (see
+// Offers + Final Hiring Outcome ticket's explicit "Accepted does NOT
+// automatically Hire" rule). "declined" has no corresponding
+// Application.status value (status stays "offered" — see offer.service.ts's
+// markOfferDeclined doc comment for why) — final_decision is what actually
+// distinguishes a declined offer from one still awaiting a response.
+export const FINAL_DECISION_VALUES = ["hired", "rejected", "declined"] as const;
+export type FinalDecision = (typeof FINAL_DECISION_VALUES)[number];
+
 // Approved architecture change (Secure CV Upload ticket): the CV belongs
 // to the Application, not the Candidate — a candidate may apply to
 // different jobs with different CV versions, and AI screening must
@@ -35,7 +47,25 @@ const applicationSchema = new Schema(
     status: { type: String, enum: APPLICATION_STATUSES, default: "applied", required: true },
     source: { type: String, trim: true },
     applied_at: { type: Date, required: true, default: Date.now },
-    final_decision: { type: String, trim: true },
+    // Was already present (dormant, unconstrained) in the ERD-derived
+    // schema before this ticket wired it up — reused rather than
+    // duplicated, now with an explicit enum (see FINAL_DECISION_VALUES
+    // above). Stays null while status is merely "offered" (awaiting a
+    // response) — only set once a truly final outcome exists.
+    final_decision: { type: String, enum: [...FINAL_DECISION_VALUES, null], default: null },
+
+    // ===== Rejection audit (Offers + Final Hiring Outcome ticket) =====
+    rejected_at: { type: Date, default: null },
+    rejected_by_user_id: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    // Internal-only — HR's own record of why, NEVER included in the
+    // candidate-facing rejection email (see rejection.service.ts /
+    // applicationRejection.template.ts).
+    rejection_reason: { type: String, trim: true, maxlength: 2000, default: null },
+
+    // ===== Hire audit (Offers + Final Hiring Outcome ticket) =====
+    hired_at: { type: Date, default: null },
+    hired_by_user_id: { type: Schema.Types.ObjectId, ref: "User", default: null },
+
     // Required: an application cannot exist without a CV as of this
     // ticket — enforced here at the data layer too, not just in the API
     // validation, since the backend is the source of truth.

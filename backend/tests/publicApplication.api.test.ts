@@ -270,7 +270,12 @@ describe("Public Application API (with CV upload)", () => {
     expect(application?.job_id.toString()).toBe(job.id);
     expect(application?.status).toBe("applied");
     expect(application?.current_step_id).toBeNull();
-    expect(application?.final_decision).toBeUndefined();
+    // null (the schema's own default), not the client-supplied "accepted"
+    // — mass-assignment is still fully blocked; only the resting default
+    // changed from undefined once final_decision gained an explicit
+    // default: null (see Application.model.ts, Offers + Final Hiring
+    // Outcome ticket).
+    expect(application?.final_decision).toBeNull();
   });
 
   it("creates a Candidate and Application with correct links and CV metadata attached to the right application", async () => {

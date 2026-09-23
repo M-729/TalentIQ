@@ -9,6 +9,8 @@ import type {
 import type { Interview, InterviewListRow } from "@/types/interview";
 import type { Screening } from "@/types/screening";
 import type { ApplicationAssessment, AssessmentHistoryItem, AssessmentListRow, AssessmentNotification } from "@/types/applicationAssessment";
+import type { Offer, OfferListRow, OfferNotification } from "@/types/offer";
+import type { RejectionInfo, RejectionNotification } from "@/types/rejection";
 
 export function buildScreening(overrides: Partial<Screening> = {}): Screening {
   return {
@@ -47,6 +49,7 @@ export function buildApplicationListRow(overrides: Partial<ApplicationListRow> =
   return {
     id: "application-1",
     status: "applied",
+    final_decision: null,
     applied_at: "2024-01-15T00:00:00.000Z",
     candidate: {
       id: "candidate-1",
@@ -128,6 +131,7 @@ export function buildApplicationDetail(overrides: Partial<ApplicationDetail> = {
   return {
     id: "application-1",
     status: "applied",
+    final_decision: null,
     applied_at: "2024-01-15T00:00:00.000Z",
     candidate: {
       id: "candidate-1",
@@ -213,6 +217,91 @@ export function buildAssessmentListRow(overrides: Partial<AssessmentListRow> = {
     application_status: "in_process",
     current_step: { id: "step-1", name: "Technical Assessment", type: "assessment" },
     updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function buildOffer(overrides: Partial<Offer> = {}): Offer {
+  return {
+    id: "offer-1",
+    application_id: "application-1",
+    candidate_id: "candidate-1",
+    job_id: "job-1",
+    status: "draft",
+    title: "Backend Engineer",
+    salary_amount: 90000,
+    salary_currency: "USD",
+    employment_type: "Full-time",
+    start_date: null,
+    expires_at: null,
+    candidate_message: null,
+    internal_notes: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    sent_at: null,
+    accepted_at: null,
+    declined_at: null,
+    withdrawn_at: null,
+    response_source: null,
+    responded_at: null,
+    responded_by: null,
+    ...overrides,
+  };
+}
+
+export function buildOfferNotification(overrides: Partial<OfferNotification> = {}): OfferNotification {
+  return {
+    id: "offer-notification-1",
+    status: "sent",
+    subject: "Job Offer – Backend Developer at Acme Recruiting Co",
+    recipient_email: "sarah@candidate.test",
+    attempted_at: "2026-01-02T00:00:00.000Z",
+    sent_at: "2026-01-02T00:00:00.000Z",
+    failure_code: null,
+    attempt_count: 1,
+    created_at: "2026-01-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function buildOfferListRow(overrides: Partial<OfferListRow> = {}): OfferListRow {
+  return {
+    id: "offer-1",
+    application_id: "application-1",
+    candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
+    job: { id: "job-1", title: "Backend Developer" },
+    title: "Backend Engineer",
+    status: "sent",
+    salary_amount: 90000,
+    salary_currency: "USD",
+    start_date: null,
+    sent_at: "2026-01-02T00:00:00.000Z",
+    updated_at: "2026-01-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+export function buildRejectionInfo(overrides: Partial<RejectionInfo> = {}): RejectionInfo {
+  return {
+    rejected_at: "2026-01-03T00:00:00.000Z",
+    rejected_by: { id: "user-1", name: "Hana HR" },
+    rejection_reason: null,
+    email_status: null,
+    ...overrides,
+  };
+}
+
+export function buildRejectionNotification(overrides: Partial<RejectionNotification> = {}): RejectionNotification {
+  return {
+    id: "rejection-notification-1",
+    status: "sent",
+    subject: "Update on your application – Backend Developer",
+    recipient_email: "sarah@candidate.test",
+    attempted_at: "2026-01-03T00:00:00.000Z",
+    sent_at: "2026-01-03T00:00:00.000Z",
+    failure_code: null,
+    attempt_count: 1,
+    created_at: "2026-01-03T00:00:00.000Z",
     ...overrides,
   };
 }

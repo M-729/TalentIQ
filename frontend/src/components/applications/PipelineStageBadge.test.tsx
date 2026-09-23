@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { PipelineStageBadge } from "@/components/applications/PipelineStageBadge";
 import type { ApplicationListRow } from "@/types/application";
 
-function renderBadge(application: Pick<ApplicationListRow, "status" | "current_step">) {
+function renderBadge(application: Pick<ApplicationListRow, "status" | "current_step"> & { final_decision?: string | null }) {
   render(<PipelineStageBadge application={application} />);
 }
 
@@ -100,5 +100,58 @@ describe("PipelineStageBadge", () => {
     renderBadge({ status: "in_process", current_step: { id: "s8", name: "Mystery Stage", type: "not_a_real_type" } });
     const badge = screen.getByText("Mystery Stage");
     expect(badge.className).toMatch(/text-muted-foreground/);
+  });
+
+  // Applications-table UX correction: distinguish a declined offer from a
+  // still-pending one, without changing Application.status semantics.
+  describe("offered vs. declined-offer display", () => {
+    // 1. offered + no declined final_decision -> Offered
+    it("shows Offered when status is offered and final_decision is not declined", () => {
+      renderBadge({ status: "offered", current_step: null, final_decision: null });
+      expect(screen.getByText("Offered")).toBeInTheDocument();
+      expect(screen.queryByText("Offer Declined")).not.toBeInTheDocument();
+    });
+
+    it("shows Offered when status is offered and final_decision is absent entirely", () => {
+      renderBadge({ status: "offered", current_step: null });
+      expect(screen.getByText("Offered")).toBeInTheDocument();
+    });
+
+    // 2. offered + final_decision declined -> Offer Declined
+    it("shows Offer Declined when status is offered and final_decision is declined", () => {
+      renderBadge({ status: "offered", current_step: null, final_decision: "declined" });
+      expect(screen.getByText("Offer Declined")).toBeInTheDocument();
+      expect(screen.queryByText("Offered")).not.toBeInTheDocument();
+    });
+
+    it("styles Offer Declined distinctly from Offered (not relying on color alone — the label text itself differs)", () => {
+      const { unmount } = render(<PipelineStageBadge application={{ status: "offered", current_step: null, final_decision: null }} />);
+      const offeredClass = screen.getByText("Offered").className;
+      unmount();
+
+      render(<PipelineStageBadge application={{ status: "offered", current_step: null, final_decision: "declined" }} />);
+      const declinedBadge = screen.getByText("Offer Declined");
+      expect(declinedBadge.className).not.toBe(offeredClass);
+      expect(declinedBadge.className).toMatch(/text-destructive/);
+    });
+
+    // 3. rejected unchanged
+    it("still shows Rejected unaffected by final_decision", () => {
+      renderBadge({ status: "rejected", current_step: null, final_decision: "rejected" });
+      expect(screen.getByText("Rejected")).toBeInTheDocument();
+    });
+
+    // 4. hired unchanged
+    it("still shows Hired unaffected by final_decision", () => {
+      renderBadge({ status: "hired", current_step: null, final_decision: "hired" });
+      expect(screen.getByText("Hired")).toBeInTheDocument();
+    });
+
+    // 5. normal dynamic HiringStep labels unchanged
+    it("still shows the live HiringStep name/color for a non-terminal status regardless of final_decision", () => {
+      renderBadge({ status: "in_process", current_step: { id: "s9", name: "Technical Interview", type: "interview" }, final_decision: null });
+      const badge = screen.getByText("Technical Interview");
+      expect(badge.className).toMatch(/text-purple-700/);
+    });
   });
 });

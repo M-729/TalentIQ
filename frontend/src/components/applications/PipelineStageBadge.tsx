@@ -5,23 +5,36 @@ import type { ApplicationListRow, ApplicationStatus } from "@/types/application"
 
 type TerminalStatus = "rejected" | "offered" | "hired";
 
+// A purely presentational discriminator, never a new Application.status
+// value (backend semantics are untouched — see this ticket's explicit
+// "keep backend status unchanged" instruction): "offered" splits into two
+// DISPLAY keys depending on final_decision, so a declined offer never
+// keeps reading as a still-pending "Offered" to HR.
+type TerminalDisplayKey = TerminalStatus | "offer_declined";
+
 // Distinct from HIRING_STEP_TYPE_STYLES's review/interview/assessment/other
 // palette on purpose — a terminal outcome is a lifecycle fact, never a
 // pipeline stage, and must stay visually distinguishable from "still
 // moving through the pipeline" even if a HiringStep type ever reused a
-// similar hue. rejected reuses the same red as the existing
-// ApplicationStatusBadge; offered/hired are both "success", but
+// similar hue. rejected/offer_declined reuse the same red as the existing
+// ApplicationStatusBadge (a declined offer is a negative outcome, same
+// family as a rejection); offered/hired are both "success", but
 // deliberately two different greens (teal vs a stronger solid green) so
-// the two outcomes read as different at a glance.
-const TERMINAL_STYLES: Record<TerminalStatus, string> = {
+// the two outcomes read as different at a glance. offer_declined is never
+// distinguished from offered by color alone — its LABEL is a different
+// word ("Offer Declined" vs "Offered"), which is what actually carries the
+// distinction for anyone not relying on color.
+const TERMINAL_STYLES: Record<TerminalDisplayKey, string> = {
   rejected: "bg-destructive/10 text-destructive",
   offered: "bg-teal-500/10 text-teal-700",
+  offer_declined: "bg-destructive/10 text-destructive",
   hired: "bg-success/15 text-success",
 };
 
-const TERMINAL_LABELS: Record<TerminalStatus, string> = {
+const TERMINAL_LABELS: Record<TerminalDisplayKey, string> = {
   rejected: "Rejected",
   offered: "Offered",
+  offer_declined: "Offer Declined",
   hired: "Hired",
 };
 
@@ -29,6 +42,14 @@ const NEW_APPLICANT_STYLE = "bg-muted text-muted-foreground";
 
 function isTerminalStatus(status: ApplicationStatus): status is TerminalStatus {
   return status === "rejected" || status === "offered" || status === "hired";
+}
+
+// status stays "offered" once a candidate declines (see
+// Application.model.ts's own doc comment on why — final_decision is what
+// actually distinguishes it) — this resolves the two apart for display
+// only, never reinterpreting the underlying status itself.
+function resolveTerminalDisplayKey(status: TerminalStatus, finalDecision: string | null | undefined): TerminalDisplayKey {
+  return status === "offered" && finalDecision === "declined" ? "offer_declined" : status;
 }
 
 // A HiringStep's `type` on these DTOs is typed as a plain string (see
@@ -57,7 +78,9 @@ function Pill({ styleClassName, label }: { styleClassName: string; label: string
 //   1. A terminal outcome (rejected/offered/hired) always wins, with its
 //      own fixed color — current_step may still be set from wherever the
 //      candidate was before the outcome was recorded, and that's no
-//      longer the useful fact to show.
+//      longer the useful fact to show. "offered" additionally reads
+//      final_decision to distinguish a still-pending offer from one the
+//      candidate has already declined (see resolveTerminalDisplayKey).
 //   2. Otherwise, a real current_step shows its own NAME (dynamic,
 //      HR-chosen) colored by its TYPE (a fixed, small category) — never
 //      the reverse. Two stages named differently but both type
@@ -69,9 +92,14 @@ function Pill({ styleClassName, label }: { styleClassName: string; label: string
 //   4. A defensive "In Process" fallback for legacy/inconsistent data
 //      (in_process with no current_step) — never expected through the
 //      normal pipeline UI, styled the same neutral gray as New Applicant.
-export function PipelineStageBadge({ application }: { application: Pick<ApplicationListRow, "status" | "current_step"> }) {
+export function PipelineStageBadge({
+  application,
+}: {
+  application: Pick<ApplicationListRow, "status" | "current_step"> & { final_decision?: string | null };
+}) {
   if (isTerminalStatus(application.status)) {
-    return <Pill styleClassName={TERMINAL_STYLES[application.status]} label={TERMINAL_LABELS[application.status]} />;
+    const key = resolveTerminalDisplayKey(application.status, application.final_decision);
+    return <Pill styleClassName={TERMINAL_STYLES[key]} label={TERMINAL_LABELS[key]} />;
   }
 
   if (application.current_step) {

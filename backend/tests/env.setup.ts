@@ -4,6 +4,10 @@
 process.env.NODE_ENV = "test";
 process.env.MONGODB_URI = "mongodb://127.0.0.1:27017/talentiq-test-placeholder";
 process.env.CORS_ORIGIN = "http://localhost:5173";
+// Pinned explicitly (same rationale as CORS_ORIGIN above) so offer-response
+// link assertions never depend on whatever a developer's real local .env
+// happens to set FRONTEND_URL to.
+process.env.FRONTEND_URL = "http://localhost:5173";
 process.env.JWT_ACCESS_SECRET = "test-only-access-secret-at-least-32-chars";
 process.env.JWT_ACCESS_EXPIRES_IN = "15m";
 process.env.JWT_REFRESH_EXPIRES_IN_DAYS = "7";

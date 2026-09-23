@@ -44,6 +44,8 @@ export interface ApplicationCurrentStepSummary {
 export interface ApplicationListRow {
   id: string;
   status: ApplicationStatus;
+  /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). */
+  final_decision: string | null;
   source?: string;
   applied_at: string;
   candidate: {
@@ -67,6 +69,8 @@ export interface ApplicationListRow {
 export interface ApplicationDetail {
   id: string;
   status: ApplicationStatus;
+  /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). */
+  final_decision: string | null;
   source?: string;
   applied_at: string;
   candidate: {

@@ -5,10 +5,12 @@ import { AuthProvider } from "@/context/AuthContext";
 import { routeConfig } from "@/routes/router";
 import * as authApi from "@/services/api/auth";
 import * as publicJobsApi from "@/services/api/publicJobs";
+import * as offerResponseApi from "@/services/api/offerResponse";
 import type { PublicJob } from "@/types/publicJob";
 
 vi.mock("@/services/api/auth");
 vi.mock("@/services/api/publicJobs");
+vi.mock("@/services/api/offerResponse");
 
 function buildJob(overrides: Partial<PublicJob> = {}): PublicJob {
   return {
@@ -43,6 +45,7 @@ describe("app router — public vs protected routes", () => {
       pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
     });
     vi.mocked(publicJobsApi.getPublicJob).mockReset().mockResolvedValue({ job: buildJob() });
+    vi.mocked(offerResponseApi.lookupOfferResponse).mockReset().mockResolvedValue({ response_state: "invalid" });
   });
 
   // 11. /careers accessible logged out
@@ -94,5 +97,21 @@ describe("app router — public vs protected routes", () => {
   it("still redirects /jobs/new and /jobs/:id/edit to /login when logged out, unchanged from before", async () => {
     renderAt("/jobs/new");
     expect(await screen.findByRole("heading", { name: "Sign in to your account" })).toBeInTheDocument();
+  });
+
+  // Candidate Offer Accept/Decline — 7. public route accessible logged out.
+  it("renders /offer-response without redirecting to login when logged out", async () => {
+    renderAt("/offer-response#token=abc123&decision=accept");
+
+    expect(await screen.findByText("This link is invalid or no longer available.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in to your account" })).not.toBeInTheDocument();
+  });
+
+  it("never renders HR navigation destinations on /offer-response", async () => {
+    renderAt("/offer-response#token=abc123&decision=accept");
+
+    await screen.findByText("This link is invalid or no longer available.");
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
   });
 });

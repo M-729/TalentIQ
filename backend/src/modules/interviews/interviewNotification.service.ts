@@ -25,17 +25,20 @@ import { getAccessibleInterview } from "./interviewAccess.service";
 const NOT_RETRYABLE_MESSAGE = "Only failed notifications can be retried.";
 
 // This module only ever handles the three interview_* categories —
-// assessment_invitation is a fully separate business entity handled by
-// applicationAssessmentEmail.service.ts (its own retry endpoint), even
-// though both share the same underlying EmailNotification collection. See
+// assessment_invitation/application_rejection/offer_sent are fully
+// separate business entities handled by their own modules
+// (applicationAssessmentEmail.service.ts, rejection.service.ts,
+// offerEmail.service.ts, each with their own retry endpoint), even though
+// all share the same underlying EmailNotification collection. See
 // EmailNotification.model.ts's own doc comment on why category-specific
-// fields (event_snapshot/mutation_version_at here, assessment_snapshot
-// there) aren't required at the schema level: required-ness per category
-// is enforced here, by construction, never by chance.
-type InterviewEmailCategory = Exclude<EmailNotificationCategory, "assessment_invitation">;
+// fields (event_snapshot/mutation_version_at here, assessment_snapshot/
+// rejection_snapshot/offer_snapshot elsewhere) aren't required at the
+// schema level: required-ness per category is enforced here, by
+// construction, never by chance.
+type InterviewEmailCategory = Exclude<EmailNotificationCategory, "assessment_invitation" | "application_rejection" | "offer_sent">;
 
 function isInterviewCategory(category: EmailNotificationCategory): category is InterviewEmailCategory {
-  return category !== "assessment_invitation";
+  return category !== "assessment_invitation" && category !== "application_rejection" && category !== "offer_sent";
 }
 
 interface NotificationContext {
