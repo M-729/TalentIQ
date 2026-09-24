@@ -40,25 +40,31 @@ export function PendingInvitationsTable({ invitations, onResend, onRevoke }: Pen
         <table className="w-full min-w-[840px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Email
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Role
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Status
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Invited
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Expires
               </th>
-              <th scope="col" className="px-4 py-3">
-                Email
+              {/* Distinct from the "Email" (address) column above — this is
+                  the delivery outcome of the invitation email itself, a
+                  separate concept from the invitation's own lifecycle
+                  status two columns over. Previously both this and the
+                  address column were labeled "Email", which read as a
+                  duplicate/confusing header. */}
+              <th scope="col" className="px-4 py-2.5">
+                Delivery
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -69,17 +75,19 @@ export function PendingInvitationsTable({ invitations, onResend, onRevoke }: Pen
               const isActionable = invitation.status === "pending";
               return (
                 <tr key={invitation.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                  <td className="px-4 py-3 text-foreground">{invitation.email}</td>
-                  <td className="px-4 py-3 text-foreground">{ROLE_LABELS[invitation.role] ?? invitation.role}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5 text-foreground">{invitation.email}</td>
+                  <td className="px-4 py-2.5">
+                    <Badge variant="neutral">{ROLE_LABELS[invitation.role] ?? invitation.role}</Badge>
+                  </td>
+                  <td className="px-4 py-2.5">
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDate(invitation.created_at)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDate(invitation.expires_at)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    Email: <Badge variant={EMAIL_DELIVERY_STATUS_VARIANT[invitation.email_status]}>{emailStatusLabel(invitation)}</Badge>
+                  <td className="px-4 py-2.5 text-muted-foreground">{formatDate(invitation.created_at)}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{formatDate(invitation.expires_at)}</td>
+                  <td className="px-4 py-2.5">
+                    <Badge variant={EMAIL_DELIVERY_STATUS_VARIANT[invitation.email_status]}>{emailStatusLabel(invitation)}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-2.5 text-right">
                     {isActionable && (
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" onClick={() => onResend(invitation)}>

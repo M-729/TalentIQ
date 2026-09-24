@@ -96,10 +96,9 @@ describe("TeamSettingsPage", () => {
   it("10. renders pending invitations", async () => {
     renderPage();
     expect(await screen.findByText("john@acme.test")).toBeInTheDocument();
-    // "Email: Sent" is now split across a text node and a Badge (see
-    // PendingInvitationsTable.tsx's F2 fix) — RTL can't string-match text
-    // split by elements, hence the function matcher against the cell.
-    expect(screen.getByText((_, node) => node?.tagName === "TD" && node.textContent === "Email: Sent")).toBeInTheDocument();
+    // Delivery status is its own Badge, under the "Delivery" column —
+    // distinct from the invitation's own lifecycle status Badge.
+    expect(screen.getByText("Sent")).toBeInTheDocument();
   });
 
   // 11. invite dialog works / 12. email validation
@@ -108,7 +107,7 @@ describe("TeamSettingsPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Team Members" });
-    await userEvent.click(screen.getByRole("button", { name: "Invite team member" }));
+    await userEvent.click(screen.getByRole("button", { name: "Invite HR" }));
     await userEvent.type(screen.getByLabelText("Email"), "newhire@acme.test");
     await userEvent.click(screen.getByRole("button", { name: "Send invitation" }));
 
@@ -118,7 +117,7 @@ describe("TeamSettingsPage", () => {
   it("12. requires a valid email format before submitting", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "Team Members" });
-    await userEvent.click(screen.getByRole("button", { name: "Invite team member" }));
+    await userEvent.click(screen.getByRole("button", { name: "Invite HR" }));
 
     const emailField = screen.getByLabelText("Email");
     expect(emailField).toHaveAttribute("type", "email");
@@ -133,7 +132,7 @@ describe("TeamSettingsPage", () => {
     vi.mocked(teamApi.resendTeamInvitation).mockResolvedValue({ invitation: buildInvitation({ email_status: "sent" }) });
     renderPage();
 
-    await screen.findByText((_, node) => node?.tagName === "TD" && node.textContent === "Email: Failed");
+    await screen.findByText("Failed");
     await userEvent.click(screen.getByRole("button", { name: "Retry Email" }));
 
     await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1"));
@@ -144,7 +143,7 @@ describe("TeamSettingsPage", () => {
     vi.mocked(teamApi.resendTeamInvitation).mockResolvedValue({ invitation: buildInvitation() });
     renderPage();
 
-    await screen.findByText((_, node) => node?.tagName === "TD" && node.textContent === "Email: Sent");
+    await screen.findByText("Sent");
     await userEvent.click(screen.getByRole("button", { name: "Resend" }));
 
     await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1"));

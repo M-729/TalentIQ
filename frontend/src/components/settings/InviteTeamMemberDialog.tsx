@@ -44,7 +44,7 @@ export function InviteTeamMemberDialog({ open, onOpenChange, onInvited }: Invite
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite team member</DialogTitle>
+          <DialogTitle>Invite HR</DialogTitle>
           <DialogDescription>Send a secure invitation to join your TalentIQ workspace as HR / Recruiter.</DialogDescription>
         </DialogHeader>
 

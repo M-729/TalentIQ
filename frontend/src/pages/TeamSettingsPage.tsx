@@ -72,10 +72,13 @@ export function TeamSettingsPage() {
       <PageHeader
         title="Team Members"
         description="Manage the people who can access your TalentIQ workspace."
-        action={<Button onClick={() => setIsInviteOpen(true)}>Invite team member</Button>}
+        action={<Button onClick={() => setIsInviteOpen(true)}>Invite HR</Button>}
       />
 
       <section className="space-y-3">
+        {/* Distinct from the page's own "Team Members" H1 — matches
+            "Pending Invitations" below for a symmetric section hierarchy. */}
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">Members</h2>
         {isLoadingMembers || !members ? (
           <Skeleton className="h-32 w-full" />
         ) : (
