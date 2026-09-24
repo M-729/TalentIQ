@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createBrowserRouter, type RouteObject } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
 import { AcceptInvitationPage } from "@/pages/AcceptInvitationPage";
@@ -11,7 +12,6 @@ import { CreateJobPage } from "@/pages/CreateJobPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { EditJobPage } from "@/pages/EditJobPage";
 import { EmailActivityPage } from "@/pages/EmailActivityPage";
-import { HiringAnalyticsPage } from "@/pages/HiringAnalyticsPage";
 import { HiringPipelinePage } from "@/pages/HiringPipelinePage";
 import { IntegrationsSettingsPage } from "@/pages/IntegrationsSettingsPage";
 import { InterviewDetailPage } from "@/pages/InterviewDetailPage";
@@ -26,6 +26,14 @@ import { PublicJobPage } from "@/pages/PublicJobPage";
 import { SignupPage } from "@/pages/SignupPage";
 import { TeamSettingsPage } from "@/pages/TeamSettingsPage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
+import { AnalyticsRouteFallback } from "@/routes/AnalyticsRouteFallback";
+// Recharts (Applications Over Time / by Job / Pipeline Distribution / Offer
+// Outcomes) is only ever needed on this one route — lazy-loading it keeps
+// Recharts out of the initial authenticated-app bundle entirely. Every
+// other authenticated page stays eagerly imported: they're small, and
+// splitting them wouldn't meaningfully change the bundle (see this
+// ticket's own "prioritize the safest, highest-impact optimization" rule).
+import { LazyHiringAnalyticsPage as HiringAnalyticsPage } from "@/routes/LazyHiringAnalyticsPage";
 
 // Exported separately from the created browser router (below) so tests can
 // build a createMemoryRouter from the exact same route tree — e.g. to
@@ -100,7 +108,14 @@ export const routeConfig: RouteObject[] = [
           { path: "/interviews", element: <InterviewsPage /> },
           { path: "/interviews/:interviewId", element: <InterviewDetailPage /> },
           { path: "/emails", element: <EmailActivityPage /> },
-          { path: "/analytics", element: <HiringAnalyticsPage /> },
+          {
+            path: "/analytics",
+            element: (
+              <Suspense fallback={<AnalyticsRouteFallback />}>
+                <HiringAnalyticsPage />
+              </Suspense>
+            ),
+          },
           { path: "/settings/integrations", element: <IntegrationsSettingsPage /> },
           { path: "/settings/team", element: <TeamSettingsPage /> },
         ],
