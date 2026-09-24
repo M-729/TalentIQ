@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { IconInput } from "@/components/ui/icon-input";
 import { Select } from "@/components/ui/select";
+import { FilterBar } from "@/components/layout/FilterBar";
 import { APPLICATION_ASSESSMENT_STATUSES, type ApplicationAssessmentStatus } from "@/types/applicationAssessment";
 import type { Job } from "@/types/job";
 
@@ -33,7 +34,7 @@ export function AssessmentsFilterBar({
   jobs,
 }: AssessmentsFilterBarProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <FilterBar>
       <div className="sm:max-w-xs sm:flex-1">
         <label htmlFor="assessments-search" className="sr-only">
           Search assessments
@@ -78,6 +79,6 @@ export function AssessmentsFilterBar({
           ))}
         </Select>
       </div>
-    </div>
+    </FilterBar>
   );
 }

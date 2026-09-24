@@ -161,7 +161,9 @@ describe("AssessmentsPage", () => {
     await user.type(screen.getByLabelText(/search assessments/i), "no-such-candidate");
 
     expect(await screen.findByText("No assessments match your filters.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /clear filters/i })).toBeInTheDocument();
+    // Two Clear filters buttons legitimately exist now — one next to the
+    // filter bar itself, one in the empty state — both call clearFilters().
+    expect(screen.getAllByRole("button", { name: /clear filters/i }).length).toBeGreaterThan(0);
   });
 
   // 36. error state

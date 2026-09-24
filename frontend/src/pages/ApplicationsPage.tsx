@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
+import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApplicationsEmptyState } from "@/components/applications/ApplicationsEmptyState";
@@ -52,15 +53,22 @@ export function ApplicationsPage() {
     <div className="space-y-5">
       <PageHeader title="Applications" description="Review and manage candidates who have applied to your open positions." />
 
-      <ApplicationsFilterBar
-        searchInput={searchInput}
-        onSearchInputChange={setSearchInput}
-        jobId={jobId}
-        onJobIdChange={setJobId}
-        status={status}
-        onStatusChange={setStatus}
-        jobs={jobsQuery.jobs ?? []}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <ApplicationsFilterBar
+          searchInput={searchInput}
+          onSearchInputChange={setSearchInput}
+          jobId={jobId}
+          onJobIdChange={setJobId}
+          status={status}
+          onStatusChange={setStatus}
+          jobs={jobsQuery.jobs ?? []}
+        />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
 
       {applications.isLoading ? (
         <div className="space-y-2">
@@ -74,7 +82,12 @@ export function ApplicationsPage() {
         <>
           <ApplicationsTable applications={applications.applications} />
           {applications.pagination && applications.pagination.totalPages > 1 && (
-            <Pagination page={applications.pagination.page} totalPages={applications.pagination.totalPages} onPageChange={setPage} />
+            <Pagination
+              page={applications.pagination.page}
+              totalPages={applications.pagination.totalPages}
+              totalItems={applications.pagination.total}
+              onPageChange={setPage}
+            />
           )}
         </>
       ) : (

@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { IconInput } from "@/components/ui/icon-input";
 import { Select } from "@/components/ui/select";
+import { FilterBar } from "@/components/layout/FilterBar";
 import { OFFER_STATUSES, type OfferStatus } from "@/types/offer";
 import type { Job } from "@/types/job";
 
@@ -26,7 +27,7 @@ export interface OffersFilterBarProps {
 // offer-title search, matching this ticket's explicit "keep it compact" rule.
 export function OffersFilterBar({ searchInput, onSearchInputChange, jobId, onJobIdChange, status, onStatusChange, jobs }: OffersFilterBarProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <FilterBar>
       <div className="sm:max-w-xs sm:flex-1">
         <label htmlFor="offers-search" className="sr-only">
           Search offers
@@ -67,6 +68,6 @@ export function OffersFilterBar({ searchInput, onSearchInputChange, jobId, onJob
           ))}
         </Select>
       </div>
-    </div>
+    </FilterBar>
   );
 }

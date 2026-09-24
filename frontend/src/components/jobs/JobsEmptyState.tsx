@@ -1,4 +1,6 @@
-import { Briefcase, SearchX } from "lucide-react";
+import { Briefcase, Plus, SearchX } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export function JobsEmptyState({ filtered }: { filtered: boolean }) {
@@ -18,6 +20,14 @@ export function JobsEmptyState({ filtered }: { filtered: boolean }) {
               : "Jobs your company creates will appear here."}
           </p>
         </div>
+        {!filtered && (
+          <Button asChild>
+            <Link to="/jobs/new">
+              <Plus className="size-4" aria-hidden="true" />
+              Create Job
+            </Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

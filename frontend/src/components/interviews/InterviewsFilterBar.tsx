@@ -1,4 +1,5 @@
 import { Select } from "@/components/ui/select";
+import { FilterBar } from "@/components/layout/FilterBar";
 import { INTERVIEW_STATUSES, type InterviewStatus } from "@/types/interview";
 import type { Job } from "@/types/job";
 
@@ -31,7 +32,7 @@ export function InterviewsFilterBar({
   jobs,
 }: InterviewsFilterBarProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <FilterBar>
       <div className="sm:w-48">
         <label htmlFor="interviews-when-filter" className="sr-only">
           Filter by time
@@ -74,6 +75,6 @@ export function InterviewsFilterBar({
           ))}
         </Select>
       </div>
-    </div>
+    </FilterBar>
   );
 }

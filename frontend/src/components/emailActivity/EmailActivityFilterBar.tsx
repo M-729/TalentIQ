@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { IconInput } from "@/components/ui/icon-input";
 import { Select } from "@/components/ui/select";
+import { FilterBar } from "@/components/layout/FilterBar";
 import { EMAIL_ACTIVITY_STATUSES, EMAIL_ACTIVITY_TYPES, type EmailActivityStatus, type EmailActivityType } from "@/types/emailActivity";
 
 const TYPE_LABELS: Record<EmailActivityType, string> = {
@@ -37,7 +38,7 @@ export function EmailActivityFilterBar({
   onStatusChange,
 }: EmailActivityFilterBarProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <FilterBar>
       <div className="sm:max-w-xs sm:flex-1">
         <label htmlFor="email-activity-search" className="sr-only">
           Search recipient
@@ -78,6 +79,6 @@ export function EmailActivityFilterBar({
           ))}
         </Select>
       </div>
-    </div>
+    </FilterBar>
   );
 }

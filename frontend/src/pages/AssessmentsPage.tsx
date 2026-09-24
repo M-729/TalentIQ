@@ -73,15 +73,22 @@ export function AssessmentsPage() {
     <div className="space-y-5">
       <PageHeader title="Assessments" description="External assessments sent to candidates across your hiring pipelines." />
 
-      <AssessmentsFilterBar
-        searchInput={searchInput}
-        onSearchInputChange={setSearchInput}
-        jobId={jobId}
-        onJobIdChange={setJobId}
-        status={status}
-        onStatusChange={setStatus}
-        jobs={jobsQuery.jobs ?? []}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <AssessmentsFilterBar
+          searchInput={searchInput}
+          onSearchInputChange={setSearchInput}
+          jobId={jobId}
+          onJobIdChange={setJobId}
+          status={status}
+          onStatusChange={setStatus}
+          jobs={jobsQuery.jobs ?? []}
+        />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -95,7 +102,7 @@ export function AssessmentsPage() {
         <>
           <AssessmentsTable assessments={assessments} />
           {pagination && pagination.totalPages > 1 && (
-            <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={setPage} />
+            <Pagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.total} onPageChange={setPage} />
           )}
         </>
       ) : (

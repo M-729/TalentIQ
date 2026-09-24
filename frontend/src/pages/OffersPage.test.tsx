@@ -155,7 +155,9 @@ describe("OffersPage", () => {
     await user.type(screen.getByLabelText(/search offers/i), "no-such-candidate");
 
     expect(await screen.findByText("No offers match your filters.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /clear filters/i })).toBeInTheDocument();
+    // Two Clear filters buttons legitimately exist now — one next to the
+    // filter bar itself, one in the empty state — both call clearFilters().
+    expect(screen.getAllByRole("button", { name: /clear filters/i }).length).toBeGreaterThan(0);
   });
 
   it("shows a safe error message on API failure", async () => {

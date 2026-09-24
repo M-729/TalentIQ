@@ -281,7 +281,33 @@ describe("ApplicationsPage", () => {
     await user.type(screen.getByLabelText(/search applicants/i), "no-such-person");
 
     expect(await screen.findByText("No applications match your filters.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /clear filters/i })).toBeInTheDocument();
+    // Two Clear filters buttons legitimately exist now — one next to the
+    // filter bar itself (visible even before results go to zero), one in
+    // the empty state — both call the same clearFilters().
+    expect(screen.getAllByRole("button", { name: /clear filters/i }).length).toBeGreaterThan(0);
+  });
+
+  // Phase 5 — active filter feedback: Clear filters must be reachable from
+  // the filter row itself, not only once a filter happens to zero out the
+  // results.
+  it("shows a Clear filters action next to the filter bar as soon as a filter is active, even with results still showing", async () => {
+    const user = userEvent.setup();
+    mockPage([buildApplicationListRow()]);
+    renderPage();
+    await screen.findByText("Sarah Ahmed");
+
+    expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search applicants/i), "sarah");
+    await screen.findByRole("button", { name: /clear filters/i });
+    // Results are still showing (not the empty state) while the button is present.
+    expect(screen.getByText("Sarah Ahmed")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /clear filters/i }));
+    expect(screen.getByLabelText(/search applicants/i)).toHaveValue("");
+    // hasActiveFilters is derived from the debounced search value, so the
+    // button's disappearance lags the input clearing by the debounce delay.
+    await waitFor(() => expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument());
   });
 
   it("shows a safe error message on API failure", async () => {

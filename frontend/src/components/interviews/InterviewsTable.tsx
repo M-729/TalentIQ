@@ -17,31 +17,31 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
         <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Candidate
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Job
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Interview
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Stage
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Date &amp; Time
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Interviewers
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Status
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Calendar
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -49,7 +49,7 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
           <tbody>
             {interviews.map((interview) => (
               <tr key={interview.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   {interview.candidate ? (
                     <>
                       <div className="font-medium text-foreground">{interview.candidate.name}</div>
@@ -59,11 +59,11 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-foreground">{interview.job?.title ?? "—"}</td>
-                <td className="px-4 py-3 text-foreground">{interview.title}</td>
-                <td className="px-4 py-3 text-muted-foreground">{interview.stage.name}</td>
-                <td className="px-4 py-3 text-muted-foreground">{formatDateTime(interview.starts_at)}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5 text-foreground">{interview.job?.title ?? "—"}</td>
+                <td className="px-4 py-2.5 text-foreground">{interview.title}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{interview.stage.name}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(interview.starts_at)}</td>
+                <td className="px-4 py-2.5">
                   {interview.interviewers.length > 0 ? (
                     <div className="text-foreground">
                       {interview.interviewers.map((interviewer) => interviewer.name).join(", ")}
@@ -72,7 +72,7 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <InterviewStatusBadge status={interview.status} />
                   {interview.status === "completed" && interview.feedback_progress && (
                     <div className="mt-1 text-xs text-muted-foreground">
@@ -80,13 +80,13 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
                     </div>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <div className="flex flex-col items-start gap-1.5">
                     <InterviewCalendarBadge calendar={interview.calendar} />
                     {canJoinMeet(interview) && <JoinMeetLink url={interview.calendar!.meeting_url!} />}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <Button variant="outline" size="sm" asChild>
                     <Link to={`/interviews/${interview.id}`}>View</Link>
                   </Button>

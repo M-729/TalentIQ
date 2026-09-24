@@ -33,22 +33,22 @@ export function EmailActivityTable({ rows, onRetry, retryingRowId }: EmailActivi
         <table className="w-full min-w-[880px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Recipient
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Type
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Related Record
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Status
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 Sent/Updated
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-2.5">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -58,14 +58,14 @@ export function EmailActivityTable({ rows, onRetry, retryingRowId }: EmailActivi
               const link = relatedLinkFor(row);
               return (
                 <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                  <td className="px-4 py-3 text-foreground">{row.recipient_email}</td>
-                  <td className="px-4 py-3 text-foreground">{row.type_label}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{row.related_label}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5 text-foreground">{row.recipient_email}</td>
+                  <td className="px-4 py-2.5 text-foreground">{row.type_label}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{row.related_label}</td>
+                  <td className="px-4 py-2.5">
                     <Badge variant={STATUS_CONFIG[row.status].variant}>{STATUS_CONFIG[row.status].label}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDateTime(row.sent_at ?? row.updated_at)}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(row.sent_at ?? row.updated_at)}</td>
+                  <td className="px-4 py-2.5 text-right">
                     <div className="flex justify-end gap-2">
                       {row.status === "failed" && (
                         <Button

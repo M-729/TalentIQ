@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pagination } from "@/components/ui/pagination";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -48,15 +49,22 @@ export function InterviewsPage() {
     <div className="space-y-5">
       <PageHeader title="Interviews" description="Every interview scheduled across your hiring pipelines." />
 
-      <InterviewsFilterBar
-        status={status}
-        onStatusChange={setStatus}
-        jobId={jobId}
-        onJobIdChange={setJobId}
-        when={when}
-        onWhenChange={setWhen}
-        jobs={jobsQuery.jobs ?? []}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <InterviewsFilterBar
+          status={status}
+          onStatusChange={setStatus}
+          jobId={jobId}
+          onJobIdChange={setJobId}
+          when={when}
+          onWhenChange={setWhen}
+          jobs={jobsQuery.jobs ?? []}
+        />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -70,7 +78,7 @@ export function InterviewsPage() {
         <>
           <InterviewsTable interviews={interviews} />
           {pagination && pagination.totalPages > 1 && (
-            <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={setPage} />
+            <Pagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.total} onPageChange={setPage} />
           )}
         </>
       ) : (

@@ -86,14 +86,21 @@ export function EmailActivityPage() {
         description="Transactional email history for applications, interviews, assessments, offers, and invitations."
       />
 
-      <EmailActivityFilterBar
-        searchInput={searchInput}
-        onSearchInputChange={setSearchInput}
-        type={type}
-        onTypeChange={setType}
-        status={status}
-        onStatusChange={setStatus}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <EmailActivityFilterBar
+          searchInput={searchInput}
+          onSearchInputChange={setSearchInput}
+          type={type}
+          onTypeChange={setType}
+          status={status}
+          onStatusChange={setStatus}
+        />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
 
       {retryError && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -114,7 +121,7 @@ export function EmailActivityPage() {
         <>
           <EmailActivityTable rows={emails} onRetry={(row) => void handleRetry(row)} retryingRowId={retryingRowId} />
           {pagination && pagination.totalPages > 1 && (
-            <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={setPage} />
+            <Pagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.total} onPageChange={setPage} />
           )}
         </>
       ) : (

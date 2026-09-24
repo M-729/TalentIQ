@@ -73,15 +73,22 @@ export function OffersPage() {
     <div className="space-y-5">
       <PageHeader title="Offers" description="Offers extended to candidates across your hiring pipelines." />
 
-      <OffersFilterBar
-        searchInput={searchInput}
-        onSearchInputChange={setSearchInput}
-        jobId={jobId}
-        onJobIdChange={setJobId}
-        status={status}
-        onStatusChange={setStatus}
-        jobs={jobsQuery.jobs ?? []}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <OffersFilterBar
+          searchInput={searchInput}
+          onSearchInputChange={setSearchInput}
+          jobId={jobId}
+          onJobIdChange={setJobId}
+          status={status}
+          onStatusChange={setStatus}
+          jobs={jobsQuery.jobs ?? []}
+        />
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -94,7 +101,9 @@ export function OffersPage() {
       ) : offers && offers.length > 0 ? (
         <>
           <OffersTable offers={offers} />
-          {pagination && pagination.totalPages > 1 && <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={setPage} />}
+          {pagination && pagination.totalPages > 1 && (
+            <Pagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.total} onPageChange={setPage} />
+          )}
         </>
       ) : (
         <EmptyState filtered={hasActiveFilters} onClearFilters={clearFilters} />
