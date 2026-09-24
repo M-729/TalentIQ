@@ -161,4 +161,22 @@ describe("app router — public vs protected routes", () => {
     renderAt("/analytics");
     expect(await screen.findByRole("heading", { name: "Sign in to your account" })).toBeInTheDocument();
   });
+
+  // Public Landing Page — 1. "/" renders LandingPage, not a redirect to
+  // /dashboard (its previous behavior) and not an auth wall.
+  it("1. renders the public landing page at / without redirecting to login or dashboard", async () => {
+    renderAt("/");
+
+    expect(await screen.findByRole("heading", { name: /Hire smarter/i, level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in to your account" })).not.toBeInTheDocument();
+  });
+
+  // 13. no authenticated sidebar on landing page
+  it("13. never renders HR navigation destinations on /", async () => {
+    renderAt("/");
+
+    await screen.findByRole("heading", { name: /Hire smarter/i, level: 1 });
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
+  });
 });

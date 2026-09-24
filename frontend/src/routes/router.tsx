@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom";
+import { createBrowserRouter, type RouteObject } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
 import { AcceptInvitationPage } from "@/pages/AcceptInvitationPage";
 import { ApplicationDetailPage } from "@/pages/ApplicationDetailPage";
@@ -17,6 +17,7 @@ import { IntegrationsSettingsPage } from "@/pages/IntegrationsSettingsPage";
 import { InterviewDetailPage } from "@/pages/InterviewDetailPage";
 import { InterviewsPage } from "@/pages/InterviewsPage";
 import { JobsPage } from "@/pages/JobsPage";
+import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { OffersPage } from "@/pages/OffersPage";
@@ -32,8 +33,14 @@ import { ProtectedRoute } from "@/routes/ProtectedRoute";
 // /jobs stays behind it — without duplicating this route table.
 export const routeConfig: RouteObject[] = [
   {
+    // Public TalentIQ marketing/landing page — outside ProtectedRoute/
+    // AppShell, same "no auth wall" rule as every other public route
+    // below. Previously redirected straight to /dashboard; an
+    // authenticated user landing here now sees the marketing page like
+    // any visitor would (its own CTAs still route them to /login or
+    // /signup as appropriate) rather than being silently redirected.
     path: "/",
-    element: <Navigate to="/dashboard" replace />,
+    element: <LandingPage />,
   },
   {
     path: "/login",

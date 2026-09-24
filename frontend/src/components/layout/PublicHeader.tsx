@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BrandMark } from "@/components/layout/BrandMark";
 
 interface PublicHeaderProps {
   backTo?: string;
@@ -18,13 +19,7 @@ export function PublicHeader({ backTo, backLabel }: PublicHeaderProps) {
   return (
     <header className="border-b border-border bg-card">
       <div className="mx-auto flex min-h-16 max-w-3xl flex-wrap items-center justify-between gap-x-2 gap-y-2 px-4 py-3 sm:px-6">
-        <Link
-          to="/careers"
-          className="flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <span className="inline-block size-6 rotate-45 rounded-[7px] bg-primary" aria-hidden="true" />
-          <span className="text-lg font-semibold tracking-tight text-foreground">TalentIQ</span>
-        </Link>
+        <BrandMark to="/careers" />
 
         <div className="flex items-center gap-3 sm:gap-4">
           {backTo && (
