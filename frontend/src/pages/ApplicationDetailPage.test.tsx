@@ -59,6 +59,34 @@ describe("ApplicationDetailPage", () => {
     expect(screen.getAllByText("Hired").length).toBeGreaterThan(0);
   });
 
+  // Phase 3 redesign — current pipeline stage was previously never shown
+  // anywhere on this page despite already being fetched data.
+  it("shows the current pipeline stage in the header when present", async () => {
+    vi.mocked(applicationsApi.getApplication).mockResolvedValue({
+      application: buildApplicationDetail({ current_step: { id: "step-1", name: "Technical Interview", type: "interview" } }),
+    });
+    renderPage();
+    expect(await screen.findByText("Stage: Technical Interview")).toBeInTheDocument();
+  });
+
+  it("omits the stage line when there is no current step", async () => {
+    vi.mocked(applicationsApi.getApplication).mockResolvedValue({
+      application: buildApplicationDetail({ current_step: null }),
+    });
+    renderPage();
+    await screen.findByRole("heading", { name: "Sarah Ahmed" });
+    expect(screen.queryByText(/^Stage:/)).not.toBeInTheDocument();
+  });
+
+  it("shows the application source when present", async () => {
+    vi.mocked(applicationsApi.getApplication).mockResolvedValue({
+      application: buildApplicationDetail({ source: "LinkedIn" }),
+    });
+    renderPage();
+    expect(await screen.findByText("Source")).toBeInTheDocument();
+    expect(screen.getByText("LinkedIn")).toBeInTheDocument();
+  });
+
   it("renders candidate contact information safely, omitting fields not provided", async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
       application: buildApplicationDetail({

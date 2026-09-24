@@ -3,17 +3,17 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ApplicationStatusBadge } from "@/components/applications/ApplicationStatusBadge";
-import { ScreeningStatusBadge } from "@/components/applications/ScreeningStatusBadge";
 import type { ApplicationDetail } from "@/types/application";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-// Answers WHO / FOR WHICH JOB / WHEN / WHAT STATUS at a glance, plus a
-// compact AI screening summary — the full AI Screening section below
-// (AiScreeningCard) repeats this with more detail (last screened time) as
-// part of the structured card layout; this is the quick-glance version.
+// Answers WHO / FOR WHICH JOB / CURRENT STAGE / STATUS / WHEN at a glance —
+// compact by design so it never competes with the review content below it.
+// AI screening used to be quick-glanced here too, but that duplicated
+// AiScreeningCard (now the first card a recruiter sees) for no real benefit,
+// so it was removed from here rather than kept in two places.
 export function ApplicationDetailHeader({ application }: { application: ApplicationDetail }) {
   return (
     <div className="space-y-4">
@@ -25,7 +25,7 @@ export function ApplicationDetailHeader({ application }: { application: Applicat
       </Button>
 
       <Card>
-        <CardContent className="space-y-4 py-6">
+        <CardContent className="flex flex-wrap items-start justify-between gap-4 py-5">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{application.candidate.full_name}</h1>
             <p className="text-sm text-muted-foreground">Application for {application.job.title}</p>
@@ -33,28 +33,10 @@ export function ApplicationDetailHeader({ application }: { application: Applicat
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
             <span>Applied {formatDate(application.applied_at)}</span>
+            {application.current_step && <span>Stage: {application.current_step.name}</span>}
             <span className="flex items-center gap-1.5">
               Status: <ApplicationStatusBadge status={application.status} />
             </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-            <span className="text-sm text-muted-foreground">AI Screening:</span>
-            <ScreeningStatusBadge status={application.screening.status} />
-            {application.screening.status === "completed" && application.screening.latest_score != null && (
-              <span className="text-sm text-foreground">
-                Required Skill Coverage: {application.screening.latest_score}%
-              </span>
-            )}
-            <Button size="sm" asChild className="ml-auto">
-              <Link to={`/applications/${application.id}/screening`}>
-                {application.screening.status === "not_started"
-                  ? "Run AI Screening"
-                  : application.screening.status === "failed" || application.screening.status === "stale_processing"
-                    ? "Retry Screening"
-                    : "View AI Screening"}
-              </Link>
-            </Button>
           </div>
         </CardContent>
       </Card>
