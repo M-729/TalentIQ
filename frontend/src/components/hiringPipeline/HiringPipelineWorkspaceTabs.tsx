@@ -29,9 +29,11 @@ export function HiringPipelineWorkspaceTabs({ active, onChange }: HiringPipeline
             aria-pressed={isActive}
             onClick={() => onChange(value)}
             className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 pb-3 text-sm font-medium transition-colors",
+              "-mb-px flex items-center gap-1.5 border-b-2 pb-3 text-sm transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              isActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              isActive
+                ? "border-primary font-semibold text-primary"
+                : "border-transparent font-medium text-muted-foreground hover:text-foreground"
             )}
           >
             {label}

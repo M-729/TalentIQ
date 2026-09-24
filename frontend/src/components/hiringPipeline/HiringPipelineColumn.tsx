@@ -44,7 +44,7 @@ export function HiringPipelineColumn({
 
   return (
     <div className="flex w-72 shrink-0 flex-col gap-3">
-      <div className="space-y-1">
+      <div className="space-y-1.5 border-b border-border pb-2">
         <div className="flex items-center gap-2">
           {applicationIds.length > 0 && (
             <Checkbox

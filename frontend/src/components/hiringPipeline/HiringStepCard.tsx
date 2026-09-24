@@ -30,7 +30,7 @@ export function HiringStepCard({
 }: HiringStepCardProps) {
   return (
     <Card>
-      <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+      <CardContent className="flex flex-col gap-4 py-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span
             className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"

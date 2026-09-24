@@ -151,7 +151,10 @@ export function HiringPipelineApplicationCard({
           <Button variant="outline" size="sm" asChild>
             <Link to={`/applications/${application.id}`}>View Application</Link>
           </Button>
-          <Button size="sm" onClick={onMove} aria-label={`Move ${application.candidate.full_name}`}>
+          {/* Outline, matching the other card actions — discoverable but
+              secondary to the candidate's own identity, not a filled
+              primary button competing for attention on a dense board. */}
+          <Button variant="outline" size="sm" onClick={onMove} aria-label={`Move ${application.candidate.full_name}`}>
             Move
           </Button>
           {onScheduleInterview && (
