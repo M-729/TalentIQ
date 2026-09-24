@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { AlertCircle, BarChart3 } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { ApplicationsByJobChart } from "@/components/analytics/ApplicationsByJobChart";
 import { ApplicationsOverTimeChart } from "@/components/analytics/ApplicationsOverTimeChart";
 import { OfferOutcomesChart } from "@/components/analytics/OfferOutcomesChart";
@@ -18,23 +19,6 @@ const RANGE_LABELS: Record<AnalyticsRange, string> = {
   "90d": "Last 90 days",
   all: "All time",
 };
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load analytics</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 function EmptyCompanyState() {
   return (
@@ -122,7 +106,7 @@ export function HiringAnalyticsPage() {
           ))}
         </div>
       ) : error ? (
-        <InlineError message={error} onRetry={refetch} />
+        <InlineError title="Couldn't load analytics" message={error} onRetry={refetch} />
       ) : !analytics ? null : isEmptyCompany ? (
         <EmptyCompanyState />
       ) : (

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { DeleteHiringStepDialog } from "@/components/hiringPipeline/DeleteHiringStepDialog";
 import { HiringPipelineEmptyState } from "@/components/hiringPipeline/HiringPipelineEmptyState";
 import { HiringStepCard } from "@/components/hiringPipeline/HiringStepCard";
@@ -11,22 +11,6 @@ import { HiringStepTypeHelp } from "@/components/hiringPipeline/HiringStepTypeHe
 import { useHiringSteps } from "@/hooks/useHiringSteps";
 import { useReorderHiringSteps } from "@/hooks/useReorderHiringSteps";
 import type { HiringStep } from "@/types/hiringStep";
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground" role="alert">
-          {message}
-        </p>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 // Owns everything about listing/creating/editing/reordering/deleting the
 // stages of ONE Job. Deliberately separate from HiringPipelinePage (which

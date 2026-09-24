@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { JobStatusBadge } from "@/components/jobs/JobStatusBadge";
 import { BulkMoveApplicationsDialog } from "@/components/hiringPipeline/BulkMoveApplicationsDialog";
 import { HiringPipelineBoardEmptyState } from "@/components/hiringPipeline/HiringPipelineBoardEmptyState";
@@ -29,21 +28,6 @@ interface ScheduleTarget {
   stepName: string;
 }
 
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground" role="alert">
-          {message}
-        </p>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Try Again
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 function BoardSkeleton() {
   return (
@@ -109,7 +93,7 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
   }
 
   if (error) {
-    return <InlineError message={error} onRetry={refetch} />;
+    return <InlineError message={error} onRetry={refetch} retryLabel="Try Again" />;
   }
 
   if (!board) {

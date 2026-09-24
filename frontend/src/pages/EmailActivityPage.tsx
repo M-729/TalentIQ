@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { EmailActivityFilterBar } from "@/components/emailActivity/EmailActivityFilterBar";
 import { EmailActivityTable } from "@/components/emailActivity/EmailActivityTable";
 import { useEmailActivityList } from "@/hooks/useEmailActivityList";
@@ -13,23 +14,6 @@ import type { EmailActivityRow, EmailActivityStatus, EmailActivityType } from "@
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load email activity</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 function EmptyState({ filtered, onClearFilters }: { filtered: boolean; onClearFilters: () => void }) {
   return (
@@ -126,7 +110,7 @@ export function EmailActivityPage() {
           ))}
         </div>
       ) : error ? (
-        <InlineError message={error} onRetry={refetch} />
+        <InlineError title="Couldn't load email activity" message={error} onRetry={refetch} />
       ) : emails && emails.length > 0 ? (
         <>
           <EmailActivityTable rows={emails} onRetry={(row) => void handleRetry(row)} retryingRowId={retryingRowId} />

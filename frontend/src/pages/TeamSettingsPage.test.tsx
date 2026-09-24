@@ -96,7 +96,10 @@ describe("TeamSettingsPage", () => {
   it("10. renders pending invitations", async () => {
     renderPage();
     expect(await screen.findByText("john@acme.test")).toBeInTheDocument();
-    expect(screen.getByText("Email: Sent")).toBeInTheDocument();
+    // "Email: Sent" is now split across a text node and a Badge (see
+    // PendingInvitationsTable.tsx's F2 fix) — RTL can't string-match text
+    // split by elements, hence the function matcher against the cell.
+    expect(screen.getByText((_, node) => node?.tagName === "TD" && node.textContent === "Email: Sent")).toBeInTheDocument();
   });
 
   // 11. invite dialog works / 12. email validation
@@ -130,7 +133,7 @@ describe("TeamSettingsPage", () => {
     vi.mocked(teamApi.resendTeamInvitation).mockResolvedValue({ invitation: buildInvitation({ email_status: "sent" }) });
     renderPage();
 
-    await screen.findByText("Email: Failed");
+    await screen.findByText((_, node) => node?.tagName === "TD" && node.textContent === "Email: Failed");
     await userEvent.click(screen.getByRole("button", { name: "Retry Email" }));
 
     await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1"));
@@ -141,7 +144,7 @@ describe("TeamSettingsPage", () => {
     vi.mocked(teamApi.resendTeamInvitation).mockResolvedValue({ invitation: buildInvitation() });
     renderPage();
 
-    await screen.findByText("Email: Sent");
+    await screen.findByText((_, node) => node?.tagName === "TD" && node.textContent === "Email: Sent");
     await userEvent.click(screen.getByRole("button", { name: "Resend" }));
 
     await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1"));

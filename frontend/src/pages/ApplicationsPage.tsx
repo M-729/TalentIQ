@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
+import { InlineError } from "@/components/ui/inline-error";
 import { ApplicationsEmptyState } from "@/components/applications/ApplicationsEmptyState";
 import { ApplicationsFilterBar } from "@/components/applications/ApplicationsFilterBar";
 import { ApplicationsTable } from "@/components/applications/ApplicationsTable";
@@ -14,23 +12,6 @@ import type { ApplicationStatus } from "@/types/application";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load applications</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 export function ApplicationsPage() {
   const [searchInput, setSearchInput] = useState("");
@@ -90,7 +71,7 @@ export function ApplicationsPage() {
           ))}
         </div>
       ) : applications.error ? (
-        <InlineError message={applications.error} onRetry={applications.refetch} />
+        <InlineError title="Couldn't load applications" message={applications.error} onRetry={applications.refetch} />
       ) : applications.applications && applications.applications.length > 0 ? (
         <>
           <ApplicationsTable applications={applications.applications} />

@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { InterviewsEmptyState } from "@/components/interviews/InterviewsEmptyState";
 import { InterviewsFilterBar } from "@/components/interviews/InterviewsFilterBar";
 import { InterviewsTable } from "@/components/interviews/InterviewsTable";
@@ -12,23 +10,6 @@ import { useJobs } from "@/hooks/useJobs";
 import type { InterviewStatus } from "@/types/interview";
 
 const PAGE_SIZE = 20;
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load interviews</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 // Real, company-scoped interview management — never mock data. Tenant
 // scope and cross-company access are enforced entirely server-side (see
@@ -86,7 +67,7 @@ export function InterviewsPage() {
           ))}
         </div>
       ) : error ? (
-        <InlineError message={error} onRetry={refetch} />
+        <InlineError title="Couldn't load interviews" message={error} onRetry={refetch} />
       ) : interviews && interviews.length > 0 ? (
         <>
           <InterviewsTable interviews={interviews} />

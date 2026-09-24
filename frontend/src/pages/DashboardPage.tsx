@@ -1,5 +1,4 @@
 import {
-  AlertCircle,
   Briefcase,
   CalendarClock,
   FileSignature,
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
 import { formatDateTime } from "@/lib/formatDate";
@@ -37,22 +37,6 @@ function stageLabel(row: DashboardApplicationRow): string {
   return "New Applicant";
 }
 
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load your dashboard</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 function EmptyCompanyState() {
   return (
@@ -248,7 +232,7 @@ export function DashboardPage() {
           ))}
         </div>
       ) : error ? (
-        <InlineError message={error} onRetry={refetch} />
+        <InlineError title="Couldn't load your dashboard" message={error} onRetry={refetch} />
       ) : !dashboard ? null : isEmptyCompany ? (
         <EmptyCompanyState />
       ) : (

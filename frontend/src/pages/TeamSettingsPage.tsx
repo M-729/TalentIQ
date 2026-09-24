@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Mail } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InviteTeamMemberDialog } from "@/components/settings/InviteTeamMemberDialog";
 import { PendingInvitationsTable } from "@/components/settings/PendingInvitationsTable";
@@ -65,7 +67,7 @@ export function TeamSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Team Members</h1>
@@ -91,7 +93,12 @@ export function TeamSettingsPage() {
         {isLoadingInvitations || !invitations ? (
           <Skeleton className="h-32 w-full" />
         ) : invitations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No invitations yet.</p>
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+              <Mail className="size-8 text-muted-foreground" aria-hidden="true" />
+              <p className="text-sm text-muted-foreground">No invitations yet.</p>
+            </CardContent>
+          </Card>
         ) : (
           <PendingInvitationsTable invitations={invitations} onResend={(inv) => void handleResend(inv)} onRevoke={setRevokeTarget} />
         )}

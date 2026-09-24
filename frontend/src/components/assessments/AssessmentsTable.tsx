@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PipelineStageBadge } from "@/components/applications/PipelineStageBadge";
+import { EMAIL_DELIVERY_STATUS_VARIANT } from "@/lib/emailDeliveryStatus";
 import { formatDateTime } from "@/lib/formatDate";
 import type { AssessmentListRow, ApplicationAssessmentStatus, AssessmentEmailStatus } from "@/types/applicationAssessment";
 
@@ -13,9 +14,9 @@ const RESULT_CONFIG: Record<ApplicationAssessmentStatus, { label: string; varian
 };
 
 const EMAIL_CONFIG: Record<AssessmentEmailStatus, { label: string; variant: "neutral" | "warning" | "destructive" | "success" }> = {
-  sent: { label: "Sent", variant: "success" },
-  failed: { label: "Failed", variant: "destructive" },
-  pending: { label: "Sending…", variant: "warning" },
+  sent: { label: "Sent", variant: EMAIL_DELIVERY_STATUS_VARIANT.sent },
+  failed: { label: "Failed", variant: EMAIL_DELIVERY_STATUS_VARIANT.failed },
+  pending: { label: "Sending…", variant: EMAIL_DELIVERY_STATUS_VARIANT.pending },
 };
 
 // Professional, compact SaaS density — a plain table, matching

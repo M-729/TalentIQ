@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EMAIL_DELIVERY_STATUS_VARIANT } from "@/lib/emailDeliveryStatus";
 import { formatDateTime } from "@/lib/formatDate";
 import type { EmailActivityRow, EmailActivityStatus } from "@/types/emailActivity";
 
 const STATUS_CONFIG: Record<EmailActivityStatus, { label: string; variant: "neutral" | "success" | "destructive" | "warning" }> = {
-  pending: { label: "Pending", variant: "neutral" },
-  sent: { label: "Sent", variant: "success" },
-  failed: { label: "Failed", variant: "destructive" },
+  pending: { label: "Pending", variant: EMAIL_DELIVERY_STATUS_VARIANT.pending },
+  sent: { label: "Sent", variant: EMAIL_DELIVERY_STATUS_VARIANT.sent },
+  failed: { label: "Failed", variant: EMAIL_DELIVERY_STATUS_VARIANT.failed },
 };
 
 /** Where "View related record" navigates — the closest useful detail page this HR user can already reach, never a raw email viewer (see this ticket's explicit "operational history, not an email viewer" rule). */

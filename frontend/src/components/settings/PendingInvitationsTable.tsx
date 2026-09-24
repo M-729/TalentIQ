@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EMAIL_DELIVERY_STATUS_VARIANT } from "@/lib/emailDeliveryStatus";
 import type { TeamInvitation } from "@/types/team";
 
 const ROLE_LABELS: Record<string, string> = { ADMIN: "Admin", HR: "HR" };
@@ -76,7 +77,7 @@ export function PendingInvitationsTable({ invitations, onResend, onRevoke }: Pen
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(invitation.created_at)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(invitation.expires_at)}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    Email: {emailStatusLabel(invitation)}
+                    Email: <Badge variant={EMAIL_DELIVERY_STATUS_VARIANT[invitation.email_status]}>{emailStatusLabel(invitation)}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
                     {isActionable && (

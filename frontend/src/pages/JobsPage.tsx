@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { AlertCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { JobsEmptyState } from "@/components/jobs/JobsEmptyState";
 import { JobsStats } from "@/components/jobs/JobsStats";
 import { JobsTable } from "@/components/jobs/JobsTable";
@@ -19,23 +19,6 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "draft", label: "Draft" },
   { value: "closed", label: "Closed" },
 ];
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load jobs</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 export function JobsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -69,7 +52,7 @@ export function JobsPage() {
           ))}
         </div>
       ) : stats.error ? (
-        <InlineError message={stats.error} onRetry={stats.refetch} />
+        <InlineError title="Couldn't load jobs" message={stats.error} onRetry={stats.refetch} />
       ) : (
         <JobsStats jobs={stats.jobs ?? []} />
       )}
@@ -113,7 +96,7 @@ export function JobsPage() {
           ))}
         </div>
       ) : table.error ? (
-        <InlineError message={table.error} onRetry={table.refetch} />
+        <InlineError title="Couldn't load jobs" message={table.error} onRetry={table.refetch} />
       ) : table.jobs && table.jobs.length > 0 ? (
         <JobsTable jobs={table.jobs} />
       ) : (

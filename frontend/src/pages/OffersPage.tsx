@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, FileSignature } from "lucide-react";
+import { FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InlineError } from "@/components/ui/inline-error";
 import { OffersFilterBar } from "@/components/offers/OffersFilterBar";
 import { OffersTable } from "@/components/offers/OffersTable";
 import { useOffersList } from "@/hooks/useOffersList";
@@ -13,23 +14,6 @@ import type { OfferStatus } from "@/types/offer";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
-
-function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-        <div>
-          <p className="font-medium text-foreground">Couldn't load offers</p>
-          <p className="text-sm text-muted-foreground">{message}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 function EmptyState({ filtered, onClearFilters }: { filtered: boolean; onClearFilters: () => void }) {
   return (
@@ -108,7 +92,7 @@ export function OffersPage() {
           ))}
         </div>
       ) : error ? (
-        <InlineError message={error} onRetry={refetch} />
+        <InlineError title="Couldn't load offers" message={error} onRetry={refetch} />
       ) : offers && offers.length > 0 ? (
         <>
           <OffersTable offers={offers} />
