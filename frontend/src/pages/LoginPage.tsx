@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconInput } from "@/components/ui/icon-input";
 import { Label } from "@/components/ui/label";
+import { BrandMark } from "@/components/layout/BrandMark";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/services/api/client";
 
@@ -42,9 +43,8 @@ export function LoginPage() {
     <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         <h1 className="sr-only">Sign in to TalentIQ</h1>
-        <div className="flex items-center justify-center gap-2">
-          <span className="inline-block size-6 rotate-45 rounded-[7px] bg-primary" aria-hidden="true" />
-          <span className="text-xl font-semibold tracking-tight text-foreground">TalentIQ</span>
+        <div className="flex items-center justify-center">
+          <BrandMark to="/" />
         </div>
 
         <Card>

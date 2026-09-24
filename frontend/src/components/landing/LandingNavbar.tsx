@@ -43,7 +43,7 @@ export function LandingNavbar() {
             to="/login"
             className="rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            Recruiter Login
+            Recruiter login
           </Link>
           <Button asChild size="sm">
             <Link to="/signup">Start Free</Link>
@@ -83,7 +83,7 @@ export function LandingNavbar() {
               onClick={() => setIsMobileMenuOpen(false)}
               className="rounded-md px-2 py-2 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Recruiter Login
+              Recruiter login
             </Link>
             <Button asChild size="sm" onClick={() => setIsMobileMenuOpen(false)}>
               <Link to="/signup">Start Free</Link>

@@ -28,10 +28,12 @@ describe("LandingPage", () => {
     startFreeLinks.forEach((link) => expect(link).toHaveAttribute("href", "/signup"));
   });
 
-  // 3. Recruiter Login -> /login
-  it("3. Recruiter Login links to /login", () => {
+  // 3. Recruiter login -> /login
+  it("3. Recruiter login links to /login", () => {
     renderPage();
-    const links = screen.getAllByRole("link", { name: "Recruiter Login" });
+    // Casing normalized to match PublicHeader's "Recruiter login" elsewhere
+    // in the public site.
+    const links = screen.getAllByRole("link", { name: "Recruiter login" });
     expect(links.length).toBeGreaterThan(0);
     links.forEach((link) => expect(link).toHaveAttribute("href", "/login"));
   });

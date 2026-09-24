@@ -129,7 +129,7 @@ describe("ApplyPage (public application form)", () => {
     await screen.findByRole("link", { name: "Back to job details" });
     expect(screen.getByLabelText(/Full Name/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Submit Application" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit application" })).toBeInTheDocument();
   });
 
   it("shows a candidate-friendly unavailable state for a job that is not found/closed", async () => {
