@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { GoogleCalendarIntegrationCard } from "@/components/settings/GoogleCalendarIntegrationCard";
 
 // Handles the backend OAuth callback's redirect
@@ -36,11 +37,8 @@ export function IntegrationsSettingsPage() {
   }, [searchParams, setSearchParams]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Integrations</h1>
-        <p className="text-sm text-muted-foreground">Connect external tools to your hiring workflow.</p>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-5">
+      <PageHeader title="Integrations" description="Connect external tools to your hiring workflow." />
 
       {banner === "connected" && (
         <div className="flex items-start gap-2 rounded-md border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ApplicationsByJobChart } from "@/components/analytics/ApplicationsByJobChart";
 import { ApplicationsOverTimeChart } from "@/components/analytics/ApplicationsOverTimeChart";
 import { OfferOutcomesChart } from "@/components/analytics/OfferOutcomesChart";
@@ -65,11 +66,8 @@ export function HiringAnalyticsPage() {
     Object.values(analytics.pipeline_distribution).every((count) => count === 0);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Hiring Analytics</h1>
-        <p className="text-sm text-muted-foreground">Understand your recruitment activity and outcomes.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Hiring Analytics" description="Understand your recruitment activity and outcomes." />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="sm:w-52">

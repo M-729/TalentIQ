@@ -13,7 +13,10 @@ export function Topbar({ onMenuClick, mobileNavOpen }: { onMenuClick: () => void
   const { user, logout } = useAuth();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
+    // justify-between (mobile: toggle left, identity right) collapses to
+    // justify-end at md+, once the toggle button itself is hidden — no
+    // empty spacer element needed to hold its place.
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 sm:px-6 md:justify-end">
       <Button
         variant="ghost"
         size="icon"
@@ -25,8 +28,6 @@ export function Topbar({ onMenuClick, mobileNavOpen }: { onMenuClick: () => void
       >
         <Menu className="size-5" aria-hidden="true" />
       </Button>
-
-      <div className="hidden md:block" />
 
       <div className="flex items-center gap-3">
         {user && (

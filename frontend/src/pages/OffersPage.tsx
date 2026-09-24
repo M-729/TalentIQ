@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { OffersFilterBar } from "@/components/offers/OffersFilterBar";
 import { OffersTable } from "@/components/offers/OffersTable";
 import { useOffersList } from "@/hooks/useOffersList";
@@ -69,11 +70,8 @@ export function OffersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Offers</h1>
-        <p className="text-sm text-muted-foreground">Offers extended to candidates across your hiring pipelines.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Offers" description="Offers extended to candidates across your hiring pipelines." />
 
       <OffersFilterBar
         searchInput={searchInput}

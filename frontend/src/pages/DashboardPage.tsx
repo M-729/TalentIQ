@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
 import { formatDateTime } from "@/lib/formatDate";
@@ -217,13 +218,8 @@ export function DashboardPage() {
     dashboard.upcoming_interviews.length === 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Welcome{user ? `, ${user.name}` : ""}
-        </h1>
-        <p className="text-sm text-muted-foreground">Overview of your hiring activity.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title={`Welcome${user ? `, ${user.name}` : ""}`} description="Overview of your hiring activity." />
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

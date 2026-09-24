@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { EmailActivityFilterBar } from "@/components/emailActivity/EmailActivityFilterBar";
 import { EmailActivityTable } from "@/components/emailActivity/EmailActivityTable";
 import { useEmailActivityList } from "@/hooks/useEmailActivityList";
@@ -79,13 +80,11 @@ export function EmailActivityPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Email Activity</h1>
-        <p className="text-sm text-muted-foreground">
-          Transactional email history for applications, interviews, assessments, offers, and invitations.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Email Activity"
+        description="Transactional email history for applications, interviews, assessments, offers, and invitations."
+      />
 
       <EmailActivityFilterBar
         searchInput={searchInput}

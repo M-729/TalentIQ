@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { HiringPipelineBoard } from "@/components/hiringPipeline/HiringPipelineBoard";
 import { HiringPipelineJobSelect } from "@/components/hiringPipeline/HiringPipelineJobSelect";
 import { HiringPipelineWorkspaceTabs, type HiringPipelineWorkspaceTab } from "@/components/hiringPipeline/HiringPipelineWorkspaceTabs";
@@ -69,13 +70,8 @@ export function HiringPipelinePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Hiring Pipeline</h1>
-        <p className="text-sm text-muted-foreground">
-          Configure stages and manage applicants through each job's hiring process.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Hiring Pipeline" description="Configure stages and manage applicants through each job's hiring process." />
 
       <HiringPipelineJobSelect
         value={selectedJobId}

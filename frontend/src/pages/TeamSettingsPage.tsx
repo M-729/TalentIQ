@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { InviteTeamMemberDialog } from "@/components/settings/InviteTeamMemberDialog";
 import { PendingInvitationsTable } from "@/components/settings/PendingInvitationsTable";
 import { TeamActionConfirmDialog } from "@/components/settings/TeamActionConfirmDialog";
@@ -67,14 +68,12 @@ export function TeamSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Team Members</h1>
-          <p className="text-sm text-muted-foreground">Manage the people who can access your TalentIQ workspace.</p>
-        </div>
-        <Button onClick={() => setIsInviteOpen(true)}>Invite team member</Button>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-5">
+      <PageHeader
+        title="Team Members"
+        description="Manage the people who can access your TalentIQ workspace."
+        action={<Button onClick={() => setIsInviteOpen(true)}>Invite team member</Button>}
+      />
 
       <section className="space-y-3">
         {isLoadingMembers || !members ? (

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { JobsEmptyState } from "@/components/jobs/JobsEmptyState";
 import { JobsStats } from "@/components/jobs/JobsStats";
 import { JobsTable } from "@/components/jobs/JobsTable";
@@ -31,19 +32,19 @@ export function JobsPage() {
   const table = useJobs(statusFilter === "all" ? undefined : statusFilter);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Jobs</h1>
-          <p className="text-sm text-muted-foreground">Manage and monitor your company's open positions.</p>
-        </div>
-        <Button asChild>
-          <Link to="/jobs/new">
-            <Plus className="size-4" aria-hidden="true" />
-            Create Job
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Jobs"
+        description="Manage and monitor your company's open positions."
+        action={
+          <Button asChild>
+            <Link to="/jobs/new">
+              <Plus className="size-4" aria-hidden="true" />
+              Create Job
+            </Link>
+          </Button>
+        }
+      />
 
       {stats.isLoading ? (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

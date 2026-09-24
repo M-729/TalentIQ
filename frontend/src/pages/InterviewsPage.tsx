@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { InterviewsEmptyState } from "@/components/interviews/InterviewsEmptyState";
 import { InterviewsFilterBar } from "@/components/interviews/InterviewsFilterBar";
 import { InterviewsTable } from "@/components/interviews/InterviewsTable";
@@ -44,11 +45,8 @@ export function InterviewsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Interviews</h1>
-        <p className="text-sm text-muted-foreground">Every interview scheduled across your hiring pipelines.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Interviews" description="Every interview scheduled across your hiring pipelines." />
 
       <InterviewsFilterBar
         status={status}

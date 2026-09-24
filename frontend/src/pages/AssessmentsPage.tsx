@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { AssessmentsFilterBar } from "@/components/assessments/AssessmentsFilterBar";
 import { AssessmentsTable } from "@/components/assessments/AssessmentsTable";
 import { useApplicationAssessmentsList } from "@/hooks/useApplicationAssessmentsList";
@@ -69,11 +70,8 @@ export function AssessmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Assessments</h1>
-        <p className="text-sm text-muted-foreground">External assessments sent to candidates across your hiring pipelines.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Assessments" description="External assessments sent to candidates across your hiring pipelines." />
 
       <AssessmentsFilterBar
         searchInput={searchInput}

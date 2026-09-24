@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
 import { InlineError } from "@/components/ui/inline-error";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ApplicationsEmptyState } from "@/components/applications/ApplicationsEmptyState";
 import { ApplicationsFilterBar } from "@/components/applications/ApplicationsFilterBar";
 import { ApplicationsTable } from "@/components/applications/ApplicationsTable";
@@ -48,11 +49,8 @@ export function ApplicationsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Applications</h1>
-        <p className="text-sm text-muted-foreground">Review and manage candidates who have applied to your open positions.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Applications" description="Review and manage candidates who have applied to your open positions." />
 
       <ApplicationsFilterBar
         searchInput={searchInput}

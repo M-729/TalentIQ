@@ -142,4 +142,18 @@ describe("Sidebar navigation", () => {
     renderSidebarAt("/analytics");
     expect(screen.getByRole("link", { name: "Analytics" })).toHaveClass("bg-sidebar-accent");
   });
+
+  // Phase 4 shell redesign — active state must be more than color alone.
+  it("marks the active link with aria-current, and no other link", () => {
+    renderSidebarAt("/offers");
+    expect(screen.getByRole("link", { name: "Offers" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Jobs" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Applications" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("gives the active link a non-color indicator (left border) in addition to its background", () => {
+    renderSidebarAt("/offers");
+    expect(screen.getByRole("link", { name: "Offers" })).toHaveClass("border-primary");
+    expect(screen.getByRole("link", { name: "Jobs" })).not.toHaveClass("border-primary");
+  });
 });
