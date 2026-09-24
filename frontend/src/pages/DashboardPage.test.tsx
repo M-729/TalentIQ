@@ -109,6 +109,34 @@ describe("DashboardPage", () => {
     const interviewsSection = screen.getByText("Upcoming Interviews").closest("div")!.parentElement!;
     expect(interviewsSection).toBeTruthy();
     expect(screen.getAllByText("Sarah Ahmed").length).toBeGreaterThan(0);
+    expect(screen.getByText("Scheduled")).toBeInTheDocument();
+  });
+
+  // dashboard.service.ts's own query is status: "scheduled", so this is
+  // "scheduled" in production today — but the row itself carries a real
+  // status field (not a hardcoded label), so the badge must reflect
+  // whatever value the API actually returns, reusing the same
+  // Scheduled/Completed/Cancelled semantics as the Interview detail pages.
+  it("renders the interview row's real status rather than a hardcoded label", () => {
+    mockDashboard({
+      dashboard: buildDashboard({
+        upcoming_interviews: [
+          {
+            id: "iv-1",
+            application_id: "app-1",
+            candidate: { id: "cand-1", name: "Sarah Ahmed" },
+            job: { id: "job-1", title: "Backend Developer" },
+            starts_at: "2026-10-01T10:00:00.000Z",
+            timezone: "UTC",
+            status: "completed",
+          },
+        ],
+      }),
+    });
+    renderPage();
+
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.queryByText("Scheduled")).not.toBeInTheDocument();
   });
 
   // 15. attention states render

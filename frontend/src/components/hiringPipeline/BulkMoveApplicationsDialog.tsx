@@ -12,6 +12,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useBulkMoveApplications } from "@/hooks/useBulkMoveApplications";
+import { MAX_BULK_MOVE_APPLICATIONS } from "@/lib/hiringPipelineLimits";
 
 export interface BulkMoveTargetStage {
   id: string;
@@ -69,6 +70,12 @@ export function BulkMoveApplicationsDialog({
   const { run, isMoving, error, clearError } = useBulkMoveApplications();
   const [targetStepId, setTargetStepId] = useState("");
 
+  // Backend rejects a batch of 101+ with a 400 before ever touching the
+  // eligibility/transaction logic — this check exists purely to warn and
+  // block submission before that doomed request is sent, not to change or
+  // second-guess the backend's own enforcement.
+  const exceedsMaxSelection = selectedApplications.length > MAX_BULK_MOVE_APPLICATIONS;
+
   const targetStages = availableStages.filter(
     (stage) => !selectedApplications.every((application) => application.currentStepId === stage.id)
   );
@@ -86,7 +93,7 @@ export function BulkMoveApplicationsDialog({
   }
 
   async function handleSubmit() {
-    if (!targetStepId || !selectedStage || blockedByMixedTarget) return;
+    if (!targetStepId || !selectedStage || blockedByMixedTarget || exceedsMaxSelection) return;
 
     const succeeded = await run(jobId, {
       application_ids: selectedApplications.map((application) => application.id),
@@ -125,13 +132,24 @@ export function BulkMoveApplicationsDialog({
             </div>
           )}
 
+          {exceedsMaxSelection && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <p role="alert">
+                Up to {MAX_BULK_MOVE_APPLICATIONS} candidates can be moved at once. Deselect{" "}
+                {selectedApplications.length - MAX_BULK_MOVE_APPLICATIONS} candidate
+                {selectedApplications.length - MAX_BULK_MOVE_APPLICATIONS === 1 ? "" : "s"} to continue.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="bulk-move-target-stage">Destination</Label>
             <Select
               id="bulk-move-target-stage"
               value={targetStepId}
               onChange={(e) => setTargetStepId(e.target.value)}
-              disabled={isMoving}
+              disabled={isMoving || exceedsMaxSelection}
             >
               <option value="">Select a stage…</option>
               {targetStages.map((stage) => (
@@ -142,7 +160,7 @@ export function BulkMoveApplicationsDialog({
             </Select>
           </div>
 
-          {selectedStage && !blockedByMixedTarget && (
+          {selectedStage && !blockedByMixedTarget && !exceedsMaxSelection && (
             <p className="text-sm text-muted-foreground">
               Move {selectedApplications.length} candidates to "{selectedStage.name}"? {consequenceCopyFor(selectedStage.type)}
             </p>
@@ -165,7 +183,7 @@ export function BulkMoveApplicationsDialog({
             <Button
               type="button"
               onClick={() => void handleSubmit()}
-              disabled={isMoving || !targetStepId || blockedByMixedTarget}
+              disabled={isMoving || !targetStepId || blockedByMixedTarget || exceedsMaxSelection}
             >
               {isMoving ? "Moving…" : "Move Candidates"}
             </Button>

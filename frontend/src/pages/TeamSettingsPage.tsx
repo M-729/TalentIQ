@@ -84,6 +84,7 @@ export function TeamSettingsPage() {
         ) : (
           <TeamMembersTable
             members={members}
+            currentUserId={user?.id ?? ""}
             onDeactivate={(member) => setMemberDialog({ kind: "deactivate", member })}
             onReactivate={(member) => setMemberDialog({ kind: "reactivate", member })}
           />

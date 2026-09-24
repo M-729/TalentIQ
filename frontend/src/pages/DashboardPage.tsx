@@ -12,10 +12,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { InterviewStatusBadge } from "@/components/interviews/InterviewStatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
 import { formatDateTime } from "@/lib/formatDate";
+import { INTERVIEW_STATUSES, type InterviewStatus } from "@/types/interview";
 import type { Dashboard, DashboardApplicationRow, DashboardInterviewRow } from "@/types/dashboard";
+
+// dashboard.service.ts's own query is `status: "scheduled"` at read time, so
+// row.status is provably always "scheduled" today — but the DTO types it as
+// a plain string, not the InterviewStatus union, so this stays a real
+// runtime check rather than a cast, and falls back to the raw value instead
+// of crashing if that query is ever relaxed server-side.
+function isKnownInterviewStatus(status: string): status is InterviewStatus {
+  return (INTERVIEW_STATUSES as readonly string[]).includes(status);
+}
 
 const KPI_CARDS: { key: keyof Dashboard["metrics"]; label: string; icon: typeof Briefcase }[] = [
   { key: "open_jobs", label: "Open Jobs", icon: Briefcase },
@@ -147,7 +158,11 @@ function UpcomingInterviewsCard({ rows }: { rows: DashboardInterviewRow[] }) {
                     <td className="px-4 py-2.5 text-muted-foreground">{row.job.title}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(row.starts_at)}</td>
                     <td className="px-4 py-2.5">
-                      <Badge variant="warning">Scheduled</Badge>
+                      {isKnownInterviewStatus(row.status) ? (
+                        <InterviewStatusBadge status={row.status} />
+                      ) : (
+                        <Badge variant="neutral">{row.status}</Badge>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 pr-6 text-right">
                       <Button variant="outline" size="sm" asChild>

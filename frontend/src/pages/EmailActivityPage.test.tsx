@@ -163,6 +163,43 @@ describe("EmailActivityPage", () => {
     expect(link).toHaveAttribute("href", "/settings/team");
   });
 
+  // Backend confirms every EmailNotification-sourced row (including
+  // offer_sent and assessment_invitation) is application-scoped and always
+  // carries related_application_id, and no dedicated /offers/:id or
+  // /assessments/:id frontend route exists — so relatedLinkFor's existing
+  // fallback to related_application_id is already the correct destination
+  // for these categories, not a gap. These pin that down as a regression
+  // test rather than leaving it as an unverified assumption.
+  it("links an offer_sent row's View to the related Application, not a nonexistent offer route", async () => {
+    mockList([
+      buildRow({
+        type: "offer_sent",
+        type_label: "Offer Sent",
+        related_application_id: "app-1",
+        related_offer_id: "offer-1",
+      }),
+    ]);
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: "View" });
+    expect(link).toHaveAttribute("href", "/applications/app-1");
+  });
+
+  it("links an assessment_invitation row's View to the related Application, not a nonexistent assessment route", async () => {
+    mockList([
+      buildRow({
+        type: "assessment_invitation",
+        type_label: "Assessment Invitation",
+        related_application_id: "app-1",
+        related_assessment_id: "assessment-1",
+      }),
+    ]);
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: "View" });
+    expect(link).toHaveAttribute("href", "/applications/app-1");
+  });
+
   // 37. empty/loading/error states
   it("37. shows the empty state when there is no email activity", async () => {
     mockList([]);

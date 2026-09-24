@@ -198,4 +198,27 @@ describe("TeamSettingsPage", () => {
 
     await waitFor(() => expect(teamApi.reactivateTeamMember).toHaveBeenCalledWith("member-1"));
   });
+
+  // Backend's member.service.ts rejects self-deactivation as a standalone
+  // 409 rule, independent of role — these pin the frontend's own explicit
+  // id comparison (not just the existing role==="HR" gate, which only
+  // happens to work today because there's exactly one ADMIN per company).
+  describe("self-deactivation", () => {
+    it("never shows Deactivate on the signed-in user's own row, even if it were an HR row", async () => {
+      vi.mocked(teamApi.listTeamMembers).mockResolvedValue({
+        members: [buildMember({ id: "admin-1", name: "Mohamad Ali", role: "HR", status: "active" }), buildMember()],
+      });
+      renderPage();
+
+      await screen.findByText("Sara Ahmad");
+      // Only Sara Ahmad's row gets a Deactivate button; the viewer's own
+      // row (admin-1, matching mockAuthUser's id) never does.
+      expect(screen.getAllByRole("button", { name: "Deactivate" })).toHaveLength(1);
+    });
+
+    it("still shows Deactivate for other HR members", async () => {
+      renderPage();
+      expect(await screen.findByRole("button", { name: "Deactivate" })).toBeInTheDocument();
+    });
+  });
 });

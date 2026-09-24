@@ -1215,6 +1215,80 @@ describe("HiringPipelineBoard", () => {
       expect(await screen.findByText(/already in/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Move Candidates" })).toBeDisabled();
     });
+
+    // Backend's own bulk-move zod schema is `.max(100)` — 100 is allowed,
+    // 101 is the first count it rejects with a 400. These three cases pin
+    // that exact boundary on the frontend's pre-emptive warning/blocking.
+    describe("100-candidate bulk-move limit", () => {
+      function buildManyCandidates(count: number): HiringPipelineApplicationCard[] {
+        return Array.from({ length: count }, (_, i) =>
+          buildHiringPipelineApplicationCard({
+            id: `a${i + 1}`,
+            candidate: { id: `c${i + 1}`, full_name: `Candidate ${i + 1}`, email: `candidate${i + 1}@example.test` },
+          })
+        );
+      }
+
+      async function selectAllAndOpenBulkDialog(count: number) {
+        vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+          buildHiringPipelineBoard({
+            stages: [
+              buildHiringPipelineBoardColumn({ id: "step-review", name: "Application Review", count, applications: buildManyCandidates(count) }),
+              buildHiringPipelineBoardColumn({ id: "step-interview", name: "Technical Interview", type: "interview", position: 1 }),
+            ],
+          })
+        );
+        renderBoard();
+        await screen.findByRole("heading", { name: "Application Review" });
+        await userEvent.click(screen.getByRole("checkbox", { name: "Select all in Application Review" }));
+        await userEvent.click(screen.getByRole("button", { name: "Move selected" }));
+        await screen.findByRole("heading", { name: `Move ${count} candidates` });
+      }
+
+      it("99 candidates: no warning, selecting a destination and moving remains available", async () => {
+        await selectAllAndOpenBulkDialog(99);
+
+        expect(screen.queryByText(/max 100/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Deselect/)).not.toBeInTheDocument();
+        expect(screen.getByLabelText("Destination")).not.toBeDisabled();
+
+        await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+        expect(screen.getByRole("button", { name: "Move Candidates" })).not.toBeDisabled();
+      });
+
+      it("100 candidates (the exact backend limit): still no warning, still allowed", async () => {
+        await selectAllAndOpenBulkDialog(100);
+
+        expect(screen.queryByText(/max 100/)).not.toBeInTheDocument();
+        expect(screen.getByLabelText("Destination")).not.toBeDisabled();
+
+        await userEvent.selectOptions(screen.getByLabelText("Destination"), "Technical Interview (Type: interview)");
+        expect(screen.getByRole("button", { name: "Move Candidates" })).not.toBeDisabled();
+      });
+
+      it("101 candidates: warns and blocks submission before any request is sent", async () => {
+        await selectAllAndOpenBulkDialog(101);
+
+        expect(await screen.findByText(/Up to 100 candidates can be moved at once/)).toBeInTheDocument();
+        expect(screen.getByText(/Deselect 1 candidate to continue/)).toBeInTheDocument();
+        expect(screen.getByLabelText("Destination")).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Move Candidates" })).toBeDisabled();
+        expect(hiringPipelineBoardApi.bulkMoveApplications).not.toHaveBeenCalled();
+      });
+
+      it("101 candidates: the selection toolbar itself already shows the limit before the dialog is even opened", async () => {
+        vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
+          buildHiringPipelineBoard({
+            stages: [buildHiringPipelineBoardColumn({ id: "step-review", name: "Application Review", count: 101, applications: buildManyCandidates(101) })],
+          })
+        );
+        renderBoard();
+        await screen.findByRole("heading", { name: "Application Review" });
+        await userEvent.click(screen.getByRole("checkbox", { name: "Select all in Application Review" }));
+
+        expect(await screen.findByText(/max 100 per move/)).toBeInTheDocument();
+      });
+    });
   });
 
   // ===== BULK MOVE PENDING / DOUBLE-SUBMIT =====

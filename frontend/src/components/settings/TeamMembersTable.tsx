@@ -14,6 +14,8 @@ const ROLE_LABELS: Record<string, string> = { ADMIN: "Admin", HR: "HR" };
 
 export interface TeamMembersTableProps {
   members: TeamMember[];
+  /** The signed-in viewer's own id — backend/member.service.ts rejects self-deactivation as a standalone rule (409 "You cannot deactivate your own account."), independent of role, so this hides the action on the viewer's own row rather than letting them hit that error. */
+  currentUserId: string;
   onDeactivate: (member: TeamMember) => void;
   onReactivate: (member: TeamMember) => void;
 }
@@ -22,7 +24,7 @@ export interface TeamMembersTableProps {
 // OffersTable.tsx/AssessmentsTable.tsx exactly. Only HR rows ever get a
 // Deactivate/Reactivate action — an ADMIN row never does, since this
 // ticket's scope is "Admin can Deactivate/Reactivate HR" only.
-export function TeamMembersTable({ members, onDeactivate, onReactivate }: TeamMembersTableProps) {
+export function TeamMembersTable({ members, currentUserId, onDeactivate, onReactivate }: TeamMembersTableProps) {
   return (
     <Card className="overflow-hidden p-0">
       <div className="overflow-x-auto">
@@ -62,7 +64,7 @@ export function TeamMembersTable({ members, onDeactivate, onReactivate }: TeamMe
                   <Badge variant={STATUS_CONFIG[member.status].variant}>{STATUS_CONFIG[member.status].label}</Badge>
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {member.role === "HR" && member.status === "active" && (
+                  {member.role === "HR" && member.status === "active" && member.id !== currentUserId && (
                     <Button variant="outline" size="sm" onClick={() => onDeactivate(member)}>
                       Deactivate
                     </Button>

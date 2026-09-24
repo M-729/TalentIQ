@@ -158,7 +158,11 @@ describe("ScheduleInterviewDialog", () => {
       const checkbox = screen.getByRole("checkbox", { name: "Add to Google Calendar & create Google Meet" });
       expect(checkbox).toBeInTheDocument();
       expect(checkbox).not.toBeChecked();
-      expect(screen.getByText("Creates a Google Calendar event and Meet link after the interview is scheduled.")).toBeInTheDocument();
+      // findByText (not getByText): this helper text sits in the same
+      // region whose enabled/disabled state depends on a second, separate
+      // fetch (useGoogleCalendarStatus, see the next test's own comment) —
+      // polling here avoids a race against that effect's own re-render.
+      expect(await screen.findByText("Creates a Google Calendar event and Meet link after the interview is scheduled.")).toBeInTheDocument();
     });
 
     // 10. connected/ready -> control enabled

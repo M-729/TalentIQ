@@ -121,7 +121,16 @@ describe("HiringAnalyticsPage", () => {
     renderPage();
     await waitFor(() => expect(hiringAnalyticsApi.getHiringAnalytics).toHaveBeenCalled());
 
-    await userEvent.selectOptions(screen.getByLabelText("Filter by job"), "job-1");
+    // The job dropdown's options come from a separate, independent
+    // listJobs() fetch — waiting only for the analytics call above doesn't
+    // guarantee that fetch has resolved yet, so selecting "job-1" before
+    // its <option> actually exists is a real race (not just slow CI):
+    // under normal speed both promises often resolve close enough
+    // together to mask it, but there's no ordering guarantee between them.
+    const jobFilter = screen.getByLabelText("Filter by job");
+    await within(jobFilter).findByRole("option", { name: "Backend Developer" });
+
+    await userEvent.selectOptions(jobFilter, "job-1");
     await waitFor(() =>
       expect(hiringAnalyticsApi.getHiringAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ jobId: "job-1" }), expect.anything())
     );
