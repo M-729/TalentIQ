@@ -1,12 +1,6 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { CHART_STATUS_COLORS as COLORS } from "@/lib/chartColors";
 import type { OfferOutcomes } from "@/types/hiringAnalytics";
-
-const COLORS: Record<"accepted" | "declined" | "pending" | "withdrawn", string> = {
-  accepted: "#16a34a", // --success
-  declined: "#dc2626", // --destructive
-  pending: "#d97706", // --warning
-  withdrawn: "#98a2b3", // muted, distinct from text muted-foreground so it's not confused with grid/axis chrome
-};
 
 const LABELS: Record<keyof typeof COLORS, string> = {
   accepted: "Accepted",

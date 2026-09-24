@@ -71,8 +71,12 @@ describe("HiringAnalyticsPage", () => {
 
     expect(await screen.findByText("Total Applications")).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("75%")).toBeInTheDocument();
-    expect(screen.getByText("9.5d")).toBeInTheDocument();
+    // The value and unit are now separate DOM nodes (a larger number next
+    // to a smaller/muted unit) for a clearer number hierarchy — RTL can't
+    // string-match text split across elements, hence the function matcher
+    // against the containing element's own full text content.
+    expect(screen.getByText((_, node) => node?.textContent === "75%")).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === "9.5d")).toBeInTheDocument();
   });
 
   it("never shows a misleading 0%/NaN when a rate is null", async () => {

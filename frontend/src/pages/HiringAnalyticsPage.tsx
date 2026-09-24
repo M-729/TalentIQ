@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { FilterBar } from "@/components/layout/FilterBar";
 import { ApplicationsByJobChart } from "@/components/analytics/ApplicationsByJobChart";
 import { ApplicationsOverTimeChart } from "@/components/analytics/ApplicationsOverTimeChart";
 import { OfferOutcomesChart } from "@/components/analytics/OfferOutcomesChart";
@@ -38,12 +39,17 @@ function EmptyCompanyState() {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
     <Card>
       <CardContent className="py-5">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold text-foreground">{value}</p>
+        <p className="mt-1 text-2xl font-semibold text-foreground">
+          {value}
+          {/* Unit rendered smaller/muted than the number itself for a
+              clearer number hierarchy — never shown for "—" (unavailable). */}
+          {unit && value !== "—" && <span className="ml-0.5 text-base font-medium text-muted-foreground">{unit}</span>}
+        </p>
       </CardContent>
     </Card>
   );
@@ -69,7 +75,7 @@ export function HiringAnalyticsPage() {
     <div className="space-y-5">
       <PageHeader title="Hiring Analytics" description="Understand your recruitment activity and outcomes." />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <FilterBar>
         <div className="sm:w-52">
           <label htmlFor="analytics-range" className="sr-only">
             Date range
@@ -95,11 +101,11 @@ export function HiringAnalyticsPage() {
             ))}
           </Select>
         </div>
-      </div>
+      </FilterBar>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
@@ -116,11 +122,13 @@ export function HiringAnalyticsPage() {
             <KpiCard label="Offers Declined" value={String(analytics.kpis.offers_declined)} />
             <KpiCard
               label="Offer Acceptance Rate"
-              value={analytics.kpis.offer_acceptance_rate === null ? "—" : `${analytics.kpis.offer_acceptance_rate}%`}
+              value={analytics.kpis.offer_acceptance_rate === null ? "—" : String(analytics.kpis.offer_acceptance_rate)}
+              unit="%"
             />
             <KpiCard
               label="Avg. Time to Hire"
-              value={analytics.kpis.average_time_to_hire_days === null ? "—" : `${analytics.kpis.average_time_to_hire_days}d`}
+              value={analytics.kpis.average_time_to_hire_days === null ? "—" : String(analytics.kpis.average_time_to_hire_days)}
+              unit="d"
             />
           </div>
 

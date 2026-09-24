@@ -1,9 +1,6 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CHART_AXIS, CHART_GRID, CHART_PRIMARY } from "@/lib/chartColors";
 import type { PipelineDistribution } from "@/types/hiringAnalytics";
-
-const CHART_COLOR = "#5546e8"; // --primary
-const GRID_COLOR = "#e4e7ec"; // --border
-const AXIS_COLOR = "#667085"; // --muted-foreground
 
 const PIPELINE_LABELS: Record<keyof PipelineDistribution, string> = {
   new_applicants: "New Applicants",
@@ -56,20 +53,20 @@ export function PipelineDistributionChart({ distribution }: PipelineDistribution
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: -16 }}>
-        <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+        <CartesianGrid stroke={CHART_GRID} vertical={false} />
         <XAxis
           dataKey="label"
-          tick={{ fontSize: 11, fill: AXIS_COLOR }}
-          axisLine={{ stroke: GRID_COLOR }}
+          tick={{ fontSize: 11, fill: CHART_AXIS }}
+          axisLine={{ stroke: CHART_GRID }}
           tickLine={false}
           interval={0}
           angle={-20}
           textAnchor="end"
           height={50}
         />
-        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} axisLine={false} tickLine={false} width={32} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: CHART_AXIS }} axisLine={false} tickLine={false} width={32} />
         <Tooltip content={<TooltipContent />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-        <Bar dataKey="count" fill={CHART_COLOR} radius={[4, 4, 0, 0]} maxBarSize={48} isAnimationActive={false} />
+        <Bar dataKey="count" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} maxBarSize={48} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
   );

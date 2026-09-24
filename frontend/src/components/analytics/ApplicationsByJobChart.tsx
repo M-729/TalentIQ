@@ -1,9 +1,6 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CHART_AXIS, CHART_GRID, CHART_PRIMARY } from "@/lib/chartColors";
 import type { ApplicationsByJobRow } from "@/types/hiringAnalytics";
-
-const CHART_COLOR = "#5546e8"; // --primary
-const GRID_COLOR = "#e4e7ec"; // --border
-const AXIS_COLOR = "#667085"; // --muted-foreground
 
 function TooltipContent({ active, payload }: { active?: boolean; payload?: { payload: ApplicationsByJobRow }[] }) {
   if (!active || !payload || payload.length === 0) return null;
@@ -39,8 +36,8 @@ export function ApplicationsByJobChart({ data }: ApplicationsByJobChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} layout="vertical" margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
-        <CartesianGrid stroke={GRID_COLOR} horizontal={false} />
-        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} axisLine={{ stroke: GRID_COLOR }} tickLine={false} />
+        <CartesianGrid stroke={CHART_GRID} horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: CHART_AXIS }} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
         {/* No custom tickFormatter — recharts' own <Text> wraps a long
             category label onto a second line (and ellipsizes further if
             it still overflows the given width) natively, which reads
@@ -48,13 +45,13 @@ export function ApplicationsByJobChart({ data }: ApplicationsByJobChartProps) {
         <YAxis
           type="category"
           dataKey="job_title"
-          tick={{ fontSize: 12, fill: AXIS_COLOR }}
+          tick={{ fontSize: 12, fill: CHART_AXIS }}
           axisLine={false}
           tickLine={false}
           width={140}
         />
         <Tooltip content={<TooltipContent />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-        <Bar dataKey="count" fill={CHART_COLOR} radius={[0, 4, 4, 0]} maxBarSize={22} isAnimationActive={false} />
+        <Bar dataKey="count" fill={CHART_PRIMARY} radius={[0, 4, 4, 0]} maxBarSize={22} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
   );

@@ -1,10 +1,7 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CHART_AXIS, CHART_GRID, CHART_PRIMARY } from "@/lib/chartColors";
 import { formatPeriodLabel } from "@/lib/analyticsFormat";
 import type { AnalyticsRange, ApplicationsOverTimePoint } from "@/types/hiringAnalytics";
-
-const CHART_COLOR = "#5546e8"; // --primary
-const GRID_COLOR = "#e4e7ec"; // --border
-const AXIS_COLOR = "#667085"; // --muted-foreground
 
 function TooltipContent({
   active,
@@ -42,23 +39,23 @@ export function ApplicationsOverTimeChart({ data, range }: ApplicationsOverTimeC
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: -16 }}>
-        <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+        <CartesianGrid stroke={CHART_GRID} vertical={false} />
         <XAxis
           dataKey="period"
           tickFormatter={(value: string) => formatPeriodLabel(value, range)}
-          tick={{ fontSize: 12, fill: AXIS_COLOR }}
-          axisLine={{ stroke: GRID_COLOR }}
+          tick={{ fontSize: 12, fill: CHART_AXIS }}
+          axisLine={{ stroke: CHART_GRID }}
           tickLine={false}
           minTickGap={24}
         />
-        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: AXIS_COLOR }} axisLine={false} tickLine={false} width={32} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: CHART_AXIS }} axisLine={false} tickLine={false} width={32} />
         <Tooltip content={<TooltipContent range={range} />} />
         <Line
           type="monotone"
           dataKey="count"
-          stroke={CHART_COLOR}
+          stroke={CHART_PRIMARY}
           strokeWidth={2}
-          dot={{ r: 3, fill: CHART_COLOR }}
+          dot={{ r: 3, fill: CHART_PRIMARY }}
           activeDot={{ r: 5 }}
           isAnimationActive={false}
         />

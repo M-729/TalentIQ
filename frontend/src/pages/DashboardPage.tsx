@@ -15,15 +15,14 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
 import { formatDateTime } from "@/lib/formatDate";
-import { cn } from "@/lib/utils";
 import type { Dashboard, DashboardApplicationRow, DashboardInterviewRow } from "@/types/dashboard";
 
-const KPI_CARDS: { key: keyof Dashboard["metrics"]; label: string; icon: typeof Briefcase; tint: string }[] = [
-  { key: "open_jobs", label: "Open Jobs", icon: Briefcase, tint: "bg-primary/10 text-primary" },
-  { key: "new_applicants", label: "New Applicants", icon: UserPlus, tint: "bg-success/10 text-success" },
-  { key: "upcoming_interviews", label: "Interviews", icon: CalendarClock, tint: "bg-warning/10 text-warning" },
-  { key: "pending_offers", label: "Pending Offers", icon: FileSignature, tint: "bg-primary/10 text-primary" },
-  { key: "hired", label: "Hired", icon: TrendingUp, tint: "bg-success/10 text-success" },
+const KPI_CARDS: { key: keyof Dashboard["metrics"]; label: string; icon: typeof Briefcase }[] = [
+  { key: "open_jobs", label: "Open Jobs", icon: Briefcase },
+  { key: "new_applicants", label: "New Applicants", icon: UserPlus },
+  { key: "upcoming_interviews", label: "Interviews", icon: CalendarClock },
+  { key: "pending_offers", label: "Pending Offers", icon: FileSignature },
+  { key: "hired", label: "Hired", icon: TrendingUp },
 ];
 
 function formatDate(iso: string): string {
@@ -90,11 +89,11 @@ function RecentApplicationsCard({ rows }: { rows: DashboardApplicationRow[] }) {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                    <td className="px-6 py-3 font-medium text-foreground">{row.candidate.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{row.job.title}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{stageLabel(row)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatDate(row.applied_at)}</td>
-                    <td className="px-4 py-3 pr-6 text-right">
+                    <td className="px-6 py-2.5 font-medium text-foreground">{row.candidate.name}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{row.job.title}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{stageLabel(row)}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{formatDate(row.applied_at)}</td>
+                    <td className="px-4 py-2.5 pr-6 text-right">
                       <Button variant="outline" size="sm" asChild>
                         <Link to={`/applications/${row.id}`}>View</Link>
                       </Button>
@@ -144,13 +143,13 @@ function UpcomingInterviewsCard({ rows }: { rows: DashboardInterviewRow[] }) {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                    <td className="px-6 py-3 font-medium text-foreground">{row.candidate.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{row.job.title}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatDateTime(row.starts_at)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-2.5 font-medium text-foreground">{row.candidate.name}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{row.job.title}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(row.starts_at)}</td>
+                    <td className="px-4 py-2.5">
                       <Badge variant="warning">Scheduled</Badge>
                     </td>
-                    <td className="px-4 py-3 pr-6 text-right">
+                    <td className="px-4 py-2.5 pr-6 text-right">
                       <Button variant="outline" size="sm" asChild>
                         <Link to={`/applications/${row.application_id}`}>View</Link>
                       </Button>
@@ -234,16 +233,14 @@ export function DashboardPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {KPI_CARDS.map(({ key, label, icon: Icon, tint }) => (
+            {KPI_CARDS.map(({ key, label, icon: Icon }) => (
               <Card key={key}>
-                <CardContent className="flex items-center gap-3">
-                  <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full", tint)}>
-                    <Icon className="size-5" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{label}</p>
-                    <p className="text-2xl font-semibold text-foreground">{dashboard.metrics[key]}</p>
+                <CardContent className="py-5">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                    <Icon className="size-4" aria-hidden="true" />
+                    {label}
                   </div>
+                  <p className="mt-1 text-2xl font-semibold text-foreground">{dashboard.metrics[key].toLocaleString()}</p>
                 </CardContent>
               </Card>
             ))}
