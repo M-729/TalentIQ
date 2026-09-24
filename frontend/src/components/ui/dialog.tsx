@@ -40,13 +40,19 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-card p-6 text-card-foreground shadow-lg",
+          // max-w uses CSS min() so the dialog is never wider than 28rem
+          // (unchanged from before) AND never touches the viewport edges on
+          // narrow screens (always >=1rem of side margin). Content itself no
+          // longer scrolls — only the inner div does — so the Close button,
+          // positioned absolute against this element, never scrolls out of
+          // reach even when the body is long enough to need scrolling.
+          "fixed top-1/2 left-1/2 z-50 w-full max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-lg",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className
         )}
         {...props}
       >
-        {children}
+        <div className="grid max-h-[calc(100vh-2rem)] gap-4 overflow-y-auto p-6">{children}</div>
         <DialogPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring">
           <X className="size-4" aria-hidden="true" />
           <span className="sr-only">Close</span>
