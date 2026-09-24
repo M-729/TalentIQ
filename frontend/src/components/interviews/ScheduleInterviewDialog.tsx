@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InterviewTimeFields, type InterviewTimeValues } from "@/components/interviews/InterviewTimeFields";
@@ -277,6 +277,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, applicationId, def
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Schedule interview</DialogTitle>
+          <DialogDescription className="sr-only">Schedule an interview for this candidate.</DialogDescription>
         </DialogHeader>
         {open && calendarFailureNotice && (
           <div className="space-y-4">

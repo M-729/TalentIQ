@@ -199,6 +199,7 @@ export function ApplyPage() {
                       </Label>
                       <Input
                         id="full_name"
+                        autoComplete="name"
                         value={values.full_name}
                         onChange={(e) => update("full_name", e.target.value)}
                         aria-invalid={!!fieldErrors.full_name}
@@ -218,6 +219,7 @@ export function ApplyPage() {
                       <Input
                         id="email"
                         type="email"
+                        autoComplete="email"
                         value={values.email}
                         onChange={(e) => update("email", e.target.value)}
                         aria-invalid={!!fieldErrors.email}
@@ -232,7 +234,13 @@ export function ApplyPage() {
 
                     <div className="space-y-1.5">
                       <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" value={values.phone} onChange={(e) => update("phone", e.target.value)} />
+                      <Input
+                        id="phone"
+                        type="tel"
+                        autoComplete="tel"
+                        value={values.phone}
+                        onChange={(e) => update("phone", e.target.value)}
+                      />
                     </div>
 
                     <div className="space-y-1.5">

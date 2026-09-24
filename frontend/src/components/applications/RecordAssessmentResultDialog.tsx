@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -67,6 +67,7 @@ export function RecordAssessmentResultDialog({ open, onOpenChange, assessment, o
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Record result</DialogTitle>
+          <DialogDescription className="sr-only">Record the outcome of this candidate's assessment.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

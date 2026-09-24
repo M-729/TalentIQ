@@ -89,7 +89,7 @@ export function CareersPage() {
             <Card>
               <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
                 <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-                <div>
+                <div role="alert">
                   <p className="font-medium text-foreground">Couldn't load open positions</p>
                   <p className="text-sm text-muted-foreground">{error}</p>
                 </div>

@@ -139,4 +139,16 @@ describe("ApplyPage (public application form)", () => {
 
     expect(await screen.findByText("Job not available")).toBeInTheDocument();
   });
+
+  // Accessibility baseline (Phase 2) — this public form previously set no
+  // autoComplete hints at all, unlike the authenticated Login/Signup forms.
+  it("sets sensible autoComplete/type hints on name/email/phone", async () => {
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
+    renderPage();
+
+    expect(await screen.findByLabelText(/Full Name/)).toHaveAttribute("autoComplete", "name");
+    expect(screen.getByLabelText(/Email/)).toHaveAttribute("autoComplete", "email");
+    expect(screen.getByLabelText("Phone")).toHaveAttribute("autoComplete", "tel");
+    expect(screen.getByLabelText("Phone")).toHaveAttribute("type", "tel");
+  });
 });

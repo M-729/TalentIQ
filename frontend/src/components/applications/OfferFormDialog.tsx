@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -108,6 +108,9 @@ export function OfferFormDialog({ open, onOpenChange, applicationId, existingOff
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit offer" : "Create offer"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEditing ? "Edit the details of this offer." : "Fill in the offer details to extend to this candidate."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

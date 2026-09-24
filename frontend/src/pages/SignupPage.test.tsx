@@ -127,4 +127,12 @@ describe("SignupPage", () => {
     );
     expect(screen.queryByText("Create your TalentIQ workspace")).not.toBeInTheDocument();
   });
+
+  // Accessibility baseline (Phase 2) — this route renders outside AppShell,
+  // so it previously had no <main> landmark and no <h1> anywhere on the page.
+  it("has a main landmark and an h1", () => {
+    renderPage();
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+  });
 });

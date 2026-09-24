@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduleInterviewDialog } from "@/components/interviews/ScheduleInterviewDialog";
 import { useApplicationInterviews } from "@/hooks/useApplicationInterviews";
@@ -48,6 +48,7 @@ export function PipelineScheduleInterviewGate({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Schedule interview</DialogTitle>
+            <DialogDescription className="sr-only">Checking whether this candidate already has a scheduled interview.</DialogDescription>
           </DialogHeader>
           <Skeleton className="h-24 w-full" />
         </DialogContent>
@@ -61,6 +62,7 @@ export function PipelineScheduleInterviewGate({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Schedule interview</DialogTitle>
+            <DialogDescription className="sr-only">There was a problem checking this candidate's existing interview.</DialogDescription>
           </DialogHeader>
           <p role="alert" className="text-sm text-destructive">
             {error}

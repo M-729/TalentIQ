@@ -39,8 +39,9 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
+    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-md space-y-6">
+        <h1 className="sr-only">Sign in to TalentIQ</h1>
         <div className="flex items-center justify-center gap-2">
           <span className="inline-block size-6 rotate-45 rounded-[7px] bg-primary" aria-hidden="true" />
           <span className="text-xl font-semibold tracking-tight text-foreground">TalentIQ</span>
@@ -108,6 +109,6 @@ export function LoginPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

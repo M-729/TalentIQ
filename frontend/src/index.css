@@ -22,17 +22,31 @@
   --secondary-foreground: #15172b;
 
   --muted: #eef0fa;
-  --muted-foreground: #667085;
+  /* #667085 measured 4.38:1 on --muted (below the 4.5:1 AA text threshold,
+     e.g. the "neutral" Badge). Darkened to #646e82 (same hue/saturation,
+     ~1% less lightness) -> 4.51:1 on --muted, 5.13:1 on --card,
+     4.83:1 on --background. Visually indistinguishable from the original. */
+  --muted-foreground: #646e82;
 
   --accent: #eef0fa;
   --accent-foreground: #15172b;
 
-  /* Not specified in the brief; conventional accessible values. */
-  --destructive: #dc2626;
+  /* Not specified in the brief; conventional accessible values.
+     destructive/success/warning were darkened (same hue/saturation, lower
+     lightness only) after WCAG AA contrast verification (see accompanying
+     accessibility audit) found their original shades failed 4.5:1 against
+     the soft badge-tint backgrounds they're actually rendered on
+     (text-X on bg-X/10): destructive #dc2626 measured 4.13:1 -> #d12222
+     now measures 4.52:1; success #16a34a measured 2.96:1 -> #117d39 now
+     measures 4.56:1; warning #d97706 measured 2.86:1 -> #a55a05 now
+     measures 4.53:1. All three also remain >=4.5:1 as plain error/status
+     text on --background/--card, and improve (rather than regress) their
+     existing use as white-text button/badge fills. */
+  --destructive: #d12222;
   --destructive-foreground: #ffffff;
-  --success: #16a34a;
+  --success: #117d39;
   --success-foreground: #ffffff;
-  --warning: #d97706;
+  --warning: #a55a05;
   --warning-foreground: #ffffff;
 
   --border: #e4e7ec;
@@ -104,5 +118,34 @@
     -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
     box-shadow: 0 0 0 1000px var(--background) inset;
     transition: background-color 5000s ease-in-out 0s;
+  }
+
+  /* Global keyboard-focus fallback. Every shared interactive primitive
+     (button/input/select/checkbox/textarea/etc.) already sets its own
+     `outline-none` + `focus-visible:ring-*` in the Tailwind utilities
+     layer, which — per CSS cascade layers — always wins over this `base`
+     layer rule regardless of selector specificity, so this never doubles
+     up with an existing ring. It only takes effect on elements that don't
+     style their own focus state (plain links, future controls that forget
+     to), so keyboard focus is never invisible by accident. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Respect the OS-level "reduce motion" preference. This doesn't disable
+     transitions/animations for everyone — only shortens them to ~instant
+     for users who asked for that, per prefers-reduced-motion. Recharts
+     analytics animations are already disabled outright (isAnimationActive
+     ={false}) regardless of this preference. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

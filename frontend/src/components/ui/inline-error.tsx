@@ -5,21 +5,23 @@ import { Card, CardContent } from "@/components/ui/card";
 export interface InlineErrorProps {
   message: string;
   onRetry: () => void;
-  /** Per-page heading, e.g. "Couldn't load jobs". Omit to reproduce the
-   *  title-less, role="alert" panel layout (HiringPipelineBoard/PipelineSetupPanel). */
+  /** Per-page heading, e.g. "Couldn't load jobs". */
   title?: string;
   retryLabel?: string;
 }
 
 // Extracted from the near-identical implementations previously
 // hand-duplicated across every list/detail page and the pipeline panels.
+// `role="alert"` is applied to the whole message region in both branches —
+// previously only the title-less branch had it, so a screen-reader user
+// got no announcement at all on the 8 pages that pass a `title`.
 export function InlineError({ message, onRetry, title, retryLabel = "Retry" }: InlineErrorProps) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
         <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
         {title ? (
-          <div>
+          <div role="alert">
             <p className="font-medium text-foreground">{title}</p>
             <p className="text-sm text-muted-foreground">{message}</p>
           </div>

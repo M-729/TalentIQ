@@ -101,11 +101,16 @@ export function OfferResponsePage() {
 
   if (error) {
     return renderCard(
-      <>
+      // A plain div (not a fragment) so `role="alert"` has somewhere to
+      // live — `space-y-4` is repeated here since it now has to space
+      // *this* div's own children instead of CardContent's, otherwise the
+      // icon/title/message would lose their gap now that CardContent sees
+      // only one direct child.
+      <div role="alert" className="space-y-4">
         <AlertCircle className="mx-auto size-8 text-destructive" aria-hidden="true" />
         <p className="font-medium text-foreground">Something went wrong</p>
         <p className="text-sm text-muted-foreground">{error}</p>
-      </>
+      </div>
     );
   }
 

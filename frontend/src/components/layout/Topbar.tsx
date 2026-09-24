@@ -9,7 +9,7 @@ function getInitials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
+export function Topbar({ onMenuClick, mobileNavOpen }: { onMenuClick: () => void; mobileNavOpen: boolean }) {
   const { user, logout } = useAuth();
 
   return (
@@ -19,6 +19,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         size="icon"
         className="md:hidden"
         aria-label="Open navigation menu"
+        aria-expanded={mobileNavOpen}
+        aria-controls="mobile-nav-panel"
         onClick={onMenuClick}
       >
         <Menu className="size-5" aria-hidden="true" />

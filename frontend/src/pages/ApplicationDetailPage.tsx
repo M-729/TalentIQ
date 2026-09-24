@@ -42,7 +42,7 @@ export function ApplicationDetailPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <SearchX className="size-8 text-muted-foreground" aria-hidden="true" />
-            <p className="font-medium text-foreground">This application is unavailable.</p>
+            <p className="font-medium text-foreground" role="alert">This application is unavailable.</p>
             <Button variant="outline" size="sm" onClick={() => navigate("/applications")}>
               Back to Applications
             </Button>
@@ -58,7 +58,7 @@ export function ApplicationDetailPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
-            <div>
+            <div role="alert">
               <p className="font-medium text-foreground">Couldn't load this application</p>
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>

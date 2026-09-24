@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { InterviewTimeFields, type InterviewTimeValues } from "@/components/interviews/InterviewTimeFields";
 import { InterviewerMultiSelect } from "@/components/interviews/InterviewerMultiSelect";
@@ -151,6 +151,7 @@ export function RescheduleInterviewDialog({ open, onOpenChange, interview, onRes
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Reschedule interview</DialogTitle>
+          <DialogDescription className="sr-only">Change the date or time of this scheduled interview.</DialogDescription>
         </DialogHeader>
         {open && (
           <RescheduleInterviewForm

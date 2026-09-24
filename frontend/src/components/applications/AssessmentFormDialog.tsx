@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateApplicationAssessment } from "@/hooks/useCreateApplicationAssessment";
@@ -75,6 +75,9 @@ export function AssessmentFormDialog({ open, onOpenChange, applicationId, existi
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit assessment link" : "Add assessment"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEditing ? "Edit this candidate's external assessment link." : "Add an external assessment link for this candidate."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
