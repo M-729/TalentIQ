@@ -77,7 +77,7 @@ describe("ApplicationAssessmentSection", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save Assessment" }));
 
     await waitFor(() =>
-      expect(applicationAssessmentsApi.createAssessment).toHaveBeenCalledWith("application-1", {
+      expect(applicationAssessmentsApi.createAssessment).toHaveBeenCalledWith("application-1-public", {
         name: "Backend Technical Test",
         external_url: "https://external-platform.example/test/abc",
       })
@@ -143,7 +143,7 @@ describe("ApplicationAssessmentSection", () => {
     renderSection();
 
     await userEvent.click(await screen.findByRole("button", { name: "Send Assessment" }));
-    await waitFor(() => expect(applicationAssessmentsApi.sendAssessmentInvitation).toHaveBeenCalledWith("assessment-1"));
+    await waitFor(() => expect(applicationAssessmentsApi.sendAssessmentInvitation).toHaveBeenCalledWith("assessment-1-public"));
   });
 
   // 9. send pending prevents double click
@@ -179,7 +179,12 @@ describe("ApplicationAssessmentSection", () => {
     renderSection();
 
     await userEvent.click(await screen.findByRole("button", { name: "Retry Email" }));
-    await waitFor(() => expect(applicationAssessmentsApi.retryAssessmentNotification).toHaveBeenCalledWith("assessment-1", "notif-1"));
+    await waitFor(() =>
+      expect(applicationAssessmentsApi.retryAssessmentNotification).toHaveBeenCalledWith(
+        "assessment-1-public",
+        "assessment-notification-1-public"
+      )
+    );
   });
 
   // 12. successful send shows Sent
@@ -305,7 +310,7 @@ describe("ApplicationAssessmentSection", () => {
       await userEvent.click(screen.getByRole("button", { name: "Save Result" }));
 
       await waitFor(() =>
-        expect(applicationAssessmentsApi.recordAssessmentResult).toHaveBeenCalledWith("assessment-1", {
+        expect(applicationAssessmentsApi.recordAssessmentResult).toHaveBeenCalledWith("assessment-1-public", {
           status: "passed",
           grade: null,
           notes: null,
@@ -338,7 +343,7 @@ describe("ApplicationAssessmentSection", () => {
       await userEvent.click(screen.getByRole("button", { name: "Save Result" }));
 
       await waitFor(() =>
-        expect(applicationAssessmentsApi.recordAssessmentResult).toHaveBeenCalledWith("assessment-1", {
+        expect(applicationAssessmentsApi.recordAssessmentResult).toHaveBeenCalledWith("assessment-1-public", {
           status: "passed",
           grade: 84,
           notes: "Strong API knowledge, weaker SQL section.",
@@ -377,7 +382,7 @@ describe("ApplicationAssessmentSection", () => {
 
       await waitFor(() =>
         expect(applicationAssessmentsApi.recordAssessmentResult).toHaveBeenCalledWith(
-          "assessment-1",
+          "assessment-1-public",
           expect.objectContaining({ status: "passed" })
         )
       );

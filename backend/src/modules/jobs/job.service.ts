@@ -40,8 +40,9 @@ export async function createJob(companyId: string, createdBy: string, input: Cre
 }
 
 /**
- * Resolves a dual-accept Job URL/query id (public_id or legacy ObjectId)
- * to the Job's real Mongo _id, scoped to the caller's company — the one
+ * Resolves the Job's public_id URL/query id (public-id only since the
+ * Phase 2 cutover) to the Job's real Mongo _id, scoped to the caller's
+ * company — the one
  * place every OTHER module's own "jobId" parameter/filter/path-segment
  * gets translated into the real internal id it actually needs for its own
  * `job_id` queries. Returns null (never throws) so each caller decides

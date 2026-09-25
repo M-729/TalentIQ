@@ -12,6 +12,7 @@ import { HiringStepTypeBadge } from "@/components/hiringPipeline/HiringStepTypeB
 import { MoveApplicationDialog } from "@/components/hiringPipeline/MoveApplicationDialog";
 import { PipelineScheduleInterviewGate } from "@/components/interviews/PipelineScheduleInterviewGate";
 import { useHiringPipelineBoard } from "@/hooks/useHiringPipelineBoard";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { HiringPipelineApplicationCard } from "@/types/hiringPipelineBoard";
 
 const SUCCESS_FLASH_MS = 4000;
@@ -219,7 +220,7 @@ export function HiringPipelineBoard({ jobId, onConfigurePipeline }: HiringPipeli
               }
               stageType={stage.type}
               onScheduleInterview={(application) =>
-                setScheduleTarget({ applicationId: application.id, stepId: stage.id, stepName: stage.name })
+                setScheduleTarget({ applicationId: resourceUrlId(application), stepId: stage.id, stepName: stage.name })
               }
               selectedIds={selectedIds}
               onToggleApplicationSelected={toggleApplicationSelected}

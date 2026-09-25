@@ -197,6 +197,7 @@ export function buildAssessmentHistoryItem(overrides: Partial<AssessmentHistoryI
 export function buildAssessmentNotification(overrides: Partial<AssessmentNotification> = {}): AssessmentNotification {
   return {
     id: "assessment-notification-1",
+    public_id: "assessment-notification-1-public",
     status: "sent",
     subject: "Assessment Invitation – Backend Developer",
     recipient_email: "sarah@candidate.test",
@@ -260,6 +261,7 @@ export function buildOffer(overrides: Partial<Offer> = {}): Offer {
 export function buildOfferNotification(overrides: Partial<OfferNotification> = {}): OfferNotification {
   return {
     id: "offer-notification-1",
+    public_id: "offer-notification-1-public",
     status: "sent",
     subject: "Job Offer – Backend Developer at Acme Recruiting Co",
     recipient_email: "sarah@candidate.test",

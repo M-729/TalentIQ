@@ -115,9 +115,10 @@ export async function getLatestScreeningSummaries(applicationIds: string[]): Pro
 export async function listApplications(companyId: string, filters: ListApplicationsFilters): Promise<ListApplicationsResult> {
   let jobFilter: FilterQuery<ApplicationDoc>;
   if (filters.jobId) {
-    // filters.jobId is a dual-accept public_id-or-ObjectId (see
-    // job.service.ts's resolveJobId) — resolved to the real internal id
-    // here before being used against Application.job_id, which is always
+    // filters.jobId is the Job's public_id (public-id only since the
+    // Phase 2 cutover — see job.service.ts's resolveJobId) — resolved to
+    // the real internal id here before being used against
+    // Application.job_id, which is always
     // a plain ObjectId reference and was never itself migrated.
     const resolvedJobId = await resolveJobId(companyId, filters.jobId);
     if (!resolvedJobId) {

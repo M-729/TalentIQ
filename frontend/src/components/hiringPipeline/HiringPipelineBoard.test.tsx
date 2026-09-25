@@ -385,7 +385,7 @@ describe("HiringPipelineBoard", () => {
 
       await waitFor(() =>
         expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith(
-          "app-1",
+          "application-1-public",
           expect.objectContaining({ step_id: "step-tech" })
         )
       );
@@ -477,7 +477,7 @@ describe("HiringPipelineBoard", () => {
       await userEvent.click(screen.getByRole("button", { name: "Move Applicant" }));
 
       await waitFor(() =>
-        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("app-1", { step_id: "step-tech" })
+        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("application-1-public", { step_id: "step-tech" })
       );
       await waitFor(() => expect(screen.queryByRole("heading", { name: "Move applicant" })).not.toBeInTheDocument());
       await waitFor(() => expect(hiringPipelineBoardApi.getHiringPipelineBoard).toHaveBeenCalledTimes(2));
@@ -727,7 +727,7 @@ describe("HiringPipelineBoard", () => {
       await userEvent.click(screen.getByRole("button", { name: "Move Applicant" }));
 
       await waitFor(() =>
-        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("app-1", { step_id: "step-review" })
+        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("application-1-public", { step_id: "step-review" })
       );
     });
 
@@ -873,7 +873,9 @@ describe("HiringPipelineBoard", () => {
 
       await userEvent.click(await screen.findByRole("button", { name: "Schedule interview for Sarah Ahmed" }));
 
-      await waitFor(() => expect(interviewsApi.listApplicationInterviews).toHaveBeenCalledWith("a1", expect.anything()));
+      await waitFor(() =>
+        expect(interviewsApi.listApplicationInterviews).toHaveBeenCalledWith("application-1-public", expect.anything())
+      );
       expect(await screen.findByRole("heading", { name: "Schedule interview" })).toBeInTheDocument();
     });
 

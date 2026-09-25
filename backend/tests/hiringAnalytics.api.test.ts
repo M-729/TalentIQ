@@ -154,8 +154,8 @@ describe("GET /api/v1/hiring-analytics", () => {
     const byJob = res.body.applications_by_job as { job_title: string; count: number }[];
     expect(byJob).toEqual(
       expect.arrayContaining([
-        { job_id: jobA.id, job_title: "Backend Developer", count: 2 },
-        { job_id: jobC.id, job_title: "Frontend Developer", count: 1 },
+        { job_id: jobA.id, job_public_id: jobA.public_id, job_title: "Backend Developer", count: 2 },
+        { job_id: jobC.id, job_public_id: jobC.public_id, job_title: "Frontend Developer", count: 1 },
       ])
     );
     expect(byJob.find((row) => row.job_title === "No Apps")).toBeUndefined();
@@ -235,10 +235,9 @@ describe("GET /api/v1/hiring-analytics", () => {
     expect(res.status).toBe(404);
   });
 
-  // Phase 1 dual-accept migration: the jobId filter is a "special
-  // attention" case — resolved to Job's real internal id (echoed back as
-  // job_id in the response) before being used against Application.job_id/
-  // Offer.job_id.
+  // The jobId filter (public_id only, Phase 2 cutover) is resolved to
+  // Job's real internal id (echoed back as job_id in the response) before
+  // being used against Application.job_id/Offer.job_id.
   it("filters by jobId given as the Job's public_id, echoing back the real internal id", async () => {
     await createApplicationFor(jobA, { applied_at: daysAgo(3) });
 

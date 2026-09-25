@@ -182,12 +182,13 @@ export async function getHiringAnalytics(
   companyId: string,
   filters: { range: AnalyticsRange; jobId?: string }
 ): Promise<HiringAnalyticsDTO> {
-  // filters.jobId is a dual-accept public_id-or-ObjectId (see
-  // job.service.ts's resolveJobId) — resolved ONCE, here, to the real
-  // internal id every use below actually needs (Application.job_id/
-  // Offer.job_id are always plain ObjectId references and were never
-  // themselves migrated). Every other reference to the job filter in this
-  // function uses this resolved value, never the raw filters.jobId.
+  // filters.jobId is the Job's public_id (see job.service.ts's
+  // resolveJobId — public-id only since the Phase 2 cutover) — resolved
+  // ONCE, here, to the real internal id every use below actually needs
+  // (Application.job_id/Offer.job_id are always plain ObjectId references
+  // and were never themselves migrated). Every other reference to the job
+  // filter in this function uses this resolved value, never the raw
+  // filters.jobId.
   let resolvedJobId: string | null = null;
   if (filters.jobId) {
     resolvedJobId = await resolveJobId(companyId, filters.jobId);
@@ -248,10 +249,18 @@ export async function getHiringAnalytics(
 
   // ===== Applications by Job =====
   const jobIdsForLabels = applicationsByJobRaw.map((row) => row._id);
-  const jobsForLabels = jobIdsForLabels.length ? await Job.find({ _id: { $in: jobIdsForLabels } }).select("title") : [];
+  const jobsForLabels = jobIdsForLabels.length
+    ? await Job.find({ _id: { $in: jobIdsForLabels } }).select("title public_id")
+    : [];
   const jobTitleById = new Map(jobsForLabels.map((job) => [job.id, job.title]));
+  const jobPublicIdById = new Map(jobsForLabels.map((job) => [job.id, job.public_id]));
   const applicationsByJob = applicationsByJobRaw
-    .map((row) => ({ job_id: row._id.toString(), job_title: jobTitleById.get(row._id.toString()) ?? "Unknown job", count: row.count }))
+    .map((row) => ({
+      job_id: row._id.toString(),
+      job_public_id: jobPublicIdById.get(row._id.toString()) ?? "",
+      job_title: jobTitleById.get(row._id.toString()) ?? "Unknown job",
+      count: row.count,
+    }))
     .filter((row) => jobTitleById.has(row.job_id));
 
   // ===== Pipeline Distribution (current state, not date-scoped) =====
@@ -290,6 +299,7 @@ export async function getHiringAnalytics(
   return {
     range: filters.range,
     job_id: resolvedJobId,
+    job_public_id: filters.jobId ?? null,
     kpis: {
       total_applications: totalApplications,
       hired: hiredApplicationsInPeriod.length,

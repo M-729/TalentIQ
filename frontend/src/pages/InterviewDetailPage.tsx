@@ -234,12 +234,12 @@ export function InterviewDetailPage() {
           the Interview's current status — a cancelled/completed
           Interview still shows its past scheduled/rescheduled/cancelled
           notification attempts. */}
-      <InterviewNotificationsSection interviewId={interview.id} />
+      <InterviewNotificationsSection interviewId={interviewId} />
 
       {/* Feedback only ever becomes available once the Interview is
           completed (see backend interviewFeedback.service.ts) — never
           rendered for a scheduled or cancelled Interview. */}
-      {interview.status === "completed" && <InterviewFeedbackSection interviewId={interview.id} />}
+      {interview.status === "completed" && <InterviewFeedbackSection interviewId={interviewId} />}
 
       {interview.status === "cancelled" && (
         <p className="text-xs text-muted-foreground">

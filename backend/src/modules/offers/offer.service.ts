@@ -246,8 +246,9 @@ export interface OfferResponder {
  * only ever resolves a real _id via its own token lookup, and the
  * markOfferAccepted/markOfferDeclined HR callers below must pass the
  * `.id` from an already-resolved Offer document (see getOwnedOffer,
- * which is the one place a dual-accept public_id-or-ObjectId URL param
- * gets translated into that real id) rather than their own raw offerId
+ * which is the one place the Offer's public_id URL param (public-id only
+ * since the Phase 2 cutover) gets translated into that real id) rather
+ * than their own raw offerId
  * parameter.
  */
 export async function applyOfferResponse(
@@ -375,9 +376,10 @@ export interface ListOffersResult {
  * number of queries regardless of page size, never one lookup per row.
  */
 export async function listOffers(companyId: string, filters: ListOffersFilters): Promise<ListOffersResult> {
-  // filters.jobId is a dual-accept public_id-or-ObjectId (see
-  // job.service.ts's resolveJobId) — resolved to the real internal id
-  // here before being used against Offer.job_id, which is always a plain
+  // filters.jobId is the Job's public_id (public-id only since the
+  // Phase 2 cutover — see job.service.ts's resolveJobId) — resolved to
+  // the real internal id here before being used against Offer.job_id,
+  // which is always a plain
   // ObjectId reference and was never itself migrated.
   let resolvedJobId: string | null = null;
   if (filters.jobId) {

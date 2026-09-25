@@ -2,10 +2,9 @@ import type { UserRole, UserStatus } from "@/types/auth";
 
 export interface TeamMember {
   id: string;
-  // Opaque, URL-safe identifier — kept in sync with every other migrated
-  // resource; Team Settings currently passes `id` to its action calls
-  // (dual-accepted by the backend either way), so nothing else reads this
-  // yet.
+  // Opaque, URL-safe identifier — TeamSettingsPage passes this (via
+  // resourceUrlId) to every deactivate/reactivate/revoke/resend action
+  // call; the backend is public-id only (Phase 2 cutover), no dual-accept.
   public_id?: string;
   name: string;
   email: string;

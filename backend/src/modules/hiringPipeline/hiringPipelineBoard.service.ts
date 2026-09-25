@@ -182,8 +182,9 @@ async function getAssessmentSummaries(
  * status changes, no history is created, no AI/R2/email call is made.
  */
 export async function getHiringPipelineBoard(companyId: string, jobId: string): Promise<HiringPipelineBoardDTO> {
-  // jobId is a dual-accept public_id-or-ObjectId path segment (see
-  // job.validation.ts's jobIdentifierString) — resolving it directly via
+  // jobId is the Job's public_id path segment (public-id only since the
+  // Phase 2 cutover — see job.validation.ts's jobIdentifierString) —
+  // resolving it directly via
   // Job.findOne (rather than a separate assertOwnedByCompany + a second
   // lookup) gives the real internal id every HiringStep/Application
   // job_id query below actually needs, in one query.
@@ -361,10 +362,11 @@ export async function bulkMoveApplications(
 ): Promise<BulkMoveApplicationsResult> {
   // Same active-Job gate as single movement (getAccessibleApplicationForActiveJob):
   // a soft-deleted Job's pipeline is unavailable for movement; a merely
-  // closed Job still permits moving its existing applicants. jobId is a
-  // dual-accept public_id-or-ObjectId path segment — resolved to the real
-  // internal id here, since every query below is against a plain
-  // ObjectId job_id FK that was never itself migrated.
+  // closed Job still permits moving its existing applicants. jobId is the
+  // Job's public_id path segment (public-id only since the Phase 2
+  // cutover) — resolved to the real internal id here, since every query
+  // below is against a plain ObjectId job_id FK that was never itself
+  // migrated.
   const job = await Job.findOne({ ...jobIdentifierFilter(jobId), ...companyFilter(companyId), ...NOT_DELETED_JOB_FILTER }).select(
     "_id"
   );

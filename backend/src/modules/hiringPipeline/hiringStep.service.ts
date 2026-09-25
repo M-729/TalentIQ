@@ -15,8 +15,8 @@ const DUPLICATE_NAME_MESSAGE = "A hiring stage with this name already exists for
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
 
 /**
- * Resolves a dual-accept Job URL path segment (public_id or legacy
- * ObjectId — see job.validation.ts's jobIdentifierString) to the Job's
+ * Resolves the Job's public_id URL path segment (public-id only since
+ * the Phase 2 cutover — see job.validation.ts's jobIdentifierString) to the Job's
  * real internal _id, scoped to the caller's company AND requiring the Job
  * not be soft-deleted — the exact same ownership+liveness gate every
  * function in this file already enforced via assertOwnedByCompany, just

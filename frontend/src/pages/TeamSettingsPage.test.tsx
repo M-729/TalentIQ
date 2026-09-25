@@ -25,6 +25,7 @@ function mockAuthUser(role: "ADMIN" | "HR" = "ADMIN") {
 function buildMember(overrides: Partial<TeamMember> = {}): TeamMember {
   return {
     id: "member-1",
+    public_id: "member-1-public",
     name: "Sara Ahmad",
     email: "sara@acme.test",
     role: "HR",
@@ -37,6 +38,7 @@ function buildMember(overrides: Partial<TeamMember> = {}): TeamMember {
 function buildInvitation(overrides: Partial<TeamInvitation> = {}): TeamInvitation {
   return {
     id: "invitation-1",
+    public_id: "invitation-1-public",
     email: "john@acme.test",
     role: "HR",
     status: "pending",
@@ -135,7 +137,7 @@ describe("TeamSettingsPage", () => {
     await screen.findByText("Failed");
     await userEvent.click(screen.getByRole("button", { name: "Retry Email" }));
 
-    await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1"));
+    await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1-public"));
   });
 
   // 14. Resend pending invitation
@@ -146,7 +148,7 @@ describe("TeamSettingsPage", () => {
     await screen.findByText("Sent");
     await userEvent.click(screen.getByRole("button", { name: "Resend" }));
 
-    await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1"));
+    await waitFor(() => expect(teamApi.resendTeamInvitation).toHaveBeenCalledWith("invitation-1-public"));
   });
 
   // 15. Revoke with confirmation
@@ -165,7 +167,7 @@ describe("TeamSettingsPage", () => {
     // OfferDecisionSection.test.tsx's Withdraw Offer ambiguity handling.
     const confirmButtons = await screen.findAllByRole("button", { name: "Revoke" });
     await userEvent.click(confirmButtons[confirmButtons.length - 1]!);
-    await waitFor(() => expect(teamApi.revokeTeamInvitation).toHaveBeenCalledWith("invitation-1"));
+    await waitFor(() => expect(teamApi.revokeTeamInvitation).toHaveBeenCalledWith("invitation-1-public"));
   });
 
   // 16. deactivate HR with confirmation
@@ -182,7 +184,7 @@ describe("TeamSettingsPage", () => {
     const confirmButtons = await screen.findAllByRole("button", { name: "Deactivate" });
     await userEvent.click(confirmButtons[confirmButtons.length - 1]!);
 
-    await waitFor(() => expect(teamApi.deactivateTeamMember).toHaveBeenCalledWith("member-1"));
+    await waitFor(() => expect(teamApi.deactivateTeamMember).toHaveBeenCalledWith("member-1-public"));
   });
 
   // 17. reactivate HR
@@ -196,7 +198,7 @@ describe("TeamSettingsPage", () => {
     const confirmButtons = await screen.findAllByRole("button", { name: "Reactivate" });
     await userEvent.click(confirmButtons[confirmButtons.length - 1]!);
 
-    await waitFor(() => expect(teamApi.reactivateTeamMember).toHaveBeenCalledWith("member-1"));
+    await waitFor(() => expect(teamApi.reactivateTeamMember).toHaveBeenCalledWith("member-1-public"));
   });
 
   // Backend's member.service.ts rejects self-deactivation as a standalone

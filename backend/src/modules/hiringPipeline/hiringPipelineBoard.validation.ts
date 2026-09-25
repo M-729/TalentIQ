@@ -6,8 +6,8 @@ const objectIdString = (label: string) =>
   z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
 
 // jobId is the Job parent-scoping path segment
-// (`/jobs/:jobId/hiring-pipeline...`) — dual-accept (public_id or legacy
-// ObjectId), resolved to Job's real internal id by
+// (`/jobs/:jobId/hiring-pipeline...`) — public_id only (Phase 2 cutover),
+// resolved to Job's real internal id by
 // hiringPipelineBoard.service.ts before being used against any
 // Application/HiringStep job_id query, which remain plain ObjectId
 // references and were never themselves migrated. application_ids/

@@ -1189,11 +1189,12 @@ describe("Interview scheduling API", () => {
     it("moving an Application into an interview stage does NOT auto-create an Interview", async () => {
       const application = await createApplicationIn();
 
-      await request(app)
-        .patch(`/api/v1/applications/${application.id}/hiring-step`)
+      const res = await request(app)
+        .patch(`/api/v1/applications/${application.public_id!}/hiring-step`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ step_id: interviewStage.id });
 
+      expect(res.status).toBe(200);
       expect(await Interview.countDocuments({ application_id: application.id })).toBe(0);
     });
 
