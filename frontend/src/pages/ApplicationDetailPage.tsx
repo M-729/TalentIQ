@@ -87,7 +87,7 @@ export function ApplicationDetailPage() {
           way since it's the first DOM child. */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <AiScreeningCard applicationId={application.id} screening={application.screening} />
+          <AiScreeningCard applicationId={applicationId} screening={application.screening} />
 
           <ApplicationInterviewsSection application={application} />
 

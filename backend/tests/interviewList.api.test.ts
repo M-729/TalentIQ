@@ -90,7 +90,7 @@ describe("Company-wide Interview list API (GET /api/v1/interviews)", () => {
   async function scheduleOne(job: JobDoc, step: HiringStepDoc, overrides: Record<string, unknown> = {}) {
     const application = await createApplicationInInterviewStage(job, step);
     const res = await request(app)
-      .post(scheduleUrl(application.id))
+      .post(scheduleUrl(application.public_id!))
       .set("Authorization", authHeaderFor(hrA, companyA.id))
       .send(validBody({ interviewer_user_ids: [interviewerA.id], ...overrides }));
     return { application, interview: res.body.interview };
@@ -122,7 +122,7 @@ describe("Company-wide Interview list API (GET /api/v1/interviews)", () => {
       current_step_id: interviewStageB._id,
     });
     await request(app)
-      .post(scheduleUrl(applicationB.id))
+      .post(scheduleUrl(applicationB.public_id!))
       .set("Authorization", authHeaderFor(hrB, companyB.id))
       .send(validBody({ interviewer_user_ids: [hrB.id] }));
 
@@ -154,7 +154,7 @@ describe("Company-wide Interview list API (GET /api/v1/interviews)", () => {
 
   it("filters by status", async () => {
     const first = await scheduleOne(jobA, interviewStage);
-    await request(app).patch(`/api/v1/interviews/${first.interview.id}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+    await request(app).patch(`/api/v1/interviews/${first.interview.public_id}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
     const scheduledRes = await request(app).get(listUrl("?status=scheduled")).set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(scheduledRes.body.interviews).toEqual([]);
@@ -167,14 +167,33 @@ describe("Company-wide Interview list API (GET /api/v1/interviews)", () => {
     await scheduleOne(jobA, interviewStage);
     await scheduleOne(jobA2, interviewStage2);
 
-    const res = await request(app).get(listUrl(`?jobId=${jobA.id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
+    const res = await request(app).get(listUrl(`?jobId=${jobA.public_id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(res.body.interviews).toHaveLength(1);
     expect(res.body.interviews[0].job.id).toBe(jobA.id);
   });
 
   it("returns 404 for a jobId filter belonging to another company", async () => {
-    const res = await request(app).get(listUrl(`?jobId=${jobA.id}`)).set("Authorization", authHeaderFor(hrB, companyB.id));
+    const res = await request(app).get(listUrl(`?jobId=${jobA.public_id}`)).set("Authorization", authHeaderFor(hrB, companyB.id));
     expect(res.status).toBe(404);
+  });
+
+  // Phase 2 cutover: legacy dual-accept lookup is gone — the jobId filter
+  // only accepts Job's public_id, resolved to Job's real internal id
+  // before being used against Interview.job_id.
+  it("rejects a jobId filter given as a legacy Mongo ObjectId", async () => {
+    const res = await request(app).get(listUrl(`?jobId=${jobA.id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
+    expect(res.status).toBe(400);
+  });
+
+  it("filters by jobId given as the Job's public_id", async () => {
+    await scheduleOne(jobA, interviewStage);
+    await scheduleOne(jobA2, interviewStage2);
+
+    const res = await request(app)
+      .get(listUrl(`?jobId=${jobA.public_id}`))
+      .set("Authorization", authHeaderFor(hrA, companyA.id));
+    expect(res.status).toBe(200);
+    expect(res.body.interviews).toHaveLength(1);
   });
 
   it("returns 400 for a malformed jobId filter", async () => {
@@ -213,7 +232,7 @@ describe("Company-wide Interview list API (GET /api/v1/interviews)", () => {
     for (let i = 0; i < 3; i++) {
       const application = await createApplicationInInterviewStage(jobA, interviewStage);
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], starts_at: hoursFromNow(10 + i), ends_at: hoursFromNow(11 + i) }));
     }

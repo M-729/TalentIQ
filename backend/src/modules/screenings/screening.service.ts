@@ -56,7 +56,7 @@ export async function createScreening(applicationId: string, companyId: string):
   }
 
   try {
-    const run = await reserveScreeningRunForProcessing(applicationId, application.job_id.toString());
+    const run = await reserveScreeningRunForProcessing(application.id, application.job_id.toString());
     return await runAndFinalizeScreening(run);
   } catch (err) {
     throw mapScreeningError(err);
@@ -70,12 +70,12 @@ export interface LatestScreeningResult {
 }
 
 export async function getLatestScreening(applicationId: string, companyId: string): Promise<LatestScreeningResult> {
-  await getAccessibleApplication(applicationId, companyId);
+  const application = await getAccessibleApplication(applicationId, companyId);
 
   try {
     const [screening, state] = await Promise.all([
-      getLatestApplicationScreening(applicationId),
-      getEffectiveScreeningState(applicationId),
+      getLatestApplicationScreening(application.id),
+      getEffectiveScreeningState(application.id),
     ]);
     return { screening, status: state.status };
   } catch (err) {
@@ -84,10 +84,10 @@ export async function getLatestScreening(applicationId: string, companyId: strin
 }
 
 export async function getScreeningHistory(applicationId: string, companyId: string): Promise<AIScreeningDoc[]> {
-  await getAccessibleApplication(applicationId, companyId);
+  const application = await getAccessibleApplication(applicationId, companyId);
 
   try {
-    return await getApplicationScreeningHistory(applicationId);
+    return await getApplicationScreeningHistory(application.id);
   } catch (err) {
     throw mapScreeningError(err);
   }

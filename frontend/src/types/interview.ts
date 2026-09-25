@@ -56,6 +56,9 @@ export interface InterviewCalendar {
 
 export interface Interview {
   id: string;
+  // Opaque, URL-safe identifier — prefer via lib/resourceUrlId.ts over `id`
+  // for any URL/navigation use.
+  public_id?: string;
   title: string;
   stage: InterviewStage;
   starts_at: string;
@@ -92,6 +95,8 @@ export interface InterviewDetail extends Interview {
 // deliberately omits.
 export interface InterviewListRow {
   id: string;
+  // Opaque, URL-safe identifier — see Interview.public_id.
+  public_id?: string;
   title: string;
   candidate: { id: string; name: string; email: string } | null;
   job: { id: string; title: string } | null;

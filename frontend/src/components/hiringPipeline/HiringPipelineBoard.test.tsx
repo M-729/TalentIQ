@@ -227,9 +227,17 @@ describe("HiringPipelineBoard", () => {
     });
 
     it("View Application links to the correct Application detail route", async () => {
-      await renderWithOneCard({ id: "application-42" });
+      await renderWithOneCard({ id: "application-42", public_id: "application-42" });
       const links = screen.getAllByRole("link", { name: "View Application" });
       expect(links[0]).toHaveAttribute("href", "/applications/application-42");
+    });
+
+    // Phase 1 opaque public ID migration: prefers public_id over the raw
+    // Mongo _id (exposed here as `id`) once the backend provides one.
+    it("View Application links using public_id when present, not id", async () => {
+      await renderWithOneCard({ id: "internal-object-id", public_id: "app_a8f13c92e51b4f638dde79bf" });
+      const links = screen.getAllByRole("link", { name: "View Application" });
+      expect(links[0]).toHaveAttribute("href", "/applications/app_a8f13c92e51b4f638dde79bf");
     });
 
     it('shows "AI Match X%" for a screened application', async () => {
@@ -377,7 +385,7 @@ describe("HiringPipelineBoard", () => {
 
       await waitFor(() =>
         expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith(
-          "app-1",
+          "application-1-public",
           expect.objectContaining({ step_id: "step-tech" })
         )
       );
@@ -469,7 +477,7 @@ describe("HiringPipelineBoard", () => {
       await userEvent.click(screen.getByRole("button", { name: "Move Applicant" }));
 
       await waitFor(() =>
-        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("app-1", { step_id: "step-tech" })
+        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("application-1-public", { step_id: "step-tech" })
       );
       await waitFor(() => expect(screen.queryByRole("heading", { name: "Move applicant" })).not.toBeInTheDocument());
       await waitFor(() => expect(hiringPipelineBoardApi.getHiringPipelineBoard).toHaveBeenCalledTimes(2));
@@ -603,7 +611,7 @@ describe("HiringPipelineBoard", () => {
 
     it("View Application works from needs_attention", async () => {
       vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
-        buildHiringPipelineBoard({ needs_attention: [buildHiringPipelineNeedsAttentionApplication({ id: "app-needs-1" })] })
+        buildHiringPipelineBoard({ needs_attention: [buildHiringPipelineNeedsAttentionApplication({ id: "app-needs-1", public_id: "app-needs-1" })] })
       );
       renderBoard();
       await screen.findByText("Applications need attention");
@@ -719,7 +727,7 @@ describe("HiringPipelineBoard", () => {
       await userEvent.click(screen.getByRole("button", { name: "Move Applicant" }));
 
       await waitFor(() =>
-        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("app-1", { step_id: "step-review" })
+        expect(hiringPipelineBoardApi.moveApplicationToHiringStep).toHaveBeenCalledWith("application-1-public", { step_id: "step-review" })
       );
     });
 
@@ -865,7 +873,9 @@ describe("HiringPipelineBoard", () => {
 
       await userEvent.click(await screen.findByRole("button", { name: "Schedule interview for Sarah Ahmed" }));
 
-      await waitFor(() => expect(interviewsApi.listApplicationInterviews).toHaveBeenCalledWith("a1", expect.anything()));
+      await waitFor(() =>
+        expect(interviewsApi.listApplicationInterviews).toHaveBeenCalledWith("application-1-public", expect.anything())
+      );
       expect(await screen.findByRole("heading", { name: "Schedule interview" })).toBeInTheDocument();
     });
 
@@ -978,7 +988,7 @@ describe("HiringPipelineBoard", () => {
       await renderWithTwoCandidatesInReview();
       await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
       const links = screen.getAllByRole("link", { name: "View Application" });
-      expect(links[0]).toHaveAttribute("href", "/applications/a1");
+      expect(links[0]).toHaveAttribute("href", "/applications/application-1-public");
     });
 
     it("toggles selection on and off", async () => {

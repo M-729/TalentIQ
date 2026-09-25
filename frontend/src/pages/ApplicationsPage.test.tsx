@@ -33,7 +33,7 @@ describe("ApplicationsPage", () => {
     vi.mocked(applicationsApi.getApplications).mockReset();
     vi.mocked(jobsApi.listJobs).mockReset().mockResolvedValue({
       jobs: [
-        { _id: "job-1", company_id: "c1", created_by: "u1", title: "Backend Developer", required_skills: [], status: "active", created_at: "2024-01-01T00:00:00.000Z", updated_at: "2024-01-01T00:00:00.000Z" },
+        { _id: "job-1", public_id: "job-1", company_id: "c1", created_by: "u1", title: "Backend Developer", required_skills: [], status: "active", created_at: "2024-01-01T00:00:00.000Z", updated_at: "2024-01-01T00:00:00.000Z" },
       ],
     });
   });
@@ -202,6 +202,16 @@ describe("ApplicationsPage", () => {
     await user.click(await screen.findByRole("link", { name: /view application/i }));
 
     expect(await screen.findByText("Application Detail Page")).toBeInTheDocument();
+  });
+
+  // Phase 1 opaque public ID migration: prefers public_id over the raw
+  // Mongo _id (exposed here as `id`) once the backend provides one.
+  it("links to the detail route using public_id when present, not id", async () => {
+    mockPage([buildApplicationListRow({ id: "internal-object-id", public_id: "app_a8f13c92e51b4f638dde79bf" })]);
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: /view application/i });
+    expect(link).toHaveAttribute("href", "/applications/app_a8f13c92e51b4f638dde79bf");
   });
 
   it("changes the API query when searching", async () => {

@@ -116,7 +116,7 @@ export async function getDashboard(companyId: string): Promise<DashboardDTO> {
     Candidate.find({ _id: { $in: [...new Set(applicationCandidateIds)] } }),
     Job.find({ _id: { $in: [...new Set(applicationJobIds)] } }),
     applicationStepIds.length ? HiringStep.find({ _id: { $in: [...new Set(applicationStepIds)] } }) : Promise.resolve([]),
-    Application.find({ _id: { $in: interviewApplicationIds } }).select("candidate_id"),
+    Application.find({ _id: { $in: interviewApplicationIds } }).select("candidate_id public_id"),
     Job.find({ _id: { $in: [...new Set(interviewJobIds)] } }),
   ]);
 
@@ -138,17 +138,22 @@ export async function getDashboard(companyId: string): Promise<DashboardDTO> {
   const candidateIdByApplicationId = new Map(
     interviewApplications.map((application) => [application.id, application.candidate_id.toString()])
   );
+  const applicationPublicIdByApplicationId = new Map(
+    interviewApplications.map((application) => [application.id, application.public_id])
+  );
   const interviewCandidateIds = [...new Set(interviewApplications.map((application) => application.candidate_id.toString()))];
   const interviewCandidates = interviewCandidateIds.length ? await Candidate.find({ _id: { $in: interviewCandidateIds } }) : [];
   const interviewCandidateById = new Map(interviewCandidates.map((candidate) => [candidate.id, candidate]));
 
   const upcomingInterviewRows = upcomingInterviewDocs
     .map((interview) => {
-      const candidateId = candidateIdByApplicationId.get(interview.application_id.toString());
+      const applicationId = interview.application_id.toString();
+      const candidateId = candidateIdByApplicationId.get(applicationId);
       const candidate = candidateId ? interviewCandidateById.get(candidateId) : undefined;
       const job = interviewJobById.get(interview.job_id.toString());
-      if (!candidate || !job) return null;
-      return serializeDashboardInterviewRow(interview, candidate, job);
+      const applicationPublicId = applicationPublicIdByApplicationId.get(applicationId);
+      if (!candidate || !job || !applicationPublicId) return null;
+      return serializeDashboardInterviewRow(interview, candidate, job, applicationPublicId);
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
 

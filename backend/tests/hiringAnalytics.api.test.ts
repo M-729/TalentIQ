@@ -154,8 +154,8 @@ describe("GET /api/v1/hiring-analytics", () => {
     const byJob = res.body.applications_by_job as { job_title: string; count: number }[];
     expect(byJob).toEqual(
       expect.arrayContaining([
-        { job_id: jobA.id, job_title: "Backend Developer", count: 2 },
-        { job_id: jobC.id, job_title: "Frontend Developer", count: 1 },
+        { job_id: jobA.id, job_public_id: jobA.public_id, job_title: "Backend Developer", count: 2 },
+        { job_id: jobC.id, job_public_id: jobC.public_id, job_title: "Frontend Developer", count: 1 },
       ])
     );
     expect(byJob.find((row) => row.job_title === "No Apps")).toBeUndefined();
@@ -221,7 +221,7 @@ describe("GET /api/v1/hiring-analytics", () => {
     await createApplicationFor(jobC, { applied_at: daysAgo(3) });
 
     const res = await request(app)
-      .get(`${analyticsUrl}?range=30d&jobId=${jobA.id}`)
+      .get(`${analyticsUrl}?range=30d&jobId=${jobA.public_id}`)
       .set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(res.body.kpis.total_applications).toBe(1);
     expect(res.body.job_id).toBe(jobA.id);
@@ -230,9 +230,23 @@ describe("GET /api/v1/hiring-analytics", () => {
   it("returns 404 for a jobId belonging to another company", async () => {
     const jobB = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Other Job", status: "active" });
     const res = await request(app)
-      .get(`${analyticsUrl}?jobId=${jobB.id}`)
+      .get(`${analyticsUrl}?jobId=${jobB.public_id}`)
       .set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(res.status).toBe(404);
+  });
+
+  // The jobId filter (public_id only, Phase 2 cutover) is resolved to
+  // Job's real internal id (echoed back as job_id in the response) before
+  // being used against Application.job_id/Offer.job_id.
+  it("filters by jobId given as the Job's public_id, echoing back the real internal id", async () => {
+    await createApplicationFor(jobA, { applied_at: daysAgo(3) });
+
+    const res = await request(app)
+      .get(`${analyticsUrl}?range=30d&jobId=${jobA.public_id}`)
+      .set("Authorization", authHeaderFor(hrA, companyA.id));
+    expect(res.status).toBe(200);
+    expect(res.body.kpis.total_applications).toBe(1);
+    expect(res.body.job_id).toBe(jobA.id);
   });
 
   // 52. tenant isolation
@@ -318,7 +332,7 @@ describe("GET /api/v1/hiring-analytics", () => {
       await createApplicationFor(jobC, { applied_at: daysAgo(2) });
 
       const res = await request(app)
-        .get(`${analyticsUrl}?range=30d&jobId=${jobA.id}`)
+        .get(`${analyticsUrl}?range=30d&jobId=${jobA.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       const points = res.body.applications_over_time as { period: string; count: number }[];
       expect(points.reduce((total, point) => total + point.count, 0)).toBe(1);

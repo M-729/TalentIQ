@@ -1,5 +1,6 @@
 import { Select } from "@/components/ui/select";
 import { FilterBar } from "@/components/layout/FilterBar";
+import { jobUrlId } from "@/lib/jobUrlId";
 import { INTERVIEW_STATUSES, type InterviewStatus } from "@/types/interview";
 import type { Job } from "@/types/job";
 
@@ -50,11 +51,13 @@ export function InterviewsFilterBar({
         </label>
         <Select id="interviews-job-filter" value={jobId} onChange={(e) => onJobIdChange(e.target.value)}>
           <option value="">All Jobs</option>
-          {jobs.map((job) => (
-            <option key={job._id} value={job._id}>
-              {job.title}
-            </option>
-          ))}
+          {jobs
+            .filter((job) => job.public_id)
+            .map((job) => (
+              <option key={job._id} value={jobUrlId(job)}>
+                {job.title}
+              </option>
+            ))}
         </Select>
       </div>
 

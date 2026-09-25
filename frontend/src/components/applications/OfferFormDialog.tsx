@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateOffer } from "@/hooks/useCreateOffer";
 import { useUpdateOffer } from "@/hooks/useUpdateOffer";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import { OFFER_CURRENCIES, type Offer, type OfferCurrency } from "@/types/offer";
 
 export interface OfferFormDialogProps {
@@ -95,7 +96,7 @@ export function OfferFormDialog({ open, onOpenChange, applicationId, existingOff
       internal_notes: internalNotes.trim() || null,
     };
 
-    const saved = isEditing ? await runUpdate(existingOffer!.id, payload) : await runCreate(applicationId, payload);
+    const saved = isEditing ? await runUpdate(resourceUrlId(existingOffer!), payload) : await runCreate(applicationId, payload);
 
     if (saved) {
       onSaved(saved);

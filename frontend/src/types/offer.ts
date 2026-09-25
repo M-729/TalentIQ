@@ -10,6 +10,9 @@ export type OfferResponseSource = (typeof OFFER_RESPONSE_SOURCES)[number];
 
 export interface Offer {
   id: string;
+  // Opaque, URL-safe identifier — kept in sync with every other migrated
+  // resource; Offer has no dedicated detail route yet.
+  public_id?: string;
   application_id: string;
   candidate_id: string;
   job_id: string;
@@ -39,6 +42,7 @@ export type OfferEmailStatus = "pending" | "sent" | "failed";
 
 export interface OfferNotification {
   id: string;
+  public_id?: string;
   status: OfferEmailStatus;
   subject: string;
   recipient_email: string;
@@ -64,7 +68,11 @@ export type UpdateOfferInput = Partial<CreateOfferInput>;
 
 export interface OfferListRow {
   id: string;
+  public_id?: string;
   application_id: string;
+  // Opaque, URL-safe identifier for the owning Application — see
+  // types/application.ts's ApplicationListRow.public_id.
+  application_public_id?: string;
   candidate: { id: string; full_name: string; email: string };
   job: { id: string; title: string };
   title: string;

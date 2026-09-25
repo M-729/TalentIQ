@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduleInterviewDialog } from "@/components/interviews/ScheduleInterviewDialog";
 import { useApplicationInterviews } from "@/hooks/useApplicationInterviews";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { Interview } from "@/types/interview";
 
 export interface PipelineScheduleInterviewGateProps {
@@ -35,7 +36,7 @@ export function PipelineScheduleInterviewGate({
   useEffect(() => {
     if (existing) {
       onClose();
-      navigate(`/interviews/${existing.id}`);
+      navigate(`/interviews/${resourceUrlId(existing)}`);
     }
     // Only re-run when the resolved existing-interview id actually
     // changes — re-running on every onClose/navigate identity change

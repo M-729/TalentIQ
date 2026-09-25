@@ -7,6 +7,9 @@ import { Candidate } from "../src/models/Candidate.model";
 import { Application } from "../src/models/Application.model";
 import { EmailNotification } from "../src/models/EmailNotification.model";
 import { CompanyInvitation } from "../src/models/CompanyInvitation.model";
+import { HiringStep } from "../src/models/HiringStep.model";
+import { Offer } from "../src/models/Offer.model";
+import { ApplicationAssessment } from "../src/models/ApplicationAssessment.model";
 import { createCompany, createUser } from "./helpers/factories";
 import type { CompanyDoc } from "../src/models/Company.model";
 import type { UserDoc } from "../src/models/User.model";
@@ -107,6 +110,85 @@ describe("GET /api/v1/email-activity", () => {
     expect(res.body.emails[0].related_application_id).toBe(application.id);
   });
 
+  // Phase 2 cutover: every URL-facing identifier on a row — its own
+  // identity (used by retry actions) and every related resource id used
+  // by a retry action (offer, assessment) — must be exposed as public_id,
+  // never only as a raw Mongo id.
+  it("exposes public_id on the row itself and on every related resource used by a retry action", async () => {
+    const application = await createApplicationFor(jobA);
+    const assessmentStage = await HiringStep.create({
+      job_id: jobA.id,
+      name: "Technical Assessment",
+      type: "assessment",
+      position: 0,
+    });
+    const offer = await Offer.create({
+      company_id: companyA.id,
+      application_id: application.id,
+      candidate_id: application.candidate_id,
+      job_id: jobA.id,
+      title: "Backend Engineer",
+      status: "sent",
+      created_by_user_id: hrA.id,
+      updated_by_user_id: hrA.id,
+    });
+    const assessment = await ApplicationAssessment.create({
+      company_id: companyA.id,
+      application_id: application.id,
+      job_id: jobA.id,
+      hiring_step_id: assessmentStage.id,
+      name: "Backend Technical Test",
+      external_url: "https://external-platform.example/test/abc",
+      status: "pending",
+      stage_snapshot: { id: assessmentStage.id, name: "Technical Assessment", type: "assessment" },
+      created_by_user_id: hrA.id,
+      updated_by_user_id: hrA.id,
+    });
+    const offerNotification = await EmailNotification.create({
+      company_id: companyA.id,
+      application_id: application.id,
+      candidate_id: application.candidate_id,
+      offer_id: offer.id,
+      category: "offer_sent",
+      recipient_email: "ahmad@test.test",
+      subject: "Your offer",
+      offer_snapshot: { candidate_name: "Ahmad Khalil", company_name: "Company A", job_title: "Backend Developer", offer_title: "Backend Engineer" },
+      status: "sent",
+      sent_at: new Date(),
+      mutation_version_at: new Date(),
+    });
+    const assessmentNotification = await EmailNotification.create({
+      company_id: companyA.id,
+      application_id: application.id,
+      candidate_id: application.candidate_id,
+      application_assessment_id: assessment.id,
+      category: "assessment_invitation",
+      recipient_email: "ahmad@test.test",
+      subject: "Your assessment",
+      assessment_snapshot: {
+        candidate_name: "Ahmad Khalil",
+        company_name: "Company A",
+        job_title: "Backend Developer",
+        assessment_name: "Backend Technical Test",
+        external_url: "https://external-platform.example/test/abc",
+      },
+      status: "sent",
+      sent_at: new Date(),
+      mutation_version_at: new Date(),
+    });
+
+    const res = await request(app).get(emailActivityUrl).set("Authorization", authHeaderFor(hrA, companyA.id));
+    expect(res.status).toBe(200);
+
+    const offerRow = res.body.emails.find((e: { id: string }) => e.id === offerNotification.id);
+    expect(offerRow.public_id).toBe(offerNotification.public_id);
+    expect(offerRow.related_offer_public_id).toBe(offer.public_id);
+
+    const assessmentRow = res.body.emails.find((e: { id: string }) => e.id === assessmentNotification.id);
+    expect(assessmentRow.public_id).toBe(assessmentNotification.public_id);
+    expect(assessmentRow.related_assessment_public_id).toBe(assessment.public_id);
+  });
+
   // 20. CompanyInvitation email event normalized correctly
   it("20. normalizes a CompanyInvitation email event correctly", async () => {
     const invitation = await createInvitationEmail();
@@ -123,6 +205,8 @@ describe("GET /api/v1/email-activity", () => {
       related_label: "Invited as HR",
       related_invitation_id: invitation.id,
     });
+    expect(res.body.emails[0].public_id).toBe(invitation.public_id);
+    expect(res.body.emails[0].related_invitation_public_id).toBe(invitation.public_id);
   });
 
   // 21. company isolation

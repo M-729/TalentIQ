@@ -11,6 +11,7 @@ export interface HiringAnalyticsKpisDTO {
 
 export interface ApplicationsByJobRowDTO {
   job_id: string;
+  job_public_id: string;
   job_title: string;
   count: number;
 }
@@ -45,6 +46,7 @@ export interface OfferOutcomesDTO {
 export interface HiringAnalyticsDTO {
   range: "30d" | "90d" | "all";
   job_id: string | null;
+  job_public_id: string | null;
   kpis: HiringAnalyticsKpisDTO;
   applications_over_time: ApplicationsOverTimePointDTO[];
   applications_by_job: ApplicationsByJobRowDTO[];

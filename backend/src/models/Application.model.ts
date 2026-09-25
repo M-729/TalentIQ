@@ -1,4 +1,5 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { generatePublicId } from "../utils/publicId";
 
 // Per ERD, exactly as listed for applications.
 export const APPLICATION_STATUSES = ["applied", "in_process", "rejected", "offered", "hired"] as const;
@@ -38,6 +39,12 @@ const cvFileSchema = new Schema(
 
 const applicationSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale (sparse unique
+    // index, pre("validate") auto-assignment, backfill for legacy docs).
+    // Mongo `_id` remains the internal identifier for every relation
+    // (Interview.application_id, Offer.application_id, etc.).
+    public_id: { type: String, unique: true, sparse: true },
     job_id: { type: Schema.Types.ObjectId, ref: "Job", required: true },
     candidate_id: { type: Schema.Types.ObjectId, ref: "Candidate", required: true },
     // HiringStep doesn't exist yet (a later ticket); the ref name matches
@@ -78,6 +85,17 @@ const applicationSchema = new Schema(
   }
 );
 
+// Assigns public_id exactly once, only for a brand-new document that
+// doesn't already have one — same pattern/rationale as Job.model.ts's own
+// pre("validate") hook. Never touches an existing document being re-saved,
+// and never clobbers what a backfill script wrote directly.
+applicationSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("app");
+  }
+  next();
+});
+
 // Chosen duplicate-prevention rule (ERD/BRD are silent on this — flagged in
 // the task report): at most one application per candidate per job. Chosen
 // deliberately as the simplest safe rule rather than something more
@@ -91,5 +109,18 @@ applicationSchema.index({ job_id: 1, candidate_id: 1 }, { unique: true });
 applicationSchema.index({ job_id: 1, status: 1 });
 
 export type ApplicationDoc = HydratedDocument<InferSchemaType<typeof applicationSchema>>;
+type ApplicationShape = InferSchemaType<typeof applicationSchema>;
+
+/**
+ * URL/route id resolution for Application — see Job.model.ts's
+ * jobIdentifierFilter for the full rationale. Public-id only (Phase 2
+ * cutover). Always spread alongside the caller's own ownership check
+ * (applicationAccess.service.ts resolves company ownership via the
+ * Application's Job afterward) — this function only ever resolves WHICH
+ * document is being asked for.
+ */
+export function applicationIdentifierFilter(idParam: string): FilterQuery<ApplicationShape> {
+  return { public_id: idParam };
+}
 
 export const Application = model("Application", applicationSchema);

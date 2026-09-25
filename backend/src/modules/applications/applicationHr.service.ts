@@ -6,10 +6,11 @@ import { HiringStep } from "../../models/HiringStep.model";
 import { AIScreening } from "../../models/AIScreening.model";
 import { AIScreeningRun } from "../../models/AIScreeningRun.model";
 import { NotFoundError } from "../../security/AppError";
-import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
+import { companyFilter } from "../../security/companyScope";
 import { escapeRegExp } from "../../utils/regex";
 import { resolveReportedStatus } from "../../services/ai/screeningRun.service";
 import { getAccessibleApplication } from "./applicationAccess.service";
+import { resolveJobId } from "../jobs/job.service";
 import {
   serializeApplicationDetail,
   serializeApplicationListRow,
@@ -114,8 +115,16 @@ export async function getLatestScreeningSummaries(applicationIds: string[]): Pro
 export async function listApplications(companyId: string, filters: ListApplicationsFilters): Promise<ListApplicationsResult> {
   let jobFilter: FilterQuery<ApplicationDoc>;
   if (filters.jobId) {
-    await assertOwnedByCompany(Job, { _id: filters.jobId }, companyId, { notFoundMessage: "Job not found" });
-    jobFilter = { job_id: filters.jobId };
+    // filters.jobId is the Job's public_id (public-id only since the
+    // Phase 2 cutover — see job.service.ts's resolveJobId) — resolved to
+    // the real internal id here before being used against
+    // Application.job_id, which is always
+    // a plain ObjectId reference and was never itself migrated.
+    const resolvedJobId = await resolveJobId(companyId, filters.jobId);
+    if (!resolvedJobId) {
+      throw new NotFoundError("Job not found");
+    }
+    jobFilter = { job_id: resolvedJobId };
   } else {
     const companyJobs = await Job.find(companyFilter(companyId)).select("_id").lean();
     jobFilter = { job_id: { $in: companyJobs.map((job) => job._id) } };

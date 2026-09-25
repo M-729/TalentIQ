@@ -1,4 +1,4 @@
-import { User, type UserDoc } from "../../models/User.model";
+import { User, userIdentifierFilter, type UserDoc } from "../../models/User.model";
 import { ConflictError, NotFoundError } from "../../security/AppError";
 import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
 
@@ -20,17 +20,22 @@ export async function listCompanyMembers(companyId: string): Promise<UserDoc[]> 
 }
 
 async function getOwnedHrTarget(companyId: string, targetUserId: string): Promise<UserDoc> {
-  await assertOwnedByCompany(User, { _id: targetUserId }, companyId, { notFoundMessage: NOT_FOUND_MESSAGE });
-  const target = await User.findById(targetUserId);
+  await assertOwnedByCompany(User, userIdentifierFilter(targetUserId), companyId, { notFoundMessage: NOT_FOUND_MESSAGE });
+  const target = await User.findOne(userIdentifierFilter(targetUserId));
   if (!target) throw new NotFoundError(NOT_FOUND_MESSAGE);
   if (target.role !== "HR") throw new ConflictError(NOT_HR_TARGET_MESSAGE);
   return target;
 }
 
 export async function deactivateMember(companyId: string, actingUserId: string, targetUserId: string): Promise<UserDoc> {
-  if (targetUserId === actingUserId) throw new ConflictError(SELF_DEACTIVATE_MESSAGE);
-
   const target = await getOwnedHrTarget(companyId, targetUserId);
+  // Compared against the RESOLVED target's real id, never the raw
+  // (possibly public_id) targetUserId param — actingUserId is always a
+  // real Mongo _id (from the JWT's own `sub` claim), so comparing it
+  // against an unresolved public_id string would never match even when
+  // they refer to the same user, silently defeating this guard.
+  if (target.id === actingUserId) throw new ConflictError(SELF_DEACTIVATE_MESSAGE);
+
   if (target.status === "disabled") throw new ConflictError(ALREADY_DEACTIVATED_MESSAGE);
 
   target.status = "disabled";

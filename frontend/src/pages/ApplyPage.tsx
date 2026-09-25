@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { CvFileInput } from "@/components/jobs/CvFileInput";
 import { usePublicJob } from "@/hooks/usePublicJob";
+import { jobUrlId } from "@/lib/jobUrlId";
 import * as applicationsApi from "@/services/api/applications";
 import { ApiError } from "@/services/api/client";
 import { parseApiFieldErrors } from "@/lib/parseApiFieldErrors";
@@ -164,7 +165,7 @@ export function ApplyPage() {
               </div>
               {job && (
                 <Button variant="outline" size="sm" asChild className="mt-2">
-                  <Link to={`/careers/jobs/${job._id}`}>Back to job</Link>
+                  <Link to={`/careers/jobs/${jobUrlId(job)}`}>Back to job</Link>
                 </Button>
               )}
             </CardContent>

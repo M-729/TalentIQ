@@ -35,23 +35,26 @@ export function useRetryEmailActivity(): UseRetryEmailActivityResult {
           case "interview_scheduled":
           case "interview_rescheduled":
           case "interview_cancelled":
-            await retryInterviewNotification(row.id);
+            if (!row.public_id) throw new Error("Missing notification reference");
+            await retryInterviewNotification(row.public_id);
             break;
           case "assessment_invitation":
-            if (!row.related_assessment_id) throw new Error("Missing assessment reference");
-            await retryAssessmentNotification(row.related_assessment_id, row.id);
+            if (!row.related_assessment_public_id) throw new Error("Missing assessment reference");
+            if (!row.public_id) throw new Error("Missing notification reference");
+            await retryAssessmentNotification(row.related_assessment_public_id, row.public_id);
             break;
           case "offer_sent":
-            if (!row.related_offer_id) throw new Error("Missing offer reference");
-            await retryOfferNotification(row.related_offer_id, row.id);
+            if (!row.related_offer_public_id) throw new Error("Missing offer reference");
+            if (!row.public_id) throw new Error("Missing notification reference");
+            await retryOfferNotification(row.related_offer_public_id, row.public_id);
             break;
           case "application_rejection":
-            if (!row.related_application_id) throw new Error("Missing application reference");
-            await retryRejectionEmail(row.related_application_id);
+            if (!row.related_application_public_id) throw new Error("Missing application reference");
+            await retryRejectionEmail(row.related_application_public_id);
             break;
           case "company_invitation":
-            if (!row.related_invitation_id) throw new Error("Missing invitation reference");
-            await resendTeamInvitation(row.related_invitation_id);
+            if (!row.related_invitation_public_id) throw new Error("Missing invitation reference");
+            await resendTeamInvitation(row.related_invitation_public_id);
             break;
         }
         return true;

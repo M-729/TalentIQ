@@ -1,4 +1,5 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { generatePublicId } from "../utils/publicId";
 
 // `type` is a behavioral category, never a specific company's stage name —
 // "Backend Technical Interview" is a `name` HR chooses; `type: "interview"`
@@ -22,6 +23,9 @@ export type HiringStepType = (typeof HIRING_STEP_TYPES)[number];
  */
 const hiringStepSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale.
+    public_id: { type: String, unique: true, sparse: true },
     job_id: { type: Schema.Types.ObjectId, ref: "Job", required: true },
     name: { type: String, required: true, trim: true, maxlength: 100 },
     type: { type: String, enum: HIRING_STEP_TYPES, required: true },
@@ -39,6 +43,15 @@ const hiringStepSchema = new Schema(
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   }
 );
+
+// Assigns public_id exactly once, only for a brand-new document — same
+// pattern/rationale as Job.model.ts's own pre("validate") hook.
+hiringStepSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("step");
+  }
+  next();
+});
 
 // The exact query GET /hiring-steps always runs: "this job's stages, in
 // pipeline order".
@@ -70,5 +83,11 @@ hiringStepSchema.index(
 // createHiringStep() for where this is handled (a single bulkWrite for
 // reorder; no unique-position constraint to violate).
 export type HiringStepDoc = HydratedDocument<InferSchemaType<typeof hiringStepSchema>>;
+type HiringStepShape = InferSchemaType<typeof hiringStepSchema>;
+
+/** URL/route id resolution for HiringStep — see Job.model.ts's jobIdentifierFilter for the full rationale. Public-id only (Phase 2 cutover). */
+export function hiringStepIdentifierFilter(idParam: string): FilterQuery<HiringStepShape> {
+  return { public_id: idParam };
+}
 
 export const HiringStep = model("HiringStep", hiringStepSchema);

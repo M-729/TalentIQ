@@ -2,6 +2,10 @@ import type { UserRole, UserStatus } from "@/types/auth";
 
 export interface TeamMember {
   id: string;
+  // Opaque, URL-safe identifier — TeamSettingsPage passes this (via
+  // resourceUrlId) to every deactivate/reactivate/revoke/resend action
+  // call; the backend is public-id only (Phase 2 cutover), no dual-accept.
+  public_id?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -14,6 +18,8 @@ export type InvitationEmailStatus = "pending" | "sent" | "failed";
 
 export interface TeamInvitation {
   id: string;
+  // Opaque, URL-safe identifier — see TeamMember.public_id.
+  public_id?: string;
   email: string;
   role: UserRole;
   status: InvitationStatus;

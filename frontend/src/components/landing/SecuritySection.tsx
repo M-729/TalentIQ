@@ -1,30 +1,29 @@
-import { Lock, ShieldCheck, Timer, UserX } from "lucide-react";
+import { FolderLock, KeyRound, Lock, ShieldCheck, UserRoundCheck, UserX } from "lucide-react";
 
-// Factual and modest — no certifications TalentIQ does not hold (no SOC 2,
-// GDPR-compliant, ISO 27001, HIPAA, or "enterprise-grade" claims — see
-// this ticket's explicit rule).
 const POINTS = [
-  { icon: ShieldCheck, title: "Role-based access", description: "Admin and HR roles scope what each teammate can see and do." },
-  { icon: Lock, title: "Company-scoped data isolation", description: "Every company's jobs, candidates, and hiring data are kept separate." },
-  { icon: Timer, title: "Secure email response links", description: "Offer and invitation links use single-purpose, expiring secure tokens." },
-  { icon: UserX, title: "No candidate account required", description: "Candidates apply and respond to offers without ever creating a TalentIQ account." },
+  { icon: UserRoundCheck, title: "Role-based access", description: "Admin and HR roles make responsibilities clear." },
+  { icon: ShieldCheck, title: "Company-scoped data", description: "Jobs, candidates, and hiring data stay separated by company." },
+  { icon: FolderLock, title: "Private CV storage", description: "Candidate documents are kept within the hiring workspace." },
+  { icon: KeyRound, title: "Secure response links", description: "Offer and invitation links use focused, expiring tokens." },
+  { icon: Lock, title: "Protected AI credentials", description: "AI service credentials remain on the backend." },
+  { icon: UserX, title: "No candidate account required", description: "Candidates can apply and respond without creating an account." },
 ];
 
 export function SecuritySection() {
   return (
-    <section className="bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground">Built with security in mind</h2>
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24 lg:px-12 xl:px-16">
+        <div className="grid gap-10 border-b border-border pb-10 md:grid-cols-[0.85fr_1.15fr] md:items-end">
+          <div><p className="font-mono-accent text-xs font-semibold uppercase tracking-[0.18em] text-primary">Designed for control</p><h2 className="mt-3 font-heading text-3xl font-extrabold tracking-[-0.035em] text-foreground sm:text-4xl">Hiring information stays in the right hands.</h2></div>
+          <p className="max-w-xl text-base leading-relaxed text-muted-foreground">Thoughtful access, company boundaries, and secure response flows are built into the way TalentIQ manages work.</p>
         </div>
-
-        <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-2 grid sm:grid-cols-2 lg:grid-cols-3">
           {POINTS.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="rounded-xl border border-border bg-card p-5">
+            <article key={title} className="border-b border-border py-7 sm:pr-8 lg:[&:nth-child(3n+2)]:px-8 lg:[&:nth-child(3n)]:pl-8">
               <Icon className="size-5 text-primary" aria-hidden="true" />
-              <h3 className="mt-3 text-sm font-semibold text-foreground">{title}</h3>
-              <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
-            </div>
+              <h3 className="mt-4 text-sm font-bold text-foreground">{title}</h3>
+              <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">{description}</p>
+            </article>
           ))}
         </div>
       </div>

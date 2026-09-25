@@ -1,11 +1,21 @@
 import { z } from "zod";
 import { Types } from "mongoose";
+import { jobIdentifierString } from "../jobs/job.validation";
 
 const objectIdString = (label: string) =>
   z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
 
+// jobId is the Job parent-scoping path segment
+// (`/jobs/:jobId/hiring-pipeline...`) — public_id only (Phase 2 cutover),
+// resolved to Job's real internal id by
+// hiringPipelineBoard.service.ts before being used against any
+// Application/HiringStep job_id query, which remain plain ObjectId
+// references and were never themselves migrated. application_ids/
+// target_hiring_step_id below are body-level arrays of already-fetched
+// ids and stay ObjectId-only (see job.validation.ts's own "don't blindly
+// replace every objectIdString validator" note).
 export const jobIdParamsSchema = z.object({
-  jobId: objectIdString("job id"),
+  jobId: jobIdentifierString("job id"),
 });
 
 // A generous but bounded batch size — large enough for a real HR bulk

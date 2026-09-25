@@ -48,6 +48,7 @@ export function buildScreening(overrides: Partial<Screening> = {}): Screening {
 export function buildApplicationListRow(overrides: Partial<ApplicationListRow> = {}): ApplicationListRow {
   return {
     id: "application-1",
+    public_id: "application-1-public",
     status: "applied",
     final_decision: null,
     applied_at: "2024-01-15T00:00:00.000Z",
@@ -71,6 +72,7 @@ export function buildApplicationListRow(overrides: Partial<ApplicationListRow> =
 export function buildHiringStep(overrides: Partial<HiringStep> = {}): HiringStep {
   return {
     id: "step-1",
+    public_id: "step-1-public",
     name: "Application Review",
     type: "review",
     description: null,
@@ -84,6 +86,7 @@ export function buildHiringPipelineApplicationCard(
 ): HiringPipelineApplicationCard {
   return {
     id: "application-1",
+    public_id: "application-1-public",
     candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
     status: "applied",
     applied_at: "2024-01-15T00:00:00.000Z",
@@ -130,6 +133,7 @@ export function buildHiringPipelineBoard(overrides: Partial<HiringPipelineBoard>
 export function buildApplicationDetail(overrides: Partial<ApplicationDetail> = {}): ApplicationDetail {
   return {
     id: "application-1",
+    public_id: "application-1-public",
     status: "applied",
     final_decision: null,
     applied_at: "2024-01-15T00:00:00.000Z",
@@ -159,6 +163,7 @@ export function buildApplicationDetail(overrides: Partial<ApplicationDetail> = {
 export function buildApplicationAssessment(overrides: Partial<ApplicationAssessment> = {}): ApplicationAssessment {
   return {
     id: "assessment-1",
+    public_id: "assessment-1-public",
     application_id: "application-1",
     job_id: "job-1",
     hiring_step_id: "step-1",
@@ -192,6 +197,7 @@ export function buildAssessmentHistoryItem(overrides: Partial<AssessmentHistoryI
 export function buildAssessmentNotification(overrides: Partial<AssessmentNotification> = {}): AssessmentNotification {
   return {
     id: "assessment-notification-1",
+    public_id: "assessment-notification-1-public",
     status: "sent",
     subject: "Assessment Invitation – Backend Developer",
     recipient_email: "sarah@candidate.test",
@@ -207,7 +213,9 @@ export function buildAssessmentNotification(overrides: Partial<AssessmentNotific
 export function buildAssessmentListRow(overrides: Partial<AssessmentListRow> = {}): AssessmentListRow {
   return {
     id: "assessment-1",
+    public_id: "assessment-1-public",
     application_id: "application-1",
+    application_public_id: "app-1-public",
     candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
     job: { id: "job-1", title: "Backend Developer" },
     name: "Backend Technical Test",
@@ -224,6 +232,7 @@ export function buildAssessmentListRow(overrides: Partial<AssessmentListRow> = {
 export function buildOffer(overrides: Partial<Offer> = {}): Offer {
   return {
     id: "offer-1",
+    public_id: "offer-1-public",
     application_id: "application-1",
     candidate_id: "candidate-1",
     job_id: "job-1",
@@ -252,6 +261,7 @@ export function buildOffer(overrides: Partial<Offer> = {}): Offer {
 export function buildOfferNotification(overrides: Partial<OfferNotification> = {}): OfferNotification {
   return {
     id: "offer-notification-1",
+    public_id: "offer-notification-1-public",
     status: "sent",
     subject: "Job Offer – Backend Developer at Acme Recruiting Co",
     recipient_email: "sarah@candidate.test",
@@ -267,7 +277,9 @@ export function buildOfferNotification(overrides: Partial<OfferNotification> = {
 export function buildOfferListRow(overrides: Partial<OfferListRow> = {}): OfferListRow {
   return {
     id: "offer-1",
+    public_id: "offer-1-public",
     application_id: "application-1",
+    application_public_id: "app-1-public",
     candidate: { id: "candidate-1", full_name: "Sarah Ahmed", email: "sarah@example.test" },
     job: { id: "job-1", title: "Backend Developer" },
     title: "Backend Engineer",
@@ -309,6 +321,7 @@ export function buildRejectionNotification(overrides: Partial<RejectionNotificat
 export function buildInterview(overrides: Partial<Interview> = {}): Interview {
   return {
     id: "interview-1",
+    public_id: "interview-1-public",
     title: "Technical Interview",
     stage: { id: "step-1", name: "Technical Interview", type: "interview" },
     starts_at: "2024-02-01T10:00:00.000Z",

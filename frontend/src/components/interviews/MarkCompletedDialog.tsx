@@ -2,6 +2,7 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useCompleteInterview } from "@/hooks/useCompleteInterview";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { Interview } from "@/types/interview";
 
 export interface MarkCompletedDialogProps {
@@ -19,7 +20,7 @@ export function MarkCompletedDialog({ open, onOpenChange, interview, onCompleted
   const { run, isSubmitting, error, clearError } = useCompleteInterview();
 
   async function handleConfirm() {
-    const updated = await run(interview.id);
+    const updated = await run(resourceUrlId(interview));
     if (updated) {
       onOpenChange(false);
       onCompleted(updated);

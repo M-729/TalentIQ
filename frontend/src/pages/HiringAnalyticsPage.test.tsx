@@ -106,6 +106,7 @@ describe("HiringAnalyticsPage", () => {
       jobs: [
         {
           _id: "job-1",
+          public_id: "job-1",
           company_id: "company-1",
           created_by: "user-1",
           title: "Backend Developer",

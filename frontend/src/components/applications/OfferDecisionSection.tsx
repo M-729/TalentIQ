@@ -17,6 +17,7 @@ import { useRetryRejectionEmail } from "@/hooks/useRetryRejectionEmail";
 import { useSendOffer } from "@/hooks/useSendOffer";
 import { useWithdrawOffer } from "@/hooks/useWithdrawOffer";
 import { formatDateTime } from "@/lib/formatDate";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationDetail } from "@/types/application";
 import type { Offer, OfferStatus } from "@/types/offer";
 
@@ -52,9 +53,9 @@ function formatSalary(offer: Offer): string | null {
 // pipeline stage — unlike ApplicationAssessmentSection, a final decision
 // isn't scoped to any one HiringStep.
 export function OfferDecisionSection({ application, onApplicationChanged }: OfferDecisionSectionProps) {
-  const { offer, isLoading, error, refetch } = useApplicationOffer(application.id);
+  const { offer, isLoading, error, refetch } = useApplicationOffer(resourceUrlId(application));
   const isRejected = application.status === "rejected";
-  const { rejection } = useRejectionInfo(isRejected ? application.id : null);
+  const { rejection } = useRejectionInfo(isRejected ? resourceUrlId(application) : null);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -78,7 +79,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
     notifications,
     isLoading: isLoadingNotifications,
     refetch: refetchNotifications,
-  } = useOfferNotifications(offer?.id ?? null);
+  } = useOfferNotifications(offer ? resourceUrlId(offer) : null);
   const { run: runSend, isSubmitting: isSending, error: sendError, clearError: clearSendError } = useSendOffer();
   const { run: runRetry, isSubmitting: isRetrying, error: retryError, clearError: clearRetryError } = useRetryOfferNotification();
   const { run: runWithdraw, isSubmitting: isWithdrawing, error: withdrawError, clearError: clearWithdrawError } = useWithdrawOffer();
@@ -95,7 +96,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
   async function handleSend() {
     clearSendError();
     if (!offer) return;
-    const result = await runSend(offer.id);
+    const result = await runSend(resourceUrlId(offer));
     if (result) {
       refetch();
       refetchNotifications();
@@ -105,7 +106,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
   async function handleRetry(notificationId: string) {
     clearRetryError();
     if (!offer) return;
-    const result = await runRetry(offer.id, notificationId);
+    const result = await runRetry(resourceUrlId(offer), notificationId);
     if (result) refetchNotifications();
   }
 
@@ -117,7 +118,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
   async function handleWithdraw() {
     clearWithdrawError();
     if (!offer) return;
-    const result = await runWithdraw(offer.id);
+    const result = await runWithdraw(resourceUrlId(offer));
     if (result) {
       setIsWithdrawOpen(false);
       refetch();
@@ -127,7 +128,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
   async function handleHire() {
     clearHireError();
     if (!offer) return;
-    const result = await runHire(offer.id);
+    const result = await runHire(resourceUrlId(offer));
     if (result) {
       setIsHireOpen(false);
       onApplicationChanged();
@@ -137,7 +138,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
 
   async function handleRetryRejection() {
     clearRetryRejectionError();
-    await runRetryRejection(application.id);
+    await runRetryRejection(resourceUrlId(application));
   }
 
   if (isLoading) {
@@ -246,11 +247,11 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
           </Button>
         </CardContent>
 
-        <OfferFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} applicationId={application.id} existingOffer={null} onSaved={handleOfferSaved} />
+        <OfferFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} applicationId={resourceUrlId(application)} existingOffer={null} onSaved={handleOfferSaved} />
         <RejectCandidateDialog
           open={isRejectOpen}
           onOpenChange={setIsRejectOpen}
-          applicationId={application.id}
+          applicationId={resourceUrlId(application)}
           onRejected={onApplicationChanged}
         />
       </Card>
@@ -317,7 +318,7 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
               ) : latestNotification.status === "failed" ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="destructive">Failed</Badge>
-                  <Button variant="outline" size="sm" onClick={() => void handleRetry(latestNotification.id)} disabled={isRetrying}>
+                  <Button variant="outline" size="sm" onClick={() => void handleRetry(resourceUrlId(latestNotification))} disabled={isRetrying}>
                     {isRetrying ? "Retrying…" : "Retry Email"}
                   </Button>
                 </div>
@@ -365,12 +366,12 @@ export function OfferDecisionSection({ application, onApplicationChanged }: Offe
         )}
       </CardContent>
 
-      <OfferFormDialog open={isEditOpen} onOpenChange={setIsEditOpen} applicationId={application.id} existingOffer={offer} onSaved={handleOfferSaved} />
+      <OfferFormDialog open={isEditOpen} onOpenChange={setIsEditOpen} applicationId={resourceUrlId(application)} existingOffer={offer} onSaved={handleOfferSaved} />
 
       <RecordOfferResponseDialog
         open={isRecordResponseOpen}
         onOpenChange={setIsRecordResponseOpen}
-        offerId={offer.id}
+        offerId={resourceUrlId(offer)}
         onRecorded={handleResponseRecorded}
       />
       <OfferActionConfirmDialog

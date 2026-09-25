@@ -1,4 +1,5 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { generatePublicId } from "../utils/publicId";
 
 // Deliberately generic ("EmailNotification", not "InterviewEmail") so the
 // future /emails page can list/filter across every candidate-facing email
@@ -162,6 +163,9 @@ const offerSnapshotSchema = new Schema(
  */
 const emailNotificationSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale.
+    public_id: { type: String, unique: true, sparse: true },
     company_id: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     application_id: { type: Schema.Types.ObjectId, ref: "Application", required: true },
     candidate_id: { type: Schema.Types.ObjectId, ref: "Candidate", required: true },
@@ -350,7 +354,22 @@ emailNotificationSchema.index(
 // Serves "this Offer's full notification history, newest first".
 emailNotificationSchema.index({ offer_id: 1, created_at: -1 });
 
+// Assigns public_id exactly once, only for a brand-new document — same
+// pattern/rationale as Job.model.ts's own pre("validate") hook.
+emailNotificationSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("notif");
+  }
+  next();
+});
+
 export type EmailNotificationDoc = HydratedDocument<InferSchemaType<typeof emailNotificationSchema>>;
+type EmailNotificationShape = InferSchemaType<typeof emailNotificationSchema>;
+
+/** URL/route id resolution for EmailNotification — see Job.model.ts's jobIdentifierFilter for the full rationale. Public-id only (Phase 2 cutover). */
+export function emailNotificationIdentifierFilter(idParam: string): FilterQuery<EmailNotificationShape> {
+  return { public_id: idParam };
+}
 
 // The plain (non-Mongoose-subdocument) shape callers build to persist a
 // new event_snapshot — InferSchemaType already gives us this exact shape

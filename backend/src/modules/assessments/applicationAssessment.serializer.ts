@@ -6,6 +6,9 @@ import type { EmailNotificationDoc, EmailNotificationStatus } from "../../models
 
 export interface AssessmentNotificationDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for a notification created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   status: EmailNotificationStatus;
   subject: string;
   recipient_email: string;
@@ -27,6 +30,7 @@ export interface AssessmentNotificationDTO {
 export function serializeAssessmentNotification(doc: EmailNotificationDoc): AssessmentNotificationDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     status: doc.status,
     subject: doc.subject,
     recipient_email: doc.recipient_email,
@@ -44,6 +48,9 @@ export function serializeAssessmentNotifications(docs: EmailNotificationDoc[]): 
 
 export interface ApplicationAssessmentDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for an assessment created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   application_id: string;
   job_id: string;
   hiring_step_id: string;
@@ -66,6 +73,7 @@ export interface ApplicationAssessmentDTO {
 export function serializeApplicationAssessment(doc: ApplicationAssessmentDoc): ApplicationAssessmentDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     application_id: doc.application_id.toString(),
     job_id: doc.job_id.toString(),
     hiring_step_id: doc.hiring_step_id.toString(),
@@ -119,7 +127,11 @@ export function serializeAssessmentHistoryItem(
 
 export interface AssessmentListRowDTO {
   id: string;
+  // Opaque, URL-facing identifier — see ApplicationAssessmentDTO.public_id.
+  public_id?: string;
   application_id: string;
+  /** Opaque, URL-facing identifier for the owning Application — see ApplicationListRowDTO.public_id. */
+  application_public_id?: string;
   candidate: { id: string; full_name: string; email: string };
   job: { id: string; title: string };
   name: string;
@@ -146,11 +158,14 @@ export function serializeAssessmentListRow(
   job: JobDoc,
   applicationStatus: string,
   currentStep: HiringStepDoc | null,
-  emailStatus: EmailNotificationStatus | null
+  emailStatus: EmailNotificationStatus | null,
+  applicationPublicId?: string
 ): AssessmentListRowDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     application_id: doc.application_id.toString(),
+    application_public_id: applicationPublicId,
     candidate: { id: candidate.id, full_name: candidate.full_name, email: candidate.email },
     job: { id: job.id, title: job.title },
     name: doc.name,

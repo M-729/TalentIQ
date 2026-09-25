@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ApplicationStatusBadge } from "@/components/applications/ApplicationStatusBadge";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { HiringPipelineNeedsAttentionApplication } from "@/types/hiringPipelineBoard";
 
 export interface HiringPipelineNeedsAttentionProps {
@@ -45,7 +46,7 @@ export function HiringPipelineNeedsAttention({ items }: HiringPipelineNeedsAtten
                 <ApplicationStatusBadge status={item.status} />
               </div>
               <Button variant="outline" size="sm" asChild>
-                <Link to={`/applications/${item.id}`}>View Application</Link>
+                <Link to={`/applications/${resourceUrlId(item)}`}>View Application</Link>
               </Button>
             </li>
           ))}

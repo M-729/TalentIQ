@@ -140,6 +140,27 @@ describe("ApplyPage (public application form)", () => {
     expect(await screen.findByText("Job not available")).toBeInTheDocument();
   });
 
+  // Phase 1 opaque public ID migration: after a successful submission, the
+  // "Back to job" link must prefer public_id over the raw Mongo _id once
+  // the backend provides one.
+  it("builds the post-submission 'Back to job' link from public_id when present, not _id", async () => {
+    const applicationsApi = await import("@/services/api/applications");
+    vi.mocked(applicationsApi.submitApplication).mockResolvedValue({ message: "Application submitted successfully" });
+    vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({
+      job: buildJob({ _id: "internal-object-id", public_id: "job_a8f13c92e51b4f638dde79bf" }),
+    });
+    renderPage();
+
+    await userEvent.type(await screen.findByLabelText(/Full Name/), "Jane Doe");
+    await userEvent.type(screen.getByLabelText(/Email/), "jane@example.com");
+    const file = new File(["dummy"], "resume.pdf", { type: "application/pdf" });
+    await userEvent.upload(screen.getByLabelText(/Resume/), file);
+    await userEvent.click(screen.getByRole("button", { name: "Submit application" }));
+
+    const backLink = await screen.findByRole("link", { name: "Back to job" });
+    expect(backLink).toHaveAttribute("href", "/careers/jobs/job_a8f13c92e51b4f638dde79bf");
+  });
+
   // Accessibility baseline (Phase 2) — this public form previously set no
   // autoComplete hints at all, unlike the authenticated Login/Signup forms.
   it("sets sensible autoComplete/type hints on name/email/phone", async () => {

@@ -44,12 +44,12 @@ export function CareersPage() {
   }
 
   return (
-    <div className="min-h-svh bg-background">
+    <div className="public-brand-theme min-h-svh bg-background">
       <PublicHeader />
 
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <div className="space-y-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Open Positions</h1>
+          <h1 className="font-heading text-3xl font-extrabold tracking-tight text-foreground">Open Positions</h1>
           <p className="text-sm text-muted-foreground sm:text-base">Explore current opportunities and apply online.</p>
         </div>
 
@@ -63,6 +63,7 @@ export function CareersPage() {
               placeholder="e.g. Software Engineer"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
+              className="h-[46px] rounded-lg"
             />
           </div>
           <div className="space-y-1.5">
@@ -74,13 +75,31 @@ export function CareersPage() {
               placeholder="e.g. Remote, Beirut"
               value={locationInput}
               onChange={(e) => setLocationInput(e.target.value)}
+              className="h-[46px] rounded-lg"
             />
           </div>
         </div>
 
-        <div className="mt-8 space-y-4">
+        {!isLoading && !error && pagination && pagination.total > 0 && (
+          <div className="mt-5 flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {pagination.total} result{pagination.total === 1 ? "" : "s"}
+            </span>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4 space-y-3.5">
           {isLoading ? (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-28 w-full" />
               ))}

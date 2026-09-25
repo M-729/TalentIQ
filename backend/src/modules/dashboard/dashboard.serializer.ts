@@ -22,6 +22,9 @@ export interface DashboardAttentionDTO {
 
 export interface DashboardApplicationRowDTO {
   id: string;
+  // Opaque, URL-facing identifier — see applicationHr.serializer.ts's
+  // ApplicationListRowDTO.public_id doc comment.
+  public_id?: string;
   candidate: { id: string; name: string };
   job: { id: string; title: string };
   status: string;
@@ -32,7 +35,11 @@ export interface DashboardApplicationRowDTO {
 
 export interface DashboardInterviewRowDTO {
   id: string;
-  application_id: string;
+  // Opaque, URL-facing identifier for the Interview's parent Application —
+  // the raw Mongo application_id is deliberately not exposed here (Phase 2
+  // cutover — see this ticket's report): frontend navigation to the
+  // Application detail page must use this field, never a database id.
+  application_public_id: string;
   candidate: { id: string; name: string };
   job: { id: string; title: string };
   starts_at: string;
@@ -55,6 +62,7 @@ export function serializeDashboardApplicationRow(
 ): DashboardApplicationRowDTO {
   return {
     id: application.id,
+    public_id: application.public_id ?? undefined,
     candidate: { id: candidate.id, name: candidate.full_name },
     job: { id: job.id, title: job.title },
     status: application.status,
@@ -66,11 +74,12 @@ export function serializeDashboardApplicationRow(
 export function serializeDashboardInterviewRow(
   interview: InterviewDoc,
   candidate: CandidateDoc,
-  job: JobDoc
+  job: JobDoc,
+  applicationPublicId: string
 ): DashboardInterviewRowDTO {
   return {
     id: interview.id,
-    application_id: interview.application_id.toString(),
+    application_public_id: applicationPublicId,
     candidate: { id: candidate.id, name: candidate.full_name },
     job: { id: job.id, title: job.title },
     starts_at: interview.starts_at.toISOString(),

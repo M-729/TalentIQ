@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { EmailActivityPage } from "@/pages/EmailActivityPage";
 import * as emailActivityApi from "@/services/api/emailActivity";
+import * as offersApi from "@/services/api/offers";
 import * as rejectionApi from "@/services/api/rejection";
 import type { EmailActivityRow } from "@/types/emailActivity";
 
@@ -26,6 +27,7 @@ function buildRow(overrides: Partial<EmailActivityRow> = {}): EmailActivityRow {
     updated_at: "2026-09-20T00:00:00.000Z",
     related_label: "Ahmad Khalil — Backend Developer",
     related_application_id: "app-1",
+    related_application_public_id: "app-1-public",
     ...overrides,
   };
 }
@@ -134,7 +136,42 @@ describe("EmailActivityPage", () => {
     renderPage();
 
     await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(rejectionApi.retryRejectionEmail).toHaveBeenCalledWith("app-1"));
+    await waitFor(() => expect(rejectionApi.retryRejectionEmail).toHaveBeenCalledWith("app-1-public"));
+  });
+
+  // Phase 2 cutover: retry actions for offer/assessment/interview/
+  // invitation categories must use each resource's public_id, never a raw
+  // Mongo id, since the backend now rejects the latter.
+  it("calls the category-specific retry endpoint using public_id for an offer_sent email", async () => {
+    mockList([
+      buildRow({
+        type: "offer_sent",
+        type_label: "Offer",
+        status: "failed",
+        public_id: "notif-1-public",
+        related_offer_id: "offer-1",
+        related_offer_public_id: "offer-1-public",
+      }),
+    ]);
+    vi.mocked(offersApi.retryOfferNotification).mockResolvedValue({
+      notification: {
+        id: "n1",
+        status: "sent",
+        subject: "s",
+        recipient_email: "a@test.test",
+        attempted_at: null,
+        sent_at: null,
+        failure_code: null,
+        attempt_count: 1,
+        created_at: "2026-09-20T00:00:00.000Z",
+      },
+    });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(offersApi.retryOfferNotification).toHaveBeenCalledWith("offer-1-public", "notif-1-public")
+    );
   });
 
   // 36. related-record navigation
@@ -143,7 +180,33 @@ describe("EmailActivityPage", () => {
     renderPage();
 
     const link = await screen.findByRole("link", { name: "View" });
-    expect(link).toHaveAttribute("href", "/applications/app-1");
+    expect(link).toHaveAttribute("href", "/applications/app-1-public");
+  });
+
+  // Phase 1 opaque public ID migration: prefers the related Application's
+  // public_id over its raw Mongo _id once the backend provides one.
+  it("links View using related_application_public_id when present, not related_application_id", async () => {
+    mockList([
+      buildRow({
+        related_application_id: "internal-object-id",
+        related_application_public_id: "app_a8f13c92e51b4f638dde79bf",
+      }),
+    ]);
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: "View" });
+    expect(link).toHaveAttribute("href", "/applications/app_a8f13c92e51b4f638dde79bf");
+  });
+
+  // Phase 2 cutover: the legacy _id fallback is gone — a row missing
+  // related_application_public_id must show no View link at all, never
+  // build a Mongo ObjectId URL from related_application_id.
+  it("shows no View link rather than falling back to related_application_id when public_id is missing", async () => {
+    mockList([buildRow({ related_application_id: "internal-object-id", related_application_public_id: undefined })]);
+    renderPage();
+
+    await screen.findByText("Ahmad Khalil — Backend Developer");
+    expect(screen.queryByRole("link", { name: "View" })).not.toBeInTheDocument();
   });
 
   it("links a company_invitation row's View to Settings > Team", async () => {
@@ -182,7 +245,7 @@ describe("EmailActivityPage", () => {
     renderPage();
 
     const link = await screen.findByRole("link", { name: "View" });
-    expect(link).toHaveAttribute("href", "/applications/app-1");
+    expect(link).toHaveAttribute("href", "/applications/app-1-public");
   });
 
   it("links an assessment_invitation row's View to the related Application, not a nonexistent assessment route", async () => {
@@ -197,7 +260,7 @@ describe("EmailActivityPage", () => {
     renderPage();
 
     const link = await screen.findByRole("link", { name: "View" });
-    expect(link).toHaveAttribute("href", "/applications/app-1");
+    expect(link).toHaveAttribute("href", "/applications/app-1-public");
   });
 
   // 37. empty/loading/error states

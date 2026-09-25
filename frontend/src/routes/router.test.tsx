@@ -17,6 +17,7 @@ vi.mock("@/services/api/companyInvitation");
 function buildJob(overrides: Partial<PublicJob> = {}): PublicJob {
   return {
     _id: "job-1",
+    public_id: "job-1",
     title: "Backend Engineer",
     department: "Engineering",
     description: "Build and scale our backend.",
@@ -167,7 +168,7 @@ describe("app router — public vs protected routes", () => {
   it("1. renders the public landing page at / without redirecting to login or dashboard", async () => {
     renderAt("/");
 
-    expect(await screen.findByRole("heading", { name: /Hire smarter/i, level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Smarter hiring/i, level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to your account" })).not.toBeInTheDocument();
   });
 
@@ -175,7 +176,7 @@ describe("app router — public vs protected routes", () => {
   it("13. never renders HR navigation destinations on /", async () => {
     renderAt("/");
 
-    await screen.findByRole("heading", { name: /Hire smarter/i, level: 1 });
+    await screen.findByRole("heading", { name: /Smarter hiring/i, level: 1 });
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
   });

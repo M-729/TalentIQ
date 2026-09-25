@@ -1,5 +1,4 @@
 import request from "supertest";
-import { Types } from "mongoose";
 import { createApp } from "../src/app";
 import { signAccessToken } from "../src/security/tokens";
 import { Job } from "../src/models/Job.model";
@@ -136,7 +135,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Findable" });
 
       const res = await request(app)
-        .get(`/api/v1/jobs/${job.id}`)
+        .get(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -147,7 +146,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Not Yours" });
 
       const res = await request(app)
-        .get(`/api/v1/jobs/${job.id}`)
+        .get(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -160,11 +159,56 @@ describe("Job CRUD API", () => {
       expect(res.status).toBe(400);
     });
 
-    it("returns 404 for a well-formed id that doesn't exist", async () => {
+    it("returns 404 for a well-formed public_id that doesn't exist", async () => {
       const res = await request(app)
-        .get(`/api/v1/jobs/${new Types.ObjectId().toString()}`)
+        .get(`/api/v1/jobs/job_${"a".repeat(24)}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
+    });
+
+    it("returns a job looked up by its public_id", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "By Public Id" });
+
+      const res = await request(app)
+        .get(`/api/v1/jobs/${job.public_id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(res.body.job.title).toBe("By Public Id");
+      expect(res.body.job._id).toBe(job.id);
+    });
+
+    // Phase 2 cutover: legacy dual-accept lookup is gone — a raw Mongo
+    // ObjectId is now just an invalid id format, not an alternate valid id.
+    it("rejects a job looked up by its legacy Mongo ObjectId", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "By Legacy ObjectId" });
+
+      const res = await request(app)
+        .get(`/api/v1/jobs/${job.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for another company's job looked up by public_id (tenant scoping preserved)", async () => {
+      const job = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Not Yours" });
+
+      const res = await request(app)
+        .get(`/api/v1/jobs/${job.public_id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(404);
+    });
+
+    it("exposes public_id on the returned job", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Exposes Public Id" });
+
+      const res = await request(app)
+        .get(`/api/v1/jobs/${job.public_id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(res.body.job.public_id).toBe(job.public_id);
     });
   });
 
@@ -173,7 +217,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Old Title" });
 
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "New Title" });
 
@@ -186,7 +230,7 @@ describe("Job CRUD API", () => {
       expect(job.published_at).toBeUndefined();
 
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "active" });
 
@@ -199,7 +243,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Not Yours" });
 
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Hijacked" });
 
@@ -213,7 +257,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Bad Update" });
 
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "not-a-status" });
 
@@ -224,9 +268,20 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Empty Update" });
 
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects an update addressed by legacy Mongo ObjectId", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Old Title" });
+
+      const res = await request(app)
+        .patch(`/api/v1/jobs/${job.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ title: "Should Not Apply" });
 
       expect(res.status).toBe(400);
     });
@@ -237,7 +292,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "To Delete" });
 
       const res = await request(app)
-        .delete(`/api/v1/jobs/${job.id}`)
+        .delete(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(204);
@@ -251,7 +306,7 @@ describe("Job CRUD API", () => {
       const job = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Not Yours" });
 
       const res = await request(app)
-        .delete(`/api/v1/jobs/${job.id}`)
+        .delete(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -260,8 +315,33 @@ describe("Job CRUD API", () => {
 
     it("rejects unauthenticated requests", async () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "No Auth Delete" });
-      const res = await request(app).delete(`/api/v1/jobs/${job.id}`);
+      const res = await request(app).delete(`/api/v1/jobs/${job.public_id}`);
       expect(res.status).toBe(401);
+    });
+
+    it("soft-deletes a job looked up by its public_id", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Delete By Public Id" });
+
+      const res = await request(app)
+        .delete(`/api/v1/jobs/${job.public_id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(204);
+
+      const stillExists = await Job.findById(job.id).select("+deleted_at");
+      expect(stillExists?.deleted_at).toBeInstanceOf(Date);
+    });
+
+    it("rejects a delete addressed by legacy Mongo ObjectId", async () => {
+      const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Not Deletable By ObjectId" });
+
+      const res = await request(app)
+        .delete(`/api/v1/jobs/${job.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(400);
+      const stillExists = await Job.findById(job.id).select("+deleted_at");
+      expect(stillExists?.deleted_at).toBeFalsy();
     });
   });
 });

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCancelInterview } from "@/hooks/useCancelInterview";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { Interview } from "@/types/interview";
 
 const REASON_MAX_LENGTH = 1000;
@@ -33,7 +34,7 @@ export function CancelInterviewDialog({ open, onOpenChange, interview, onCancell
     }
     setReasonError(null);
 
-    const updated = await run(interview.id, { reason: trimmedReason || undefined });
+    const updated = await run(resourceUrlId(interview), { reason: trimmedReason || undefined });
     if (updated) {
       onOpenChange(false);
       onCancelled(updated);

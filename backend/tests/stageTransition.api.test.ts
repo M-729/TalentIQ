@@ -97,7 +97,7 @@ describe("Application stage movement + history", () => {
   describe("initial assignment", () => {
     it("moves a null current_step to a target stage", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.application.current_step_id).toBe(review.id);
@@ -105,7 +105,7 @@ describe("Application stage movement + history", () => {
 
     it("sets status applied -> in_process on initial assignment", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.status).toBe("in_process");
       const reread = await Application.findById(application.id);
@@ -115,7 +115,7 @@ describe("Application stage movement + history", () => {
 
     it("creates exactly one history event for the initial assignment", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       const count = await ApplicationStageTransition.countDocuments({ application_id: application.id });
       expect(count).toBe(1);
@@ -123,7 +123,7 @@ describe("Application stage movement + history", () => {
 
     it("records a null from_step for the initial assignment", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       const transition = await ApplicationStageTransition.findOne({ application_id: application.id });
       expect(transition?.from_step_id).toBeNull();
@@ -132,7 +132,7 @@ describe("Application stage movement + history", () => {
 
     it("records the correct to_step snapshot", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       const transition = await ApplicationStageTransition.findOne({ application_id: application.id });
       expect(transition?.to_step_snapshot.name).toBe("Application Review");
@@ -141,7 +141,7 @@ describe("Application stage movement + history", () => {
 
     it("records moved_by as the authenticated user", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       const transition = await ApplicationStageTransition.findOne({ application_id: application.id });
       expect(transition?.moved_by.toString()).toBe(hrA.id);
@@ -152,7 +152,7 @@ describe("Application stage movement + history", () => {
   describe("normal movement", () => {
     it("moves from stage A to stage B", async () => {
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
-      const res = await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.application.current_step_id).toBe(interview.id);
@@ -160,14 +160,14 @@ describe("Application stage movement + history", () => {
 
     it("keeps status in_process across a normal movement", async () => {
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
-      const res = await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.status).toBe("in_process");
     });
 
     it("records correct from/to snapshots for a normal movement", async () => {
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const transition = await ApplicationStageTransition.findOne({ application_id: application.id }).sort({ created_at: -1 });
       expect(transition?.from_step_snapshot?.name).toBe("Application Review");
@@ -178,10 +178,10 @@ describe("Application stage movement + history", () => {
 
     it("leaves the previous history record unchanged after a second move", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       const firstTransition = await ApplicationStageTransition.findOne({ application_id: application.id });
 
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const firstReread = await ApplicationStageTransition.findById(firstTransition!.id);
       expect(firstReread?.to_step_snapshot.name).toBe("Application Review");
@@ -191,8 +191,8 @@ describe("Application stage movement + history", () => {
 
     it("creates a second history event on the second move", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const count = await ApplicationStageTransition.countDocuments({ application_id: application.id });
       expect(count).toBe(2);
@@ -203,7 +203,7 @@ describe("Application stage movement + history", () => {
   describe("backward movement", () => {
     it("allows moving from a later stage to an earlier stage", async () => {
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: finalInterview._id });
-      const res = await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.application.current_step_id).toBe(interview.id);
@@ -211,7 +211,7 @@ describe("Application stage movement + history", () => {
 
     it("creates a normal history event for backward movement", async () => {
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: finalInterview._id });
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const transition = await ApplicationStageTransition.findOne({ application_id: application.id });
       expect(transition?.from_step_snapshot?.name).toBe("Final Interview");
@@ -230,7 +230,7 @@ describe("Application stage movement + history", () => {
 
     it("returns 400 for a malformed step_id", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: "not-an-object-id" }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: "not-an-object-id" }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(400);
     });
 
@@ -239,7 +239,7 @@ describe("Application stage movement + history", () => {
       const portfolioReview = await HiringStep.create({ job_id: otherJob.id, name: "Portfolio Review", type: "review", position: 0 });
       const application = await createApplicationIn(jobA);
 
-      const res = await moveReq(application.id, { step_id: portfolioReview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: portfolioReview.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
@@ -248,13 +248,13 @@ describe("Application stage movement + history", () => {
       const foreignStep = await HiringStep.create({ job_id: otherJob.id, name: "Portfolio Review", type: "review", position: 0 });
       const application = await createApplicationIn(jobA);
 
-      const res = await moveReq(application.id, { step_id: foreignStep.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: foreignStep.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
     it("returns 409 when moving to the application's current stage", async () => {
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
@@ -264,7 +264,7 @@ describe("Application stage movement + history", () => {
       // Simulates corrupted/legacy data — never reachable through the normal API.
       const application = await createApplicationIn(jobA, { status: "in_process", current_step_id: foreignStep._id });
 
-      const res = await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
 
       const reread = await Application.findById(application.id);
@@ -304,13 +304,13 @@ describe("Application stage movement + history", () => {
   describe("terminal application statuses", () => {
     it.each(["rejected", "offered", "hired"] as const)("blocks movement for a(n) %s application", async (status) => {
       const application = await createApplicationIn(jobA, { status, current_step_id: review._id });
-      const res = await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("leaves status/current_step unchanged after a blocked terminal-state move", async () => {
       const application = await createApplicationIn(jobA, { status: "hired", current_step_id: review._id });
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const reread = await Application.findById(application.id);
       expect(reread?.status).toBe("hired");
@@ -319,7 +319,7 @@ describe("Application stage movement + history", () => {
 
     it("creates no history event for a blocked terminal-state move", async () => {
       const application = await createApplicationIn(jobA, { status: "rejected", current_step_id: review._id });
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       expect(await ApplicationStageTransition.countDocuments({ application_id: application.id })).toBe(0);
     });
@@ -329,31 +329,31 @@ describe("Application stage movement + history", () => {
   describe("tenant isolation", () => {
     it("allows an HR user to move an Application in their own company", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
     });
 
     it("allows an Admin user to move an Application in their own company", async () => {
       const admin = await createUser({ companyId: companyA.id, email: "admin@a.test", role: "ADMIN" });
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(admin, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(admin, companyA.id));
       expect(res.status).toBe(200);
     });
 
     it("returns 404 for a cross-company movement attempt", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrB, companyB.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
 
     it("returns 404 for cross-company history access", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await historyReq(application.id, authHeaderFor(hrB, companyB.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
 
-    it("returns 404 for a nonexistent application", async () => {
-      const res = await moveReq(new Types.ObjectId().toString(), { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+    it("returns 404 for a well-formed but nonexistent application public_id", async () => {
+      const res = await moveReq(`app_${"a".repeat(24)}`, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
   });
@@ -368,7 +368,7 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       const reread = await Application.findById(application.id);
@@ -383,7 +383,7 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
@@ -391,7 +391,7 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       const reread = await Application.findById(application.id);
       expect(reread?.status).toBe("applied");
@@ -402,17 +402,17 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       expect(await ApplicationStageTransition.countDocuments({ application_id: application.id })).toBe(0);
     });
 
     it("keeps stage history readable after the Job is soft-deleted", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.transitions).toHaveLength(1);
     });
@@ -422,26 +422,26 @@ describe("Application stage movement + history", () => {
   describe("GET stage-history", () => {
     it("returns [] for an Application with no movement yet", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.transitions).toEqual([]);
     });
 
     it("returns one record after one movement", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       expect(res.body.transitions).toHaveLength(1);
     });
 
     it("returns multiple records newest first", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
-      await moveReq(application.id, { step_id: finalInterview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: finalInterview.id }, authHeaderFor(hrA, companyA.id));
 
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       expect(res.body.transitions.map((t: { to_step: { name: string } }) => t.to_step.name)).toEqual([
         "Final Interview",
         "Technical Interview",
@@ -451,14 +451,14 @@ describe("Application stage movement + history", () => {
 
     it("keeps the historical stage snapshot name after the stage is later renamed", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       await request(app)
-        .patch(`/api/v1/jobs/${jobA.id}/hiring-steps/${review.id}`)
+        .patch(`/api/v1/jobs/${jobA.public_id}/hiring-steps/${review.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Initial Review" });
 
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       expect(res.body.transitions[0].to_step.name).toBe("Application Review");
 
       const liveStep = await HiringStep.findById(review.id);
@@ -467,27 +467,27 @@ describe("Application stage movement + history", () => {
 
     it("keeps the historical stage snapshot after the stage is deleted", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       // Move away first — HiringStep deletion is blocked while a stage is
       // still referenced by current_step_id (existing rule, untouched by
       // this ticket).
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const deleteRes = await request(app)
-        .delete(`/api/v1/jobs/${jobA.id}/hiring-steps/${review.id}`)
+        .delete(`/api/v1/jobs/${jobA.public_id}/hiring-steps/${review.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(deleteRes.status).toBe(204);
 
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       const initialAssignment = res.body.transitions.find((t: { from_step: unknown }) => t.from_step === null);
       expect(initialAssignment.to_step.name).toBe("Application Review");
     });
 
     it("makes no AI or R2 call when reading history", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
-      await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
 
       expect(mockCreateScreening).not.toHaveBeenCalled();
       expect(mockLatestScreening).not.toHaveBeenCalled();
@@ -496,9 +496,9 @@ describe("Application stage movement + history", () => {
 
     it("uses an explicit serializer that excludes internal fields", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id, note: "Looks strong." }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id, note: "Looks strong." }, authHeaderFor(hrA, companyA.id));
 
-      const res = await historyReq(application.id, authHeaderFor(hrA, companyA.id));
+      const res = await historyReq(application.public_id!, authHeaderFor(hrA, companyA.id));
       const transition = res.body.transitions[0];
 
       expect(Object.keys(transition).sort()).toEqual(
@@ -515,7 +515,7 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
       jest.spyOn(ApplicationStageTransition, "create").mockRejectedValueOnce(new Error("simulated failure") as never);
 
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(500);
 
       const reread = await Application.findById(application.id);
@@ -527,7 +527,7 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
       jest.spyOn(Application, "findOneAndUpdate").mockRejectedValueOnce(new Error("simulated failure") as never);
 
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(500);
 
       expect(await ApplicationStageTransition.countDocuments({ application_id: application.id })).toBe(0);
@@ -535,7 +535,7 @@ describe("Application stage movement + history", () => {
 
     it("commits both the Application update and the history record together on success", async () => {
       const application = await createApplicationIn(jobA);
-      const res = await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
 
       const reread = await Application.findById(application.id);
@@ -551,8 +551,8 @@ describe("Application stage movement + history", () => {
       const application = await createApplicationIn(jobA);
 
       const [resA, resB] = await Promise.all([
-        moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id)),
-        moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id)),
+        moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id)),
+        moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id)),
       ]);
 
       const statuses = [resA.status, resB.status].sort();
@@ -571,21 +571,21 @@ describe("Application stage movement + history", () => {
   describe("regression", () => {
     it("does not trigger AI screening", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       expect(mockCreateScreening).not.toHaveBeenCalled();
     });
 
     it("does not send email", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: review.id }, authHeaderFor(hrA, companyA.id));
 
       expect(emailService.send).not.toHaveBeenCalled();
     });
 
     it("does not alter HiringStep ordering", async () => {
       const application = await createApplicationIn(jobA);
-      await moveReq(application.id, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      await moveReq(application.public_id!, { step_id: interview.id }, authHeaderFor(hrA, companyA.id));
 
       const steps = await HiringStep.find({ job_id: jobA.id }).sort({ position: 1 });
       expect(steps.map((s) => s.name)).toEqual(["Application Review", "Technical Interview", "Final Interview"]);

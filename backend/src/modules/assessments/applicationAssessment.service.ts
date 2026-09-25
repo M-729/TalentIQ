@@ -1,6 +1,7 @@
 import { Types, type FilterQuery } from "mongoose";
 import {
   ApplicationAssessment,
+  applicationAssessmentIdentifierFilter,
   type ApplicationAssessmentDoc,
   type ApplicationAssessmentStatus,
 } from "../../models/ApplicationAssessment.model";
@@ -9,11 +10,11 @@ import { Candidate } from "../../models/Candidate.model";
 import { HiringStep } from "../../models/HiringStep.model";
 import { Job } from "../../models/Job.model";
 import { ConflictError, NotFoundError } from "../../security/AppError";
-import { assertOwnedByCompany } from "../../security/companyScope";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
 import { escapeRegExp } from "../../utils/regex";
 import { TERMINAL_STATUSES, TERMINAL_STATE_MESSAGE } from "../stageTransitions/stageTransition.service";
 import { getAccessibleApplication, getAccessibleApplicationForActiveJob } from "../applications/applicationAccess.service";
+import { resolveJobId } from "../jobs/job.service";
 import { batchLatestAssessmentEmailStatus } from "./applicationAssessmentEmail.service";
 import {
   serializeAssessmentHistoryItem,
@@ -106,7 +107,7 @@ export async function createAssessment(
 export async function getAssessmentForCurrentStage(companyId: string, applicationId: string): Promise<ApplicationAssessmentDoc | null> {
   const application = await getAccessibleApplication(applicationId, companyId);
   if (!application.current_step_id) return null;
-  return ApplicationAssessment.findOne({ application_id: applicationId, hiring_step_id: application.current_step_id });
+  return ApplicationAssessment.findOne({ application_id: application.id, hiring_step_id: application.current_step_id });
 }
 
 /**
@@ -150,7 +151,7 @@ export async function listAssessmentHistoryForApplication(
 ): Promise<AssessmentHistoryItemDTO[]> {
   const application = await getAccessibleApplication(applicationId, companyId);
 
-  const assessments = await ApplicationAssessment.find({ application_id: applicationId }).sort({ created_at: -1, _id: -1 });
+  const assessments = await ApplicationAssessment.find({ application_id: application.id }).sort({ created_at: -1, _id: -1 });
   if (assessments.length === 0) return [];
 
   // Only a record that predates stage_snapshot (legacy data) ever needs a
@@ -185,7 +186,10 @@ export async function listAssessmentHistoryForApplication(
 }
 
 async function getOwnedAssessment(companyId: string, assessmentId: string): Promise<ApplicationAssessmentDoc> {
-  const assessment = await ApplicationAssessment.findOne({ _id: assessmentId, company_id: companyId });
+  const assessment = await ApplicationAssessment.findOne({
+    ...applicationAssessmentIdentifierFilter(assessmentId),
+    company_id: companyId,
+  });
   if (!assessment) {
     throw new NotFoundError("Assessment not found");
   }
@@ -272,8 +276,17 @@ export interface ListAssessmentsResult {
  * ticket's explicit Part 24/34#50 "list efficient/no N+1").
  */
 export async function listAssessments(companyId: string, filters: ListAssessmentsFilters): Promise<ListAssessmentsResult> {
+  // filters.jobId is the Job's public_id (public-id only since the
+  // Phase 2 cutover — see job.service.ts's resolveJobId) — resolved to
+  // the real internal id here before being used against
+  // ApplicationAssessment.job_id, which is
+  // always a plain ObjectId reference and was never itself migrated.
+  let resolvedJobId: string | null = null;
   if (filters.jobId) {
-    await assertOwnedByCompany(Job, { _id: filters.jobId }, companyId, { notFoundMessage: "Job not found" });
+    resolvedJobId = await resolveJobId(companyId, filters.jobId);
+    if (!resolvedJobId) {
+      throw new NotFoundError("Job not found");
+    }
   }
 
   let searchFilter: FilterQuery<ApplicationAssessmentDoc> = {};
@@ -293,7 +306,7 @@ export async function listAssessments(companyId: string, filters: ListAssessment
 
   const filter: FilterQuery<ApplicationAssessmentDoc> = {
     company_id: companyId,
-    ...(filters.jobId ? { job_id: filters.jobId } : {}),
+    ...(resolvedJobId ? { job_id: resolvedJobId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...searchFilter,
   };
@@ -345,7 +358,8 @@ export async function listAssessments(companyId: string, filters: ListAssessment
         job,
         application.status,
         currentStep,
-        emailStatuses.get(assessment.id) ?? null
+        emailStatuses.get(assessment.id) ?? null,
+        application.public_id ?? undefined
       )
     );
   }

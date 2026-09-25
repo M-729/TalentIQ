@@ -214,9 +214,15 @@ describe("ScheduleInterviewDialog", () => {
     // 3 & 4. checked -> schedule succeeds then Calendar creation called with
     // the new interview's id, only after the local schedule resolved.
     it("calls Calendar creation with the newly scheduled interview's id only after local scheduling succeeds", async () => {
-      vi.mocked(interviewsApi.scheduleInterview).mockResolvedValue({ interview: buildInterview({ id: "new-interview-1" }) });
+      vi.mocked(interviewsApi.scheduleInterview).mockResolvedValue({
+        interview: buildInterview({ id: "new-interview-1", public_id: "new-interview-1-public" }),
+      });
       vi.mocked(interviewsApi.createGoogleCalendarEvent).mockResolvedValue({
-        interview: buildInterview({ id: "new-interview-1", calendar: { provider: "google", connected: true, sync_status: "synced", meeting_url: "https://meet.google.com/abc-defg-hij", last_synced_at: null } }),
+        interview: buildInterview({
+          id: "new-interview-1",
+          public_id: "new-interview-1-public",
+          calendar: { provider: "google", connected: true, sync_status: "synced", meeting_url: "https://meet.google.com/abc-defg-hij", last_synced_at: null },
+        }),
       });
       renderDialog();
       await screen.findByLabelText(/^Date/);
@@ -225,7 +231,7 @@ describe("ScheduleInterviewDialog", () => {
       await userEvent.click(screen.getByRole("button", { name: "Schedule Interview" }));
 
       await waitFor(() => expect(interviewsApi.scheduleInterview).toHaveBeenCalledTimes(1));
-      await waitFor(() => expect(interviewsApi.createGoogleCalendarEvent).toHaveBeenCalledWith("new-interview-1"));
+      await waitFor(() => expect(interviewsApi.createGoogleCalendarEvent).toHaveBeenCalledWith("new-interview-1-public"));
 
       const scheduleOrder = vi.mocked(interviewsApi.scheduleInterview).mock.invocationCallOrder[0]!;
       const calendarOrder = vi.mocked(interviewsApi.createGoogleCalendarEvent).mock.invocationCallOrder[0]!;

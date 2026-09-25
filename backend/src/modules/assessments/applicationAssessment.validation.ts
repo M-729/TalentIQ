@@ -1,21 +1,35 @@
 import { z } from "zod";
-import { Types } from "mongoose";
 import { APPLICATION_ASSESSMENT_STATUSES } from "../../models/ApplicationAssessment.model";
+import { applicationIdentifierString } from "../applications/applicationHr.validation";
+import { jobIdentifierString } from "../jobs/job.validation";
+import { publicIdPattern } from "../../utils/publicId";
 
-const objectIdString = (label: string) =>
-  z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
+// Public-id only (Phase 2 cutover — see this ticket's report): a raw Mongo
+// ObjectId no longer resolves as an ApplicationAssessment/EmailNotification
+// URL id.
+const ASSESSMENT_PUBLIC_ID_PATTERN = publicIdPattern("assess");
+const assessmentIdentifierString = (label: string) =>
+  z.string().refine((val) => ASSESSMENT_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
+
+const NOTIFICATION_PUBLIC_ID_PATTERN = publicIdPattern("notif");
+const notificationIdentifierString = (label: string) =>
+  z.string().refine((val) => NOTIFICATION_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
 
 export const applicationIdParamsSchema = z.object({
-  applicationId: objectIdString("application id"),
+  applicationId: applicationIdentifierString("application id"),
 });
 
 export const assessmentIdParamsSchema = z.object({
-  assessmentId: objectIdString("assessment id"),
+  assessmentId: assessmentIdentifierString("assessment id"),
 });
 
 export const notificationIdParamsSchema = z.object({
-  assessmentId: objectIdString("assessment id"),
-  notificationId: objectIdString("notification id"),
+  assessmentId: assessmentIdentifierString("assessment id"),
+  notificationId: notificationIdentifierString("notification id"),
 });
 
 // Only http/https — explicitly rejects javascript:/data:/file:/every other
@@ -100,7 +114,7 @@ const optionalSearch = z.preprocess(
 // .ts's listApplicationsQuerySchema is the precedent), since query strings
 // can pick up harmless extra params.
 export const listAssessmentsQuerySchema = z.object({
-  jobId: objectIdString("job id").optional(),
+  jobId: jobIdentifierString("job id").optional(),
   status: z.enum(APPLICATION_ASSESSMENT_STATUSES).optional(),
   search: optionalSearch,
   page: z.coerce.number().int().positive().default(1),

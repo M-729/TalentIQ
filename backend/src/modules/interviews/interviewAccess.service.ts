@@ -1,4 +1,4 @@
-import { Interview, type InterviewDoc } from "../../models/Interview.model";
+import { Interview, interviewIdentifierFilter, type InterviewDoc } from "../../models/Interview.model";
 import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { NotFoundError } from "../../security/AppError";
 import { assertOwnedByCompany } from "../../security/companyScope";
@@ -21,7 +21,7 @@ import { assertOwnedByCompany } from "../../security/companyScope";
  * active-Job variant below.
  */
 export async function getAccessibleInterview(interviewId: string, companyId: string): Promise<InterviewDoc> {
-  const interview = await Interview.findById(interviewId);
+  const interview = await Interview.findOne(interviewIdentifierFilter(interviewId));
   if (!interview) {
     throw new NotFoundError("Interview not found");
   }
@@ -46,7 +46,7 @@ export async function getAccessibleInterview(interviewId: string, companyId: str
  * screening.service.ts's createScreening).
  */
 export async function getAccessibleInterviewForActiveJob(interviewId: string, companyId: string): Promise<InterviewDoc> {
-  const interview = await Interview.findById(interviewId);
+  const interview = await Interview.findOne(interviewIdentifierFilter(interviewId));
   if (!interview) {
     throw new NotFoundError("Interview not found");
   }

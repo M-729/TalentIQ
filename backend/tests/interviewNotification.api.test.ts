@@ -93,10 +93,14 @@ describe("Candidate Interview Email Notifications", () => {
 
   async function scheduleOne(overrides: Record<string, unknown> = {}) {
     const res = await request(app)
-      .post(scheduleUrl(application.id))
+      .post(scheduleUrl(application.public_id!))
       .set("Authorization", authHeaderFor(hrA, companyA.id))
       .send(validBody({ interviewer_user_ids: [interviewerA.id], ...overrides }));
-    return { interviewId: res.body.interview.id as string, res };
+    return {
+      interviewId: res.body.interview.id as string,
+      interviewPublicId: res.body.interview.public_id as string,
+      res,
+    };
   }
 
   // ===== SCHEDULE =====
@@ -107,7 +111,7 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("persists a notification record for the scheduled email", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
       expect(notification).not.toBeNull();
       expect(notification!.status).toBe("sent");
@@ -121,7 +125,7 @@ describe("Candidate Interview Email Notifications", () => {
 
     it("rejects a request that tries to supply a candidate email", async () => {
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], candidate_email: "attacker@evil.test" }));
       expect(res.status).toBe(400);
@@ -194,7 +198,7 @@ describe("Candidate Interview Email Notifications", () => {
 
     it("does not roll back the Interview when SMTP delivery fails", async () => {
       mockSend.mockRejectedValue(new Error("raw smtp connection error, should never leak"));
-      const { interviewId, res } = await scheduleOne();
+      const { interviewId, interviewPublicId, res } = await scheduleOne();
 
       expect(res.status).toBe(201);
       const stored = await Interview.findById(interviewId);
@@ -204,7 +208,7 @@ describe("Candidate Interview Email Notifications", () => {
 
     it("records a failed notification (with a safe failure code) when SMTP delivery fails", async () => {
       mockSend.mockRejectedValue(new Error("raw smtp connection error, should never leak"));
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
 
       const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
       expect(notification!.status).toBe("failed");
@@ -221,11 +225,11 @@ describe("Candidate Interview Email Notifications", () => {
   // ===== RESCHEDULE =====
   describe("reschedule notification", () => {
     it("creates a distinct reschedule notification, separate from the schedule one", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockClear();
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
@@ -236,12 +240,12 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("uses the NEW date/time in the rescheduled email", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockClear();
 
       const newStart = hoursFromNow(72);
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: hoursFromNow(73), timezone: "Asia/Beirut" });
 
@@ -252,12 +256,12 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("does not roll back the local reschedule when SMTP delivery fails", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
 
       const newStart = hoursFromNow(72);
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: hoursFromNow(73), timezone: "Asia/Beirut" });
 
@@ -267,15 +271,15 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("a second legitimate reschedule creates a second, distinct reschedule notification", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(96), ends_at: hoursFromNow(97), timezone: "Asia/Beirut" });
 
@@ -284,7 +288,7 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("duplicate calls for the SAME committed mutation do not create a second notification", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const interview = await Interview.findById(interviewId);
 
       const { sendInterviewRescheduledNotification } = await import("../src/modules/interviews/interviewNotification.service");
@@ -299,21 +303,21 @@ describe("Candidate Interview Email Notifications", () => {
   // ===== CANCEL =====
   describe("cancellation notification", () => {
     it("creates a cancellation notification", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockClear();
 
-      await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_cancelled" });
       expect(notification).not.toBeNull();
     });
 
     it("never includes the internal cancellation reason in the candidate email", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockClear();
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/cancel`)
+        .patch(`${interviewUrl(interviewPublicId)}/cancel`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ reason: "Candidate failed background check — internal HR use only" });
 
@@ -323,20 +327,20 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("does not roll back the cancellation when SMTP delivery fails", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
 
-      const res = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.interview.status).toBe("cancelled");
     });
 
     it("the Interview remains cancelled on a later read regardless of email failure", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      const res = await request(app).get(interviewUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(interviewUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.interview.status).toBe("cancelled");
     });
   });
@@ -344,10 +348,10 @@ describe("Candidate Interview Email Notifications", () => {
   // ===== NOTIFICATION HISTORY =====
   describe("GET /interviews/:interviewId/notifications", () => {
     it("returns the full notification history, newest first", async () => {
-      const { interviewId } = await scheduleOne();
-      await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { interviewId, interviewPublicId } = await scheduleOne();
+      await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      const res = await request(app).get(notificationsUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(notificationsUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.notifications).toHaveLength(2);
       expect(res.body.notifications[0].category).toBe("interview_cancelled");
@@ -355,20 +359,20 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("rejects an unauthenticated request with 401", async () => {
-      const { interviewId } = await scheduleOne();
-      const res = await request(app).get(notificationsUrl(interviewId));
+      const { interviewId, interviewPublicId } = await scheduleOne();
+      const res = await request(app).get(notificationsUrl(interviewPublicId));
       expect(res.status).toBe(401);
     });
 
     it("returns 404 for a cross-company interview", async () => {
-      const { interviewId } = await scheduleOne();
-      const res = await request(app).get(notificationsUrl(interviewId)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const { interviewId, interviewPublicId } = await scheduleOne();
+      const res = await request(app).get(notificationsUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
 
     it("never exposes credential-looking fields", async () => {
-      const { interviewId } = await scheduleOne();
-      const res = await request(app).get(notificationsUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { interviewId, interviewPublicId } = await scheduleOne();
+      const res = await request(app).get(notificationsUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(JSON.stringify(res.body)).not.toMatch(/password|smtp_pass|token|secret/i);
     });
   });
@@ -379,30 +383,60 @@ describe("Candidate Interview Email Notifications", () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
       const { interviewId } = await scheduleOne();
       const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
-      return { interviewId, notificationId: notification!.id as string };
+      return {
+        interviewId,
+        notificationId: notification!.id as string,
+        notificationPublicId: notification!.public_id as string,
+      };
     }
 
     it("retries a failed notification and updates it to sent", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
+      const { notificationPublicId } = await scheduleWithFailedNotification();
       mockSend.mockResolvedValueOnce(undefined);
 
-      const res = await request(app).post(retryUrl(notificationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(retryUrl(notificationPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.notification.status).toBe("sent");
       expect(res.body.notification.sent_at).toBeTruthy();
       expect(res.body.notification.failure_code).toBeNull();
     });
 
+    it("retries a failed notification looked up by its public_id", async () => {
+      mockSend.mockRejectedValueOnce(new Error("smtp down"));
+      const { interviewId } = await scheduleOne();
+      const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
+      mockSend.mockResolvedValueOnce(undefined);
+
+      const res = await request(app)
+        .post(retryUrl(notification!.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.notification.status).toBe("sent");
+    });
+
     it("records the retry attempt (attempt_count increases, sent_at set) on success", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
+      const { notificationId, notificationPublicId } = await scheduleWithFailedNotification();
       const before = await EmailNotification.findById(notificationId);
       mockSend.mockResolvedValueOnce(undefined);
 
-      await request(app).post(retryUrl(notificationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(retryUrl(notificationPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const after = await EmailNotification.findById(notificationId);
       expect(after!.attempt_count).toBe(before!.attempt_count + 1);
       expect(after!.sent_at).not.toBeNull();
+    });
+
+    // Phase 2 cutover: legacy dual-accept lookup is gone — a raw Mongo
+    // ObjectId is now just an invalid id format, not an alternate valid id.
+    it("rejects retrying an already-sent notification looked up by its legacy Mongo ObjectId", async () => {
+      const { interviewId } = await scheduleOne();
+      const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
+      expect(notification!.status).toBe("sent");
+
+      const res = await request(app).post(retryUrl(notification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      expect(res.status).toBe(400);
+      expect(mockSend).toHaveBeenCalledTimes(1); // only the original send — retry never ran
     });
 
     it("rejects retrying an already-sent notification", async () => {
@@ -410,55 +444,55 @@ describe("Candidate Interview Email Notifications", () => {
       const notification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
       expect(notification!.status).toBe("sent");
 
-      const res = await request(app).post(retryUrl(notification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(retryUrl(notification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockSend).toHaveBeenCalledTimes(1); // only the original send — retry never ran
     });
 
     it("returns 404 for a cross-company retry attempt", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
-      const res = await request(app).post(retryUrl(notificationId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
+      const { notificationPublicId } = await scheduleWithFailedNotification();
+      const res = await request(app).post(retryUrl(notificationPublicId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
       expect(res.status).toBe(404);
     });
 
     it("sends to the persisted recipient snapshot, never a client-supplied address", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
+      const { notificationPublicId } = await scheduleWithFailedNotification();
       mockSend.mockResolvedValueOnce(undefined);
 
-      await request(app).post(retryUrl(notificationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(retryUrl(notificationPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [, [retryArgs]] = mockSend.mock.calls;
       expect(retryArgs.to).toBe(candidate.email);
     });
 
     it("rejects an attempt to supply an arbitrary recipient/body on retry", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
+      const { notificationPublicId } = await scheduleWithFailedNotification();
       const res = await request(app)
-        .post(retryUrl(notificationId))
+        .post(retryUrl(notificationPublicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ recipient_email: "attacker@evil.test", body: "arbitrary content" });
       expect(res.status).toBe(400);
     });
 
     it("rejects an unauthenticated retry request with 401", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
-      const res = await request(app).post(retryUrl(notificationId)).send({});
+      const { notificationPublicId } = await scheduleWithFailedNotification();
+      const res = await request(app).post(retryUrl(notificationPublicId)).send({});
       expect(res.status).toBe(401);
     });
 
     it("never exposes the raw SMTP error on a retry that fails again", async () => {
-      const { notificationId } = await scheduleWithFailedNotification();
+      const { notificationPublicId } = await scheduleWithFailedNotification();
       mockSend.mockRejectedValueOnce(new Error("raw smtp auth failure detail, should never leak"));
 
-      const res = await request(app).post(retryUrl(notificationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(retryUrl(notificationPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.notification.status).toBe("failed");
       expect(JSON.stringify(res.body)).not.toMatch(/raw smtp auth failure detail/);
     });
 
-    it("returns 404 for a nonexistent notification id", async () => {
+    it("returns 404 for a well-formed public_id that doesn't exist", async () => {
       const res = await request(app)
-        .post(retryUrl(new Types.ObjectId().toString()))
+        .post(retryUrl(`notif_${"a".repeat(24)}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
       expect(res.status).toBe(404);
@@ -514,7 +548,7 @@ describe("Candidate Interview Email Notifications", () => {
       });
 
       for (const notification of [rejection, offer, assessment]) {
-        const res = await request(app).post(retryUrl(notification.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+        const res = await request(app).post(retryUrl(notification.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
         expect(res.status).toBe(404);
       }
       // No email was ever (re-)sent through the interview-only retry path
@@ -526,7 +560,7 @@ describe("Candidate Interview Email Notifications", () => {
   // ===== SECURITY =====
   describe("security", () => {
     it("never stores credential-like fields on the notification record", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const notification = await EmailNotification.findOne({ interview_id: interviewId });
       const stored = JSON.stringify(notification!.toObject());
       expect(stored).not.toMatch(/smtp_pass|password|app.?password/i);
@@ -542,18 +576,18 @@ describe("Candidate Interview Email Notifications", () => {
       const originalStart = hoursFromNow(24);
       const originalEnd = hoursFromNow(25);
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const { interviewId } = await scheduleOne({ starts_at: originalStart, ends_at: originalEnd, timezone: "Asia/Beirut" });
+      const { interviewId, interviewPublicId } = await scheduleOne({ starts_at: originalStart, ends_at: originalEnd, timezone: "Asia/Beirut" });
       const scheduledNotification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
       expect(scheduledNotification!.status).toBe("failed");
 
       // The Interview is later rescheduled to a completely different time.
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(200), ends_at: hoursFromNow(201), timezone: "Europe/Berlin" });
 
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(scheduledNotification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(retryUrl(scheduledNotification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [lastCallArgs] = mockSend.mock.calls[mockSend.mock.calls.length - 1]!;
       const expectedDate = formatZonedDate(new Date(originalStart), "Asia/Beirut");
@@ -563,12 +597,12 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("retry of a failed FIRST reschedule still uses the FIRST reschedule's time after a second reschedule succeeds with a different time", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
 
       const firstRescheduleStart = hoursFromNow(48);
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: firstRescheduleStart, ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
@@ -582,13 +616,13 @@ describe("Candidate Interview Email Notifications", () => {
       mockSend.mockResolvedValueOnce(undefined);
       const secondRescheduleStart = hoursFromNow(300);
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: secondRescheduleStart, ends_at: hoursFromNow(301), timezone: "Asia/Beirut" });
 
       mockSend.mockResolvedValueOnce(undefined);
       await request(app)
-        .post(retryUrl(firstRescheduleNotification!.id))
+        .post(retryUrl(firstRescheduleNotification!.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -601,7 +635,7 @@ describe("Candidate Interview Email Notifications", () => {
 
     it("a Meet link added AFTER a failed notification's event does not magically appear when that notification is retried", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const scheduledNotification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
       expect(scheduledNotification!.event_snapshot!.meeting_url).toBeNull();
 
@@ -612,7 +646,7 @@ describe("Candidate Interview Email Notifications", () => {
       );
 
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(scheduledNotification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(retryUrl(scheduledNotification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [lastCallArgs] = mockSend.mock.calls[mockSend.mock.calls.length - 1]!;
       expect(lastCallArgs.text).not.toContain("https://meet.google.com/added-later");
@@ -624,7 +658,7 @@ describe("Candidate Interview Email Notifications", () => {
 
     it("interviewer changes made AFTER a failed notification's event do not alter that notification's retried content", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const { interviewId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id] });
+      const { interviewId, interviewPublicId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id] });
       const scheduledNotification = await EmailNotification.findOne({ interview_id: interviewId, category: "interview_scheduled" });
       expect(scheduledNotification!.event_snapshot!.interviewer_names).toEqual(["Alex Interviewer"]);
 
@@ -632,7 +666,7 @@ describe("Candidate Interview Email Notifications", () => {
       await Interview.updateOne({ _id: interviewId }, { $set: { interviewer_user_ids: [newInterviewer._id] } });
 
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(scheduledNotification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(retryUrl(scheduledNotification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [lastCallArgs] = mockSend.mock.calls[mockSend.mock.calls.length - 1]!;
       expect(lastCallArgs.text).toContain("Alex Interviewer");
@@ -640,14 +674,14 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("never stores rendered HTML/text content on the notification record itself", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const notification = await EmailNotification.findOne({ interview_id: interviewId });
       const stored = JSON.stringify(notification!.toObject());
       expect(stored).not.toMatch(/<!doctype|<html|<body/i);
     });
 
     it("never stores credential/provider secrets anywhere on the event_snapshot", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const notification = await EmailNotification.findOne({ interview_id: interviewId });
       const stored = JSON.stringify(notification!.event_snapshot);
       expect(stored).not.toMatch(/smtp_pass|password|refresh_token|access_token|client_secret/i);
@@ -670,7 +704,7 @@ describe("Candidate Interview Email Notifications", () => {
   // (and isn't) a general idempotency mechanism for.
   describe("idempotency + semantic no-op protection", () => {
     it("PROTECTED (notification layer): two calls for the exact SAME committed mutation (same interview.updated_at) never create two notifications", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       const interview = await Interview.findById(interviewId);
 
       const { sendInterviewScheduledNotification } = await import("../src/modules/interviews/interviewNotification.service");
@@ -684,15 +718,15 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("PROTECTED (reschedule no-op): two separate HTTP reschedule requests with IDENTICAL values create no mutation and no second notification/email", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockClear();
 
       // Two separate requests reaching the endpoint independently — e.g. a
       // browser/proxy resending an identical PATCH /reschedule.
       const body = { starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" };
-      const resA = await request(app).patch(`${interviewUrl(interviewId)}/reschedule`).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
+      const resA = await request(app).patch(`${interviewUrl(interviewPublicId)}/reschedule`).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
       const before = await Interview.findById(interviewId);
-      const resB = await request(app).patch(`${interviewUrl(interviewId)}/reschedule`).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
+      const resB = await request(app).patch(`${interviewUrl(interviewPublicId)}/reschedule`).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
       const after = await Interview.findById(interviewId);
 
       // Both requests report success — the second is a clean no-op, never a 409.
@@ -712,8 +746,8 @@ describe("Candidate Interview Email Notifications", () => {
     it("scheduleInterview is NOT exposed to the reschedule gap — a duplicate schedule request is rejected before any notification runs", async () => {
       mockSend.mockClear();
       const body = { title: "Backend Technical Interview", starts_at: hoursFromNow(24), ends_at: hoursFromNow(25), timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] };
-      const resA = await request(app).post(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
-      const resB = await request(app).post(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
+      const resA = await request(app).post(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
+      const resB = await request(app).post(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(body);
 
       expect(resA.status).toBe(201);
       expect(resB.status).toBe(409); // Interview.model.ts's own partial unique index rejects it first.
@@ -721,11 +755,11 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("cancelInterview is NOT exposed to the reschedule gap — a duplicate cancel request is rejected before any notification runs", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, interviewPublicId } = await scheduleOne();
       mockSend.mockClear();
 
-      const resA = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const resB = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const resA = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const resB = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(resA.status).toBe(200);
       expect(resB.status).toBe(409); // cancelInterview's own one-way status guard rejects it.
@@ -736,19 +770,19 @@ describe("Candidate Interview Email Notifications", () => {
   // ===== RESCHEDULE SEMANTIC NO-OP PROTECTION =====
   describe("reschedule semantic no-op protection", () => {
     async function scheduleAndRescheduleOnce() {
-      const { interviewId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id] });
+      const { interviewId, interviewPublicId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id] });
       mockSend.mockClear();
       const newStart = hoursFromNow(48);
       const newEnd = hoursFromNow(49);
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] });
-      return { interviewId, newStart, newEnd, res };
+      return { interviewId, interviewPublicId, newStart, newEnd, res };
     }
 
     it("1. a genuinely different first reschedule mutates the Interview and creates one rescheduled-notification event", async () => {
-      const { interviewId, res } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, res } = await scheduleAndRescheduleOnce();
       expect(res.status).toBe(200);
 
       const notifications = await EmailNotification.find({ interview_id: interviewId, category: "interview_rescheduled" });
@@ -757,11 +791,11 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("2. an identical second reschedule request returns 200 but performs no mutation", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
       const before = await Interview.findById(interviewId);
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] });
 
@@ -772,11 +806,11 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("3. an identical retry preserves updated_at exactly", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
       const before = await Interview.findById(interviewId);
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] });
 
@@ -785,10 +819,10 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("4. an identical retry creates no second EmailNotification", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] });
 
@@ -797,11 +831,11 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("5. an identical retry causes no second SMTP send attempt", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
       expect(mockSend).toHaveBeenCalledTimes(1);
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] });
 
@@ -810,12 +844,12 @@ describe("Candidate Interview Email Notifications", () => {
 
     it("7. the same interviewer set submitted in a different order is treated as a no-op", async () => {
       const secondInterviewer = await createUser({ companyId: companyA.id, email: "second@a.test", role: "HR" });
-      const { interviewId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id, secondInterviewer.id] });
+      const { interviewId, interviewPublicId } = await scheduleOne({ interviewer_user_ids: [interviewerA.id, secondInterviewer.id] });
       mockSend.mockClear();
       const before = await Interview.findById(interviewId);
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({
           starts_at: before!.starts_at.toISOString(),
@@ -833,12 +867,12 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("8. a genuinely different time creates a real second reschedule and a distinct notification", async () => {
-      const { interviewId, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newEnd } = await scheduleAndRescheduleOnce();
       const before = await Interview.findById(interviewId);
 
       const anotherNewStart = hoursFromNow(96);
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: anotherNewStart, ends_at: hoursFromNow(97), timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] });
 
@@ -854,12 +888,12 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("9. a genuinely different interviewer set creates a real second reschedule and a distinct notification", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
       const before = await Interview.findById(interviewId);
       const differentInterviewer = await createUser({ companyId: companyA.id, email: "different@a.test", role: "HR" });
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [differentInterviewer.id] });
 
@@ -873,26 +907,26 @@ describe("Candidate Interview Email Notifications", () => {
     });
 
     it("10. existing authorization/tenant rules are unchanged for a no-op-shaped reschedule request", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
       const body = { starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] };
 
-      const unauthenticated = await request(app).patch(`${interviewUrl(interviewId)}/reschedule`).send(body);
+      const unauthenticated = await request(app).patch(`${interviewUrl(interviewPublicId)}/reschedule`).send(body);
       expect(unauthenticated.status).toBe(401);
 
       const crossCompany = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrB, companyB.id))
         .send(body);
       expect(crossCompany.status).toBe(404);
     });
 
     it("omitting interviewer_user_ids (meaning 'leave unchanged') combined with identical time is also treated as a no-op", async () => {
-      const { interviewId, newStart, newEnd } = await scheduleAndRescheduleOnce();
+      const { interviewId, interviewPublicId, newStart, newEnd } = await scheduleAndRescheduleOnce();
       const before = await Interview.findById(interviewId);
       mockSend.mockClear();
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut" });
 

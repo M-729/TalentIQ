@@ -52,7 +52,7 @@ describe("OfferDecisionSection", () => {
 
     await waitFor(() =>
       expect(offersApi.createOffer).toHaveBeenCalledWith(
-        "application-1",
+        "application-1-public",
         expect.objectContaining({ title: "Backend Engineer" })
       )
     );
@@ -83,7 +83,7 @@ describe("OfferDecisionSection", () => {
     await userEvent.type(titleInput, "Staff Engineer");
     await userEvent.click(screen.getByRole("button", { name: "Save Offer" }));
 
-    await waitFor(() => expect(offersApi.updateOffer).toHaveBeenCalledWith("offer-1", expect.objectContaining({ title: "Staff Engineer" })));
+    await waitFor(() => expect(offersApi.updateOffer).toHaveBeenCalledWith("offer-1-public", expect.objectContaining({ title: "Staff Engineer" })));
   });
 
   // 4. Send Offer
@@ -93,7 +93,7 @@ describe("OfferDecisionSection", () => {
     renderSection();
 
     await userEvent.click(await screen.findByRole("button", { name: "Send Offer" }));
-    await waitFor(() => expect(offersApi.sendOffer).toHaveBeenCalledWith("offer-1"));
+    await waitFor(() => expect(offersApi.sendOffer).toHaveBeenCalledWith("offer-1-public"));
   });
 
   // 5. failed email shows Retry
@@ -116,7 +116,7 @@ describe("OfferDecisionSection", () => {
     renderSection();
 
     await userEvent.click(await screen.findByRole("button", { name: "Retry Email" }));
-    await waitFor(() => expect(offersApi.retryOfferNotification).toHaveBeenCalledWith("offer-1", "notif-1"));
+    await waitFor(() => expect(offersApi.retryOfferNotification).toHaveBeenCalledWith("offer-1-public", "offer-notification-1-public"));
   });
 
   // 6. Sent offer renders — 1/2. shows "Waiting for candidate response"
@@ -147,7 +147,7 @@ describe("OfferDecisionSection", () => {
     expect(await screen.findByRole("heading", { name: "Record candidate response" })).toBeInTheDocument();
     // "Accepted" is the default selection.
     await userEvent.click(screen.getByRole("button", { name: "Record response" }));
-    await waitFor(() => expect(offersApi.markOfferAccepted).toHaveBeenCalledWith("offer-1"));
+    await waitFor(() => expect(offersApi.markOfferAccepted).toHaveBeenCalledWith("offer-1-public"));
   });
 
   // 5. manual dialog records Declined
@@ -159,7 +159,7 @@ describe("OfferDecisionSection", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Record response manually" }));
     await userEvent.click(await screen.findByLabelText("Declined"));
     await userEvent.click(screen.getByRole("button", { name: "Record response" }));
-    await waitFor(() => expect(offersApi.markOfferDeclined).toHaveBeenCalledWith("offer-1"));
+    await waitFor(() => expect(offersApi.markOfferDeclined).toHaveBeenCalledWith("offer-1-public"));
   });
 
   // 6. Withdraw still available (already covered by the render test above too)
@@ -171,7 +171,7 @@ describe("OfferDecisionSection", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Withdraw Offer" }));
     const dialogButtons = await screen.findAllByRole("button", { name: "Withdraw Offer" });
     await userEvent.click(dialogButtons[dialogButtons.length - 1]!);
-    await waitFor(() => expect(offersApi.withdrawOffer).toHaveBeenCalledWith("offer-1"));
+    await waitFor(() => expect(offersApi.withdrawOffer).toHaveBeenCalledWith("offer-1-public"));
   });
 
   // 9. Withdraw
@@ -182,7 +182,7 @@ describe("OfferDecisionSection", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Withdraw" }));
     await userEvent.click(await screen.findByRole("button", { name: "Withdraw Offer" }));
-    await waitFor(() => expect(offersApi.withdrawOffer).toHaveBeenCalledWith("offer-1"));
+    await waitFor(() => expect(offersApi.withdrawOffer).toHaveBeenCalledWith("offer-1-public"));
   });
 
   // 10. Accepted shows Mark as Hired
@@ -255,7 +255,7 @@ describe("OfferDecisionSection", () => {
     const dialogButtons = await screen.findAllByRole("button", { name: "Mark as Hired" });
     await userEvent.click(dialogButtons[dialogButtons.length - 1]!);
 
-    await waitFor(() => expect(offersApi.markApplicationHired).toHaveBeenCalledWith("offer-1"));
+    await waitFor(() => expect(offersApi.markApplicationHired).toHaveBeenCalledWith("offer-1-public"));
     await waitFor(() => expect(onApplicationChanged).toHaveBeenCalled());
   });
 
@@ -301,7 +301,7 @@ describe("OfferDecisionSection", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Reject Candidate" }));
     await userEvent.click(await screen.findByRole("button", { name: "Reject Candidate", hidden: false }));
 
-    await waitFor(() => expect(rejectionApi.rejectApplication).toHaveBeenCalledWith("application-1", { send_email: false }));
+    await waitFor(() => expect(rejectionApi.rejectApplication).toHaveBeenCalledWith("application-1-public", { send_email: false }));
     await waitFor(() => expect(onApplicationChanged).toHaveBeenCalled());
   });
 
@@ -318,7 +318,7 @@ describe("OfferDecisionSection", () => {
     const dialogButtons = await screen.findAllByRole("button", { name: "Reject Candidate" });
     await userEvent.click(dialogButtons[dialogButtons.length - 1]!);
 
-    await waitFor(() => expect(rejectionApi.rejectApplication).toHaveBeenCalledWith("application-1", { send_email: true }));
+    await waitFor(() => expect(rejectionApi.rejectApplication).toHaveBeenCalledWith("application-1-public", { send_email: true }));
   });
 
   // 13. double submit prevented
@@ -369,7 +369,7 @@ describe("OfferDecisionSection", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Send Offer" }));
 
-      await waitFor(() => expect(offersApi.listOfferNotifications).toHaveBeenCalledWith("offer-1", expect.anything()));
+      await waitFor(() => expect(offersApi.listOfferNotifications).toHaveBeenCalledWith("offer-1-public", expect.anything()));
     });
 
     // 7. no stale Not sent after successful Send action

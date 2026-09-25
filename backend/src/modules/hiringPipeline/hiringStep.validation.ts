@@ -1,17 +1,40 @@
 import { z } from "zod";
 import { Types } from "mongoose";
 import { HIRING_STEP_TYPES } from "../../models/HiringStep.model";
+import { publicIdPattern } from "../../utils/publicId";
 
 const objectIdString = (label: string) =>
   z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
 
+// Public-id only (Phase 2 cutover — see this ticket's report): a raw Mongo
+// ObjectId no longer resolves as a HiringStep/Job URL id — matching
+// job.validation.ts's jobIdentifierString exactly. jobId below is the SAME
+// treatment applied to the Job parent-scoping path segment
+// (`/jobs/:jobId/hiring-steps...`) — resolved to Job's real internal id by
+// hiringStep.service.ts before being used against HiringStep.job_id, which
+// remains a plain ObjectId reference and was never itself migrated.
+// orderedStepIds is a body-level array of already-fetched ids and stays
+// ObjectId-only (see this ticket's explicit "don't blindly replace every
+// objectIdString validator" instruction).
+const STEP_PUBLIC_ID_PATTERN = publicIdPattern("step");
+const stepIdentifierString = (label: string) =>
+  z.string().refine((val) => STEP_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
+
+const JOB_PUBLIC_ID_PATTERN = publicIdPattern("job");
+const jobIdentifierString = (label: string) =>
+  z.string().refine((val) => JOB_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
+
 export const jobIdParamsSchema = z.object({
-  jobId: objectIdString("job id"),
+  jobId: jobIdentifierString("job id"),
 });
 
 export const stepParamsSchema = z.object({
-  jobId: objectIdString("job id"),
-  stepId: objectIdString("step id"),
+  jobId: jobIdentifierString("job id"),
+  stepId: stepIdentifierString("step id"),
 });
 
 const name = z.string().trim().min(1, "Name is required").max(100, "Name is too long");

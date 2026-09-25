@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { InterviewTimeFields, type InterviewTimeValues } from "@/components/interviews/InterviewTimeFields";
 import { InterviewerMultiSelect } from "@/components/interviews/InterviewerMultiSelect";
 import { useRescheduleInterview } from "@/hooks/useRescheduleInterview";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import { utcIsoToZonedDateTime, zonedDateTimeToUtcIso } from "@/lib/timezone";
 import type { Interview, RescheduleInterviewInput } from "@/types/interview";
 
@@ -133,7 +134,7 @@ export function RescheduleInterviewDialog({ open, onOpenChange, interview, onRes
   const { run, isSubmitting, error, clearError } = useRescheduleInterview();
 
   async function handleSubmit(input: RescheduleInterviewInput) {
-    const updated = await run(interview.id, input);
+    const updated = await run(resourceUrlId(interview), input);
     if (updated) {
       onOpenChange(false);
       onRescheduled(updated);

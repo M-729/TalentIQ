@@ -1,5 +1,4 @@
 import request from "supertest";
-import { Types } from "mongoose";
 import { createApp } from "../src/app";
 import { signAccessToken } from "../src/security/tokens";
 import { Job, type JobDoc } from "../src/models/Job.model";
@@ -46,23 +45,23 @@ describe("HiringStep API", () => {
   // ===== AUTH =====
   describe("authentication and role authorization", () => {
     it("rejects an unauthenticated GET with 401", async () => {
-      const res = await request(app).get(stepsUrl(jobA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!));
       expect(res.status).toBe(401);
     });
 
     it("rejects an unauthenticated POST with 401", async () => {
-      const res = await request(app).post(stepsUrl(jobA.id)).send({ name: "Review", type: "review" });
+      const res = await request(app).post(stepsUrl(jobA.public_id!)).send({ name: "Review", type: "review" });
       expect(res.status).toBe(401);
     });
 
     it("allows an authenticated HR user", async () => {
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
     });
 
     it("allows an authenticated ADMIN user", async () => {
       const admin = await createUser({ companyId: companyA.id, email: "admin@a.test", role: "ADMIN" });
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(admin, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(admin, companyA.id));
       expect(res.status).toBe(200);
     });
   });
@@ -71,19 +70,19 @@ describe("HiringStep API", () => {
   describe("tenant isolation", () => {
     it("allows a company to view its own Job's stages", async () => {
       await createStep(jobA.id, { name: "Review" });
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.steps).toHaveLength(1);
     });
 
     it("returns 404 for a cross-company Job on GET", async () => {
-      const res = await request(app).get(stepsUrl(jobB.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobB.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
     it("returns 404 for a cross-company Job on POST", async () => {
       const res = await request(app)
-        .post(stepsUrl(jobB.id))
+        .post(stepsUrl(jobB.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Review", type: "review" });
       expect(res.status).toBe(404);
@@ -93,7 +92,7 @@ describe("HiringStep API", () => {
     it("returns 404 updating a step belonging to another company's Job", async () => {
       const step = await createStep(jobB.id, { name: "Review" });
       const res = await request(app)
-        .patch(stepsUrl(jobB.id, `/${step.id}`))
+        .patch(stepsUrl(jobB.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Hijacked" });
       expect(res.status).toBe(404);
@@ -102,7 +101,7 @@ describe("HiringStep API", () => {
     it("returns 404 deleting a step belonging to another company's Job", async () => {
       const step = await createStep(jobB.id, { name: "Review" });
       const res = await request(app)
-        .delete(stepsUrl(jobB.id, `/${step.id}`))
+        .delete(stepsUrl(jobB.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
       expect(await HiringStep.findById(step.id)).not.toBeNull();
@@ -113,7 +112,7 @@ describe("HiringStep API", () => {
   describe("POST /api/v1/jobs/:jobId/hiring-steps", () => {
     it("gives the first stage position 0", async () => {
       const res = await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Application Review", type: "review" });
 
@@ -125,7 +124,7 @@ describe("HiringStep API", () => {
       await createStep(jobA.id, { name: "Application Review", position: 0 });
 
       const res = await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Technical Interview", type: "interview" });
 
@@ -134,7 +133,7 @@ describe("HiringStep API", () => {
 
     it("trims the stage name", async () => {
       const res = await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "  Application Review  ", type: "review" });
 
@@ -143,7 +142,7 @@ describe("HiringStep API", () => {
 
     it("validates the stage type", async () => {
       const res = await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Review", type: "not-a-type" });
 
@@ -152,12 +151,12 @@ describe("HiringStep API", () => {
 
     it("rejects a duplicate name case-insensitively", async () => {
       await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Technical Interview", type: "interview" });
 
       const res = await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: " technical interview ", type: "interview" });
 
@@ -168,7 +167,7 @@ describe("HiringStep API", () => {
       await createStep(jobA.id, { name: "Technical Interview" });
 
       const res = await request(app)
-        .post(stepsUrl(jobB.id))
+        .post(stepsUrl(jobB.public_id!))
         .set("Authorization", authHeaderFor(hrB, companyB.id))
         .send({ name: "Technical Interview", type: "interview" });
 
@@ -177,7 +176,7 @@ describe("HiringStep API", () => {
 
     it("never lets the client control job_id, company_id, or position", async () => {
       const res = await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Review", type: "review", job_id: jobB.id, company_id: companyB.id, position: 99 });
 
@@ -192,7 +191,7 @@ describe("HiringStep API", () => {
       await createStep(jobA.id, { name: "Application Review", position: 0 });
       await createStep(jobA.id, { name: "Technical Interview", position: 1 });
 
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.steps.map((s: { name: string }) => s.name)).toEqual([
         "Application Review",
@@ -202,16 +201,32 @@ describe("HiringStep API", () => {
     });
 
     it("returns [] for an empty pipeline", async () => {
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.steps).toEqual([]);
     });
 
+    // Phase 1 dual-accept migration: the Job parent-scoping path segment
+    // ("special attention" case) is resolved to Job's real internal id
+    // before being used against HiringStep.job_id.
+    it("returns stages for a job addressed by its public_id", async () => {
+      await createStep(jobA.id, { name: "Review" });
+
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.steps).toHaveLength(1);
+    });
+
+    it("returns 404 for a job public_id belonging to another company", async () => {
+      const res = await request(app).get(stepsUrl(jobB.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(404);
+    });
+
     it("uses the explicit serializer, excluding internal fields", async () => {
       await createStep(jobA.id, { name: "Review" });
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      expect(Object.keys(res.body.steps[0])).toEqual(["id", "name", "type", "description", "position"]);
+      expect(Object.keys(res.body.steps[0])).toEqual(["id", "public_id", "name", "type", "description", "position"]);
       expect(JSON.stringify(res.body)).not.toContain("__v");
       expect(JSON.stringify(res.body)).not.toContain("job_id");
     });
@@ -222,7 +237,7 @@ describe("HiringStep API", () => {
     it("renames a stage", async () => {
       const step = await createStep(jobA.id, { name: "Old Name" });
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "New Name" });
 
@@ -233,7 +248,7 @@ describe("HiringStep API", () => {
     it("updates the type", async () => {
       const step = await createStep(jobA.id, { name: "Stage", type: "review" });
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ type: "interview" });
 
@@ -243,7 +258,7 @@ describe("HiringStep API", () => {
     it("updates the description", async () => {
       const step = await createStep(jobA.id, { name: "Stage" });
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ description: "A short description." });
 
@@ -255,7 +270,7 @@ describe("HiringStep API", () => {
       const step = await createStep(jobA.id, { name: "Application Review", position: 1 });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "technical interview" });
 
@@ -265,7 +280,7 @@ describe("HiringStep API", () => {
     it("cannot update position through the normal PATCH endpoint", async () => {
       const step = await createStep(jobA.id, { name: "Stage", position: 0 });
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ position: 5 });
 
@@ -275,13 +290,45 @@ describe("HiringStep API", () => {
     it("cannot move a stage to another Job", async () => {
       const step = await createStep(jobA.id, { name: "Stage" });
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ job_id: jobB.id });
 
       expect(res.status).toBe(400); // .strict() schema rejects job_id
       const unchanged = await HiringStep.findById(step.id);
       expect(unchanged?.job_id.toString()).toBe(jobA.id);
+    });
+
+    // Phase 1 dual-accept migration.
+    it("renames a stage looked up by its public_id", async () => {
+      const step = await createStep(jobA.id, { name: "Old Name" });
+      const res = await request(app)
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ name: "New Name" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.step.name).toBe("New Name");
+    });
+
+    it("rejects a rename addressed by the stage's legacy Mongo ObjectId", async () => {
+      const step = await createStep(jobA.id, { name: "Old Name" });
+      const res = await request(app)
+        .patch(stepsUrl(jobA.public_id!, `/${step.id}`))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ name: "New Name Via Legacy Id" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for a cross-job stage public_id (never matches another Job's stage)", async () => {
+      const step = await createStep(jobB.id, { name: "Other Job Stage" });
+      const res = await request(app)
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ name: "Hijacked" });
+
+      expect(res.status).toBe(404);
     });
   });
 
@@ -293,7 +340,7 @@ describe("HiringStep API", () => {
       const assessment = await createStep(jobA.id, { name: "Assessment", position: 2 });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [assessment.id, review.id, interview.id] });
 
@@ -306,7 +353,7 @@ describe("HiringStep API", () => {
       const b = await createStep(jobA.id, { name: "B", position: 1 });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [b.id, a.id] });
 
@@ -318,7 +365,7 @@ describe("HiringStep API", () => {
       await createStep(jobA.id, { name: "B", position: 1 });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [a.id] });
 
@@ -332,7 +379,7 @@ describe("HiringStep API", () => {
       void a;
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [b.id, c.id] }); // missing a
 
@@ -344,7 +391,7 @@ describe("HiringStep API", () => {
       const foreign = await createStep(jobB.id, { name: "Foreign" });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [a.id, foreign.id] });
 
@@ -356,7 +403,7 @@ describe("HiringStep API", () => {
       const b = await createStep(jobA.id, { name: "B", position: 1 });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [a.id, a.id] });
       void b;
@@ -368,7 +415,7 @@ describe("HiringStep API", () => {
       const a = await createStep(jobA.id, { name: "A", position: 0 });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [a.id, "not-an-object-id"] });
 
@@ -380,7 +427,7 @@ describe("HiringStep API", () => {
       const foreign = await createStep(jobB.id, { name: "Foreign" });
 
       const res = await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [foreign.id] });
       void a;
@@ -390,7 +437,7 @@ describe("HiringStep API", () => {
 
     it("still enforces tenant ownership of the Job for reorder", async () => {
       const res = await request(app)
-        .patch(stepsUrl(jobB.id, "/reorder"))
+        .patch(stepsUrl(jobB.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [] });
 
@@ -402,11 +449,11 @@ describe("HiringStep API", () => {
       const b = await createStep(jobA.id, { name: "B", position: 1 });
 
       await request(app)
-        .patch(stepsUrl(jobA.id, "/reorder"))
+        .patch(stepsUrl(jobA.public_id!, "/reorder"))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ orderedStepIds: [b.id, a.id] });
 
-      const res = await request(app).get(stepsUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(stepsUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.steps.map((s: { name: string }) => s.name)).toEqual(["B", "A"]);
     });
@@ -417,7 +464,18 @@ describe("HiringStep API", () => {
     it("deletes an unused stage", async () => {
       const step = await createStep(jobA.id, { name: "Review" });
       const res = await request(app)
-        .delete(stepsUrl(jobA.id, `/${step.id}`))
+        .delete(stepsUrl(jobA.public_id!, `/${step.public_id}`))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(204);
+      expect(await HiringStep.findById(step.id)).toBeNull();
+    });
+
+    // Phase 1 dual-accept migration.
+    it("deletes an unused stage looked up by its public_id", async () => {
+      const step = await createStep(jobA.id, { name: "Review" });
+      const res = await request(app)
+        .delete(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(204);
@@ -430,7 +488,7 @@ describe("HiringStep API", () => {
       const assessment = await createStep(jobA.id, { name: "Assessment", position: 2 });
 
       await request(app)
-        .delete(stepsUrl(jobA.id, `/${interview.id}`))
+        .delete(stepsUrl(jobA.public_id!, `/${interview.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reread = await HiringStep.findById(assessment.id);
@@ -448,7 +506,7 @@ describe("HiringStep API", () => {
       });
 
       const res = await request(app)
-        .delete(stepsUrl(jobA.id, `/${step.id}`))
+        .delete(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(409);
@@ -467,7 +525,7 @@ describe("HiringStep API", () => {
       });
 
       await request(app)
-        .delete(stepsUrl(jobA.id, `/${interview.id}`))
+        .delete(stepsUrl(jobA.public_id!, `/${interview.id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const rereadReview = await HiringStep.findById(review.id);
@@ -476,9 +534,9 @@ describe("HiringStep API", () => {
       expect(rereadInterview?.position).toBe(1);
     });
 
-    it("returns 404 for a nonexistent step", async () => {
+    it("returns 404 for a well-formed but nonexistent step public_id", async () => {
       const res = await request(app)
-        .delete(stepsUrl(jobA.id, `/${new Types.ObjectId().toString()}`))
+        .delete(stepsUrl(jobA.public_id!, `/step_${"a".repeat(24)}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -498,11 +556,11 @@ describe("HiringStep API", () => {
       });
 
       await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Interview", type: "interview" });
       await request(app)
-        .patch(stepsUrl(jobA.id, `/${step.id}`))
+        .patch(stepsUrl(jobA.public_id!, `/${step.public_id}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Review Renamed" });
 
@@ -521,7 +579,7 @@ describe("HiringStep API", () => {
       });
 
       await request(app)
-        .post(stepsUrl(jobA.id))
+        .post(stepsUrl(jobA.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Interview", type: "interview" });
 

@@ -15,6 +15,12 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // The Login/Signup/Careers/Job Detail redesign's one signature CTA
+        // treatment — a fixed brand gradient (not tied to --primary), used
+        // nowhere else in the app, so it's its own opt-in variant rather
+        // than a change to `default`.
+        gradient:
+          "bg-[linear-gradient(135deg,#4B3EDD,#8B7CF6)] text-white shadow-[0_8px_20px_rgba(75,62,221,0.3)] hover:brightness-105",
       },
       size: {
         default: "h-9 px-4 py-2",

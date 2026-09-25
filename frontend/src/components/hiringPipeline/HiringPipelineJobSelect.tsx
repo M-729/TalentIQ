@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { jobUrlId } from "@/lib/jobUrlId";
 import type { Job } from "@/types/job";
 
 export interface HiringPipelineJobSelectProps {
@@ -55,7 +56,7 @@ export function HiringPipelineJobSelect({ value, onChange, jobs, isLoading, erro
       >
         <option value="">Select a job…</option>
         {(jobs ?? []).map((job) => (
-          <option key={job._id} value={job._id}>
+          <option key={job._id} value={jobUrlId(job)}>
             {job.title}
           </option>
         ))}

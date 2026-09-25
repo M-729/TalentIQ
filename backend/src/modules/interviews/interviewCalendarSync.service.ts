@@ -236,11 +236,11 @@ export async function createGoogleCalendarEvent(companyId: string, userId: strin
 
   try {
     const result = await googleCalendarProvider.createEvent(refreshToken, eventInput);
-    return await applySyncSuccess(interviewId, userId, result);
+    return await applySyncSuccess(interview.id, userId, result);
   } catch (err) {
     const mapped = toProviderError(err);
-    await markCreateAttemptFailed(interviewId, userId, mapped.code);
-    logSafeProviderFailure(interviewId, "create", mapped);
+    await markCreateAttemptFailed(interview.id, userId, mapped.code);
+    logSafeProviderFailure(interview.id, "create", mapped);
     throw mapProviderErrorToAppError(mapped);
   }
 }
@@ -269,11 +269,11 @@ export async function syncGoogleCalendarEvent(companyId: string, interviewId: st
   const ownerUserId = interview.calendar_owner_user_id.toString();
   const connection = await getActiveConnection(ownerUserId);
   if (!connection) {
-    await markSyncFailed(interviewId, "authorization_required");
+    await markSyncFailed(interview.id, "authorization_required");
     throw new ConflictError(OWNER_DISCONNECTED_MESSAGE);
   }
   if (!connection.calendar_permission_granted) {
-    await markSyncFailed(interviewId, "authorization_required");
+    await markSyncFailed(interview.id, "authorization_required");
     throw new ConflictError(OWNER_MISSING_CALENDAR_PERMISSION_MESSAGE);
   }
   const refreshToken = decryptConnectionRefreshToken(connection);
@@ -286,12 +286,12 @@ export async function syncGoogleCalendarEvent(companyId: string, interviewId: st
       await googleCalendarProvider.cancelEvent(refreshToken, interview.calendar_event_id);
     } catch (err) {
       const mapped = toProviderError(err);
-      await markSyncFailed(interviewId, mapped.code);
-      logSafeProviderFailure(interviewId, "cancel-sync", mapped);
+      await markSyncFailed(interview.id, mapped.code);
+      logSafeProviderFailure(interview.id, "cancel-sync", mapped);
       throw mapProviderErrorToAppError(mapped);
     }
     const updated = await Interview.findByIdAndUpdate(
-      interviewId,
+      interview.id,
       { $set: { calendar_sync_status: "synced", calendar_sync_error_code: null, calendar_last_synced_at: new Date() } },
       { new: true }
     );
@@ -313,11 +313,11 @@ export async function syncGoogleCalendarEvent(companyId: string, interviewId: st
         await buildEventInput(interview, attendeeEmails)
       );
     }
-    return await applySyncSuccess(interviewId, ownerUserId, result);
+    return await applySyncSuccess(interview.id, ownerUserId, result);
   } catch (err) {
     const mapped = toProviderError(err);
-    await markSyncFailed(interviewId, mapped.code);
-    logSafeProviderFailure(interviewId, "sync", mapped);
+    await markSyncFailed(interview.id, mapped.code);
+    logSafeProviderFailure(interview.id, "sync", mapped);
     throw mapProviderErrorToAppError(mapped);
   }
 }

@@ -78,9 +78,15 @@ export function OffersTable({ offers }: { offers: OfferListRow[] }) {
                 <td className="px-4 py-2.5 text-muted-foreground">{row.sent_at ? formatDate(row.sent_at) : "—"}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{formatDateTime(row.updated_at)}</td>
                 <td className="px-4 py-2.5 text-right">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/applications/${row.application_id}`}>View Application</Link>
-                  </Button>
+                  {row.application_public_id ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={`/applications/${row.application_public_id}`}>View Application</Link>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>
+                      View Application
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

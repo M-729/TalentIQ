@@ -127,7 +127,7 @@ describe("POST /api/v1/auth/company-signup", () => {
       .set("Authorization", `Bearer ${otherLogin.body.accessToken}`)
       .send({ title: "Other Co Job", department: "Eng", required_skills: [], status: "active" });
     expect(otherJobRes.status).toBe(201);
-    const otherJobId = otherJobRes.body.job._id as string;
+    const otherJobId = otherJobRes.body.job.public_id as string;
 
     const res = await request(app).post(signupUrl).send(validBody({ email: "cross-tenant-admin@acme.test" }));
     const crossRes = await request(app)

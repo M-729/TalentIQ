@@ -277,4 +277,26 @@ describe("EmailNotification model", () => {
       ).rejects.toThrow();
     });
   });
+
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the notif_ prefix and 24-char hex suffix", async () => {
+      const doc = await EmailNotification.create(validAttrs());
+      expect(doc.public_id).toMatch(/^notif_[a-f0-9]{24}$/);
+    });
+
+    it("assigns a different public_id to every new notification", async () => {
+      const docs = await Promise.all([
+        EmailNotification.create(validAttrs({ interview_id: new Types.ObjectId() })),
+        EmailNotification.create(validAttrs({ interview_id: new Types.ObjectId() })),
+      ]);
+      expect(new Set(docs.map((d) => d.public_id)).size).toBe(2);
+    });
+
+    it("has a unique, sparse index on public_id", () => {
+      const indexes = EmailNotification.schema.indexes();
+      const publicIdIndex = indexes.find(([spec]) => spec.public_id === 1);
+      expect(publicIdIndex).toBeDefined();
+      expect(publicIdIndex?.[1]).toMatchObject({ unique: true, sparse: true });
+    });
+  });
 });

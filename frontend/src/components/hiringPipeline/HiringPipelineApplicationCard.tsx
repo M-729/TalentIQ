@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateTime } from "@/lib/formatDate";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type {
   AssessmentSummary,
   HiringPipelineApplicationCard as ApplicationCardData,
@@ -149,7 +150,7 @@ export function HiringPipelineApplicationCard({
 
         <div className="flex flex-wrap gap-2 pt-1">
           <Button variant="outline" size="sm" asChild>
-            <Link to={`/applications/${application.id}`}>View Application</Link>
+            <Link to={`/applications/${resourceUrlId(application)}`}>View Application</Link>
           </Button>
           {/* Outline, matching the other card actions — discoverable but
               secondary to the candidate's own identity, not a filled

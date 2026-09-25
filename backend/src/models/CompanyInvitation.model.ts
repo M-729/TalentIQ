@@ -1,5 +1,6 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { EMAIL_NOTIFICATION_STATUSES, EMAIL_FAILURE_CODES } from "./EmailNotification.model";
+import { generatePublicId } from "../utils/publicId";
 
 // Stored lifecycle values. Deliberately no separate "expired" status:
 // expiry is a function of time (expires_at), not a state transition anyone
@@ -51,6 +52,15 @@ export const INVITABLE_ROLES = ["HR"] as const;
  */
 const companyInvitationSchema = new Schema(
   {
+    // Opaque, URL-facing identifier for the ADMIN-side Pending Invitations
+    // list/resend/revoke actions — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale. Completely
+    // separate from token_hash below: token_hash backs the INVITEE's own
+    // unauthenticated accept link and must never be touched by this
+    // migration (see this ticket's explicit "do not touch secure token
+    // systems" rule) — public_id is only ever used by an already-
+    // authenticated Admin managing invitations from inside the app.
+    public_id: { type: String, unique: true, sparse: true },
     company_id: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     email: { type: String, required: true, trim: true, lowercase: true },
     role: { type: String, enum: INVITABLE_ROLES, required: true },
@@ -86,6 +96,15 @@ const companyInvitationSchema = new Schema(
   }
 );
 
+// Assigns public_id exactly once, only for a brand-new document — same
+// pattern/rationale as Job.model.ts's own pre("validate") hook.
+companyInvitationSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("invite");
+  }
+  next();
+});
+
 // Enforces this ticket's Part 11 "normally only one active/pending
 // invitation per company+email" rule at the database level, not just in
 // service-layer logic — a plain equality partialFilterExpression (not $ne/
@@ -97,5 +116,18 @@ companyInvitationSchema.index(
 );
 
 export type CompanyInvitationDoc = HydratedDocument<InferSchemaType<typeof companyInvitationSchema>>;
+type CompanyInvitationShape = InferSchemaType<typeof companyInvitationSchema>;
+
+/**
+ * URL/route id resolution for the ADMIN-facing invitationId path param
+ * (`/team/invitations/:invitationId/resend|revoke`) — see Job.model.ts's
+ * jobIdentifierFilter for the full rationale. Public-id only (Phase 2
+ * cutover). Never used for the invitee's own accept-token flow
+ * (companyInvitationResponse.*), which resolves a CompanyInvitation
+ * exclusively via token_hash and never takes this id at all.
+ */
+export function companyInvitationIdentifierFilter(idParam: string): FilterQuery<CompanyInvitationShape> {
+  return { public_id: idParam };
+}
 
 export const CompanyInvitation = model("CompanyInvitation", companyInvitationSchema);

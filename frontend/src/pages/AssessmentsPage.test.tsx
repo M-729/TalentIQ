@@ -34,7 +34,7 @@ describe("AssessmentsPage", () => {
     vi.mocked(applicationAssessmentsApi.listAssessments).mockReset();
     vi.mocked(jobsApi.listJobs).mockReset().mockResolvedValue({
       jobs: [
-        { _id: "job-1", company_id: "c1", created_by: "u1", title: "Backend Developer", required_skills: [], status: "active", created_at: "2024-01-01T00:00:00.000Z", updated_at: "2024-01-01T00:00:00.000Z" },
+        { _id: "job-1", public_id: "job-1", company_id: "c1", created_by: "u1", title: "Backend Developer", required_skills: [], status: "active", created_at: "2024-01-01T00:00:00.000Z", updated_at: "2024-01-01T00:00:00.000Z" },
       ],
     });
   });
@@ -142,6 +142,33 @@ describe("AssessmentsPage", () => {
     await user.click(await screen.findByRole("link", { name: /view application/i }));
 
     expect(await screen.findByText("Application Detail Page")).toBeInTheDocument();
+  });
+
+  // Phase 1 opaque public ID migration: prefers the owning Application's
+  // public_id over its raw Mongo _id once the backend provides one.
+  it("links to the Application detail route using application_public_id when present, not application_id", async () => {
+    mockPage([
+      buildAssessmentListRow({
+        application_id: "internal-object-id",
+        application_public_id: "app_a8f13c92e51b4f638dde79bf",
+      }),
+    ]);
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: /view application/i });
+    expect(link).toHaveAttribute("href", "/applications/app_a8f13c92e51b4f638dde79bf");
+  });
+
+  // Phase 2 cutover: the legacy _id fallback is gone — a row missing
+  // application_public_id must disable the action, never build a Mongo
+  // ObjectId URL from application_id.
+  it("disables View Application rather than falling back to application_id when public_id is missing", async () => {
+    mockPage([buildAssessmentListRow({ application_id: "internal-object-id", application_public_id: undefined })]);
+    renderPage();
+
+    const button = await screen.findByRole("button", { name: /view application/i });
+    expect(button).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /view application/i })).not.toBeInTheDocument();
   });
 
   // 35. empty state

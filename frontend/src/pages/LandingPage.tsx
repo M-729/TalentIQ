@@ -16,7 +16,7 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 // this ticket is scoped to the public site only.
 export function LandingPage() {
   return (
-    <div className="min-h-svh bg-background">
+    <div className="public-brand-theme min-h-svh bg-background">
       <LandingNavbar />
       <main>
         <HeroSection />

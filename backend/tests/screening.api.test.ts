@@ -1,5 +1,4 @@
 import request from "supertest";
-import { Types } from "mongoose";
 import { createApp } from "../src/app";
 import { signAccessToken } from "../src/security/tokens";
 import { Job } from "../src/models/Job.model";
@@ -118,20 +117,20 @@ describe("AI Screening API", () => {
   describe("authentication and role authorization", () => {
     it("rejects an unauthenticated POST with 401", async () => {
       const { application } = await createApplicationFor(companyA, hrA);
-      const res = await request(app).post(urlFor(application.id));
+      const res = await request(app).post(urlFor(application.public_id!));
       expect(res.status).toBe(401);
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
     it("rejects an unauthenticated GET latest with 401", async () => {
       const { application } = await createApplicationFor(companyA, hrA);
-      const res = await request(app).get(urlFor(application.id, "/latest"));
+      const res = await request(app).get(urlFor(application.public_id!, "/latest"));
       expect(res.status).toBe(401);
     });
 
     it("rejects an unauthenticated GET history with 401", async () => {
       const { application } = await createApplicationFor(companyA, hrA);
-      const res = await request(app).get(urlFor(application.id));
+      const res = await request(app).get(urlFor(application.public_id!));
       expect(res.status).toBe(401);
     });
 
@@ -141,9 +140,9 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
       mockHistory.mockResolvedValueOnce([screeningFixture()]);
 
-      const post = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const latest = await request(app).get(urlFor(application.id, "/latest")).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const history = await request(app).get(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const post = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const latest = await request(app).get(urlFor(application.public_id!, "/latest")).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const history = await request(app).get(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(post.status).toBe(201);
       expect(latest.status).toBe(200);
@@ -157,9 +156,9 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
       mockHistory.mockResolvedValueOnce([screeningFixture()]);
 
-      const post = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(admin, companyA.id));
-      const latest = await request(app).get(urlFor(application.id, "/latest")).set("Authorization", authHeaderFor(admin, companyA.id));
-      const history = await request(app).get(urlFor(application.id)).set("Authorization", authHeaderFor(admin, companyA.id));
+      const post = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(admin, companyA.id));
+      const latest = await request(app).get(urlFor(application.public_id!, "/latest")).set("Authorization", authHeaderFor(admin, companyA.id));
+      const history = await request(app).get(urlFor(application.public_id!)).set("Authorization", authHeaderFor(admin, companyA.id));
 
       expect(post.status).toBe(201);
       expect(latest.status).toBe(200);
@@ -197,7 +196,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
 
       const res = await request(app)
-        .post(urlFor(application.id))
+        .post(urlFor(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ score: 100, model: "gpt-4", jobId: "someOtherJob", formulaVersion: "hacked_v2" });
 
@@ -209,7 +208,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture());
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(201);
     });
@@ -221,7 +220,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture());
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(201);
     });
@@ -231,7 +230,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture());
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(admin, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(admin, companyA.id));
 
       expect(res.status).toBe(201);
     });
@@ -239,7 +238,7 @@ describe("AI Screening API", () => {
     it("returns 404 for a cross-company POST", async () => {
       const { application } = await createApplicationFor(companyB, hrB);
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
     });
@@ -248,7 +247,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyB, hrB);
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -257,7 +256,7 @@ describe("AI Screening API", () => {
     it("returns 404 for a cross-company GET history", async () => {
       const { application } = await createApplicationFor(companyB, hrB);
 
-      const res = await request(app).get(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
     });
@@ -265,14 +264,14 @@ describe("AI Screening API", () => {
     it("never calls createApplicationScreening for a cross-company POST (no R2/Groq cost)", async () => {
       const { application } = await createApplicationFor(companyB, hrB);
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
     it("returns 404 for a well-formed but nonexistent applicationId", async () => {
-      const missingId = new Types.ObjectId().toString();
+      const missingId = `app_${"a".repeat(24)}`;
 
       const res = await request(app).post(urlFor(missingId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
@@ -287,7 +286,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture());
 
-      await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(mockCreate).toHaveBeenCalledTimes(1);
       expect(mockCreate).toHaveBeenCalledWith(application.id);
@@ -297,7 +296,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture());
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(201);
     });
@@ -306,7 +305,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture());
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(Object.keys(res.body.screening).sort()).toEqual(
         ["id", "application_id", "job_id", "analysis", "match", "ai_metadata", "score_formula_version", "created_at"].sort()
@@ -322,8 +321,8 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockResolvedValueOnce(screeningFixture({ id: "first-screening" }));
 
-      const first = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const second = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const first = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const second = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(first.status).toBe(201);
       expect(first.body.screening.id).toBe("first-screening");
@@ -335,7 +334,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockRejectedValueOnce(new CvAnalysisError("ai_provider_failure", "AI analysis provider request failed."));
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(503);
     });
@@ -348,8 +347,8 @@ describe("AI Screening API", () => {
         mockCreate.mockRejectedValueOnce(new CvAnalysisError("ai_provider_failure", "AI analysis provider request failed."));
         mockCreate.mockResolvedValueOnce(screeningFixture({ id: "retry-success" }));
 
-        const first = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
-        const second = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const first = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const second = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
         expect(first.status).toBe(503);
         expect(second.status).toBe(201);
@@ -362,8 +361,8 @@ describe("AI Screening API", () => {
         const { application } = await createApplicationFor(companyA, hrA);
         mockCreate.mockRejectedValue(new CvAnalysisError("ai_provider_failure", "AI analysis provider request failed."));
 
-        const first = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
-        const second = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const first = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const second = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
         expect(first.status).toBe(503);
         expect(second.status).toBe(503);
@@ -375,7 +374,7 @@ describe("AI Screening API", () => {
         const { application } = await createApplicationFor(companyA, hrA);
         await AIScreeningRun.create({ application_id: application.id, job_id: application.job_id, status: "processing", attempt_count: 1 });
 
-        const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
         expect(res.status).toBe(409);
         expect(mockCreate).not.toHaveBeenCalled();
@@ -394,7 +393,7 @@ describe("AI Screening API", () => {
           });
           mockCreate.mockResolvedValueOnce(screeningFixture({ id: "recovered" }));
 
-          const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+          const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
           expect(res.status).toBe(201);
           expect(res.body.screening.id).toBe("recovered");
@@ -444,7 +443,7 @@ describe("AI Screening API", () => {
             score_formula_version: "required_skill_coverage_v1",
           });
 
-          const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+          const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
           expect(res.status).toBe(409);
           expect(mockCreate).not.toHaveBeenCalled();
@@ -460,7 +459,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture({ id: "latest-one" }));
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -472,7 +471,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(null);
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -483,7 +482,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
-      await request(app).get(urlFor(application.id, "/latest")).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(urlFor(application.public_id!, "/latest")).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(mockCreate).not.toHaveBeenCalled();
     });
@@ -495,7 +494,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockHistory.mockResolvedValueOnce([screeningFixture({ id: "second" }), screeningFixture({ id: "first" })]);
 
-      const res = await request(app).get(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.screenings.map((s: { id: string }) => s.id)).toEqual(["second", "first"]);
@@ -505,7 +504,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockHistory.mockResolvedValueOnce([]);
 
-      const res = await request(app).get(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.screenings).toEqual([]);
@@ -515,7 +514,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockHistory.mockResolvedValueOnce([screeningFixture()]);
 
-      await request(app).get(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(mockCreate).not.toHaveBeenCalled();
     });
@@ -528,7 +527,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.screening.analysis.summary).toBeDefined();
@@ -541,7 +540,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.screening.match.score).toBe(100);
@@ -555,7 +554,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.screening.score_formula_version).toBe("required_skill_coverage_v1");
@@ -566,7 +565,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.screening.ai_metadata).toEqual({ provider: "groq", model: "openai/gpt-oss-120b" });
@@ -577,7 +576,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture({ __v: 0 }));
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.screening).not.toHaveProperty("__v");
@@ -588,7 +587,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(JSON.stringify(res.body)).not.toContain("storage_key");
@@ -600,7 +599,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const serialized = JSON.stringify(res.body);
@@ -614,7 +613,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const serialized = JSON.stringify(res.body);
@@ -629,7 +628,7 @@ describe("AI Screening API", () => {
       mockLatest.mockResolvedValueOnce(screeningFixture());
 
       const res = await request(app)
-        .get(urlFor(application.id, "/latest"))
+        .get(urlFor(application.public_id!, "/latest"))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const serialized = JSON.stringify(res.body);
@@ -646,7 +645,7 @@ describe("AI Screening API", () => {
         new CvAnalysisError("ai_not_configured", "Groq AI is not configured. Set GROQ_API_KEY=some-fake-detail.")
       );
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(503);
       expect(JSON.stringify(res.body)).not.toContain("GROQ_API_KEY");
@@ -656,7 +655,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockRejectedValueOnce(new CvAnalysisError("invalid_ai_schema", "AI response did not match the expected schema."));
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(502);
     });
@@ -665,7 +664,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockRejectedValueOnce(new CvStorageError("provider_error", "Failed to download CV from storage."));
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(503);
     });
@@ -674,7 +673,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockRejectedValueOnce(new CvParseError("no_extractable_text", "The PDF has no extractable text."));
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(422);
     });
@@ -683,7 +682,7 @@ describe("AI Screening API", () => {
       const { application } = await createApplicationFor(companyA, hrA);
       mockCreate.mockRejectedValueOnce(new ApplicationCvExtractionError("no_cv_on_application", "Application has no CV file."));
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(422);
     });
@@ -694,7 +693,7 @@ describe("AI Screening API", () => {
         new CvAnalysisError("ai_provider_failure", "upstream exploded with secret internal trace ABC123")
       );
 
-      const res = await request(app).post(urlFor(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(urlFor(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(JSON.stringify(res.body)).not.toContain("ABC123");
       expect(JSON.stringify(res.body)).not.toContain("secret internal trace");

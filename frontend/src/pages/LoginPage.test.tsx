@@ -15,7 +15,7 @@ function renderPage() {
 }
 
 describe("LoginPage", () => {
-  it("shows a Browse Open Positions link pointing to /careers", () => {
+  it("shows the HR-only login guidance", () => {
     vi.mocked(useAuthModule.useAuth).mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -27,8 +27,7 @@ describe("LoginPage", () => {
     });
     renderPage();
 
-    const link = screen.getByRole("link", { name: "Browse open positions" });
-    expect(link).toHaveAttribute("href", "/careers");
+    expect(screen.getByText("HR and admin access only.")).toBeInTheDocument();
   });
 
   // 7. Login links to Create company
@@ -44,7 +43,7 @@ describe("LoginPage", () => {
     });
     renderPage();
 
-    const link = screen.getByRole("link", { name: "Create company" });
+    const link = screen.getByRole("link", { name: "Create your company" });
     expect(link).toHaveAttribute("href", "/signup");
   });
 

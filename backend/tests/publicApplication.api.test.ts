@@ -104,7 +104,7 @@ describe("Public Application API (with CV upload)", () => {
   it("accepts a valid PDF application", async () => {
     const job = await createActiveJob();
 
-    const res = await withFields(request(app).post(`/api/v1/public/jobs/${job.id}/applications`), baseFields()).attach(
+    const res = await withFields(request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`), baseFields()).attach(
       "cv",
       SAMPLE_PDF
     );
@@ -114,11 +114,28 @@ describe("Public Application API (with CV upload)", () => {
     expect(cvStorage.upload).toHaveBeenCalledTimes(1);
   });
 
+  // Phase 1 dual-accept migration: the public Apply route resolves the Job
+  // by either identifier, and the created Application always stores the
+  // real internal ObjectId in job_id regardless of which one was used.
+  it("accepts a valid application submitted via the job's public_id", async () => {
+    const job = await createActiveJob();
+
+    const res = await withFields(
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
+      baseFields({ email: "via-public-id@candidate.test" })
+    ).attach("cv", SAMPLE_PDF);
+
+    expect(res.status).toBe(201);
+    const application = await Application.findOne({ job_id: job._id });
+    expect(application).not.toBeNull();
+    expect(application?.job_id.toString()).toBe(job.id);
+  });
+
   it("accepts a valid DOCX application", async () => {
     const job = await createActiveJob();
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "docx@candidate.test" })
     ).attach("cv", SAMPLE_DOCX);
 
@@ -129,7 +146,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob();
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "no-cv@candidate.test" })
     );
 
@@ -143,7 +160,7 @@ describe("Public Application API (with CV upload)", () => {
     const bigBuffer = Buffer.alloc(6 * 1024 * 1024, 1);
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "toobig@candidate.test" })
     ).attach("cv", bigBuffer, { filename: "resume.pdf", contentType: "application/pdf" });
 
@@ -156,7 +173,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob();
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "png@candidate.test" })
     ).attach("cv", Buffer.from([0x89, 0x50, 0x4e, 0x47]), { filename: "resume.png", contentType: "image/png" });
 
@@ -169,7 +186,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob();
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "spoofed@candidate.test" })
     ).attach("cv", SPOOFED_PDF, { filename: "resume.pdf", contentType: "application/pdf" });
 
@@ -183,7 +200,7 @@ describe("Public Application API (with CV upload)", () => {
     cvStorage.upload.mockRejectedValueOnce(new Error("simulated storage outage"));
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "storage-fail@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -195,7 +212,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Draft", status: "draft" });
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "draft@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -208,7 +225,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Closed", status: "closed" });
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "closed@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -216,13 +233,28 @@ describe("Public Application API (with CV upload)", () => {
     expect(emailService.send).not.toHaveBeenCalled();
   });
 
-  it("rejects an application to a nonexistent job", async () => {
+  it("rejects an application to a well-formed but nonexistent job public_id", async () => {
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${new Types.ObjectId().toString()}/applications`),
+      request(app).post(`/api/v1/public/jobs/job_${"a".repeat(24)}/applications`),
       baseFields({ email: "nowhere@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
     expect(res.status).toBe(404);
+    expect(emailService.send).not.toHaveBeenCalled();
+  });
+
+  // Phase 2 cutover: a raw Mongo ObjectId no longer resolves as a public
+  // Job identifier — the legacy dual-accept lookup is gone, so this must
+  // be rejected as an invalid id format, never resolved (even for a real,
+  // published Job).
+  it("rejects an application addressed by the job's legacy Mongo ObjectId", async () => {
+    const job = await createActiveJob();
+    const res = await withFields(
+      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      baseFields({ email: "legacy-id-rejected@candidate.test" })
+    ).attach("cv", SAMPLE_PDF);
+
+    expect(res.status).toBe(400);
     expect(emailService.send).not.toHaveBeenCalled();
   });
 
@@ -239,7 +271,7 @@ describe("Public Application API (with CV upload)", () => {
   it("rejects invalid candidate input (blank full_name)", async () => {
     const job = await createActiveJob();
 
-    const res = await withFields(request(app).post(`/api/v1/public/jobs/${job.id}/applications`), {
+    const res = await withFields(request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`), {
       full_name: "",
       email: "blank-name@candidate.test",
     }).attach("cv", SAMPLE_PDF);
@@ -252,7 +284,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob("Target Job");
     const otherJob = await createActiveJob("Other Job");
 
-    const res = await withFields(request(app).post(`/api/v1/public/jobs/${job.id}/applications`), {
+    const res = await withFields(request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`), {
       full_name: "Sneaky Candidate",
       email: "sneaky@candidate.test",
       status: "hired",
@@ -282,7 +314,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob("Traceable Role");
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "trace@candidate.test", phone: "+1 555 0100" })
     ).attach("cv", SAMPLE_PDF, { filename: "my-resume.pdf", contentType: "application/pdf" });
 
@@ -304,7 +336,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob("Senior Backend Engineer");
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ full_name: "Priya Sharma", email: "priya@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -337,7 +369,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob("Minimal Response Role");
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "minimal@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -350,7 +382,7 @@ describe("Public Application API (with CV upload)", () => {
     const job = await createActiveJob("Once Only Role");
     const fields = baseFields({ email: "repeat@candidate.test" });
 
-    const first = await withFields(request(app).post(`/api/v1/public/jobs/${job.id}/applications`), fields).attach(
+    const first = await withFields(request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`), fields).attach(
       "cv",
       SAMPLE_PDF
     );
@@ -358,7 +390,7 @@ describe("Public Application API (with CV upload)", () => {
     expect(cvStorage.upload).toHaveBeenCalledTimes(1);
     expect(emailService.send).toHaveBeenCalledTimes(1);
 
-    const second = await withFields(request(app).post(`/api/v1/public/jobs/${job.id}/applications`), fields).attach(
+    const second = await withFields(request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`), fields).attach(
       "cv",
       SAMPLE_PDF
     );
@@ -378,7 +410,7 @@ describe("Public Application API (with CV upload)", () => {
     jest.spyOn(Application, "create").mockRejectedValueOnce(new Error("simulated DB failure") as never);
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "cleanup@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -397,7 +429,7 @@ describe("Public Application API (with CV upload)", () => {
     jest.spyOn(Application, "create").mockRejectedValueOnce(duplicateKeyError as never);
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "race@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 
@@ -412,7 +444,7 @@ describe("Public Application API (with CV upload)", () => {
     emailService.send.mockRejectedValueOnce(new Error("SMTP connection refused: 535 5.7.8 auth failed for user x"));
 
     const res = await withFields(
-      request(app).post(`/api/v1/public/jobs/${job.id}/applications`),
+      request(app).post(`/api/v1/public/jobs/${job.public_id}/applications`),
       baseFields({ email: "email-fail@candidate.test" })
     ).attach("cv", SAMPLE_PDF);
 

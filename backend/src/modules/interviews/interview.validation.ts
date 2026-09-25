@@ -2,16 +2,25 @@ import { z } from "zod";
 import { Types } from "mongoose";
 import { INTERVIEW_STATUSES } from "../../models/Interview.model";
 import { isValidIanaTimeZone } from "../../utils/timezone";
+import { applicationIdentifierString } from "../applications/applicationHr.validation";
+import { jobIdentifierString } from "../jobs/job.validation";
+import { publicIdPattern } from "../../utils/publicId";
 
 const objectIdString = (label: string) =>
   z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
 
+const INTERVIEW_PUBLIC_ID_PATTERN = publicIdPattern("int");
+const interviewIdentifierString = (label: string) =>
+  z.string().refine((val) => INTERVIEW_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
+
 export const applicationIdParamsSchema = z.object({
-  applicationId: objectIdString("application id"),
+  applicationId: applicationIdentifierString("application id"),
 });
 
 export const interviewIdParamsSchema = z.object({
-  interviewId: objectIdString("interview id"),
+  interviewId: interviewIdentifierString("interview id"),
 });
 
 // Same pagination shape/defaults as applicationHr.validation.ts's
@@ -19,7 +28,7 @@ export const interviewIdParamsSchema = z.object({
 // request an unbounded page size.
 export const listInterviewsQuerySchema = z.object({
   status: z.enum(INTERVIEW_STATUSES).optional(),
-  jobId: objectIdString("job id").optional(),
+  jobId: jobIdentifierString("job id").optional(),
   when: z.enum(["upcoming", "past"]).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),

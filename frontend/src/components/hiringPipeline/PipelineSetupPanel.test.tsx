@@ -190,7 +190,7 @@ describe("PipelineSetupPanel", () => {
       await waitFor(() =>
         expect(hiringStepsApi.updateHiringStep).toHaveBeenCalledWith(
           JOB_ID,
-          step.id,
+          step.public_id!,
           expect.objectContaining({ name: "Backend Coding Challenge" })
         )
       );
@@ -206,7 +206,7 @@ describe("PipelineSetupPanel", () => {
       await waitFor(() =>
         expect(hiringStepsApi.updateHiringStep).toHaveBeenCalledWith(
           JOB_ID,
-          step.id,
+          step.public_id!,
           expect.objectContaining({ type: "interview" })
         )
       );
@@ -224,7 +224,7 @@ describe("PipelineSetupPanel", () => {
       await waitFor(() =>
         expect(hiringStepsApi.updateHiringStep).toHaveBeenCalledWith(
           JOB_ID,
-          step.id,
+          step.public_id!,
           expect.objectContaining({ description: "Updated" })
         )
       );
@@ -368,7 +368,7 @@ describe("PipelineSetupPanel", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Delete stage" }));
 
-      await waitFor(() => expect(hiringStepsApi.deleteHiringStep).toHaveBeenCalledWith(JOB_ID, step.id));
+      await waitFor(() => expect(hiringStepsApi.deleteHiringStep).toHaveBeenCalledWith(JOB_ID, step.public_id!));
       expect(await screen.findByText("No hiring stages yet")).toBeInTheDocument();
     });
 

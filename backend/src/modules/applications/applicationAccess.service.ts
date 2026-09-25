@@ -1,4 +1,4 @@
-import { Application, type ApplicationDoc } from "../../models/Application.model";
+import { Application, applicationIdentifierFilter, type ApplicationDoc } from "../../models/Application.model";
 import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
 import { NotFoundError } from "../../security/AppError";
 import { assertOwnedByCompany } from "../../security/companyScope";
@@ -27,7 +27,7 @@ import { assertOwnedByCompany } from "../../security/companyScope";
  * can reuse this same helper instead of a second near-duplicate query.
  */
 export async function getAccessibleApplication(applicationId: string, companyId: string): Promise<ApplicationDoc> {
-  const application = await Application.findById(applicationId);
+  const application = await Application.findOne(applicationIdentifierFilter(applicationId));
   if (!application) {
     throw new NotFoundError("Application not found");
   }
@@ -56,7 +56,7 @@ export async function getAccessibleApplication(applicationId: string, companyId:
  * through this path, the same as it is there.
  */
 export async function getAccessibleApplicationForActiveJob(applicationId: string, companyId: string): Promise<ApplicationDoc> {
-  const application = await Application.findById(applicationId);
+  const application = await Application.findOne(applicationIdentifierFilter(applicationId));
   if (!application) {
     throw new NotFoundError("Application not found");
   }

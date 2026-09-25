@@ -96,23 +96,29 @@ describe("Offer API", () => {
     mockSend.mockReset();
   });
 
+  // Returns both ids: `.id` (raw Mongo ObjectId) for internal DB assertions
+  // (findById/relation-field queries), `.publicId` for building URLs — Phase 2
+  // cutover means only the latter resolves against the API.
   async function createDraft(overrides: Record<string, unknown> = {}) {
-    const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody(overrides));
-    return res.body.offer.id as string;
+    const res = await request(app)
+      .post(createUrl(application.public_id!))
+      .set("Authorization", authHeaderFor(hrA, companyA.id))
+      .send(validBody(overrides));
+    return { id: res.body.offer.id as string, publicId: res.body.offer.public_id as string };
   }
 
   async function createAndSend() {
-    const offerId = await createDraft();
+    const offer = await createDraft();
     mockSend.mockResolvedValueOnce(undefined);
-    await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-    return offerId;
+    await request(app).post(sendUrl(offer.publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+    return offer;
   }
 
   // ===== OFFER CREATION =====
   describe("creation eligibility", () => {
     // 9. create draft
     it("9. creates a draft offer for an active application", async () => {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(201);
       expect(res.body.offer.status).toBe("draft");
       expect(res.body.offer.title).toBe("Backend Engineer");
@@ -121,45 +127,45 @@ describe("Offer API", () => {
     });
 
     it("creating a draft never changes the application's status", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect((await Application.findById(application.id))!.status).toBe("in_process");
     });
 
     it.each(["rejected", "offered", "hired"] as const)("blocks creation for a(n) %s (terminal) application", async (status) => {
       await Application.updateOne({ _id: application.id }, { $set: { status } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
     });
 
     it("blocks creation when the Job is soft-deleted", async () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(404);
     });
 
     it("allows creation for an existing candidate when the Job is merely closed", async () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(201);
     });
 
     it("prevents a second live offer for the same application", async () => {
       await createDraft();
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
       expect(await Offer.countDocuments({ application_id: application.id })).toBe(1);
     });
 
     // 20. cross-company blocked
     it("20. returns 404 for a cross-company create attempt", async () => {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrB, companyB.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrB, companyB.id)).send(validBody());
       expect(res.status).toBe(404);
     });
 
     // 11. invalid salary rejected
     it.each([-100, 0, Infinity, 100.999])("11. rejects an invalid salary amount (%s)", async (salary_amount) => {
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ salary_amount, salary_currency: "USD" }));
       expect(res.status).toBe(400);
@@ -168,7 +174,7 @@ describe("Offer API", () => {
     // 12. invalid currency handled
     it("12. rejects an unrecognized currency code", async () => {
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ salary_amount: 90000, salary_currency: "XYZ" }));
       expect(res.status).toBe(400);
@@ -176,7 +182,7 @@ describe("Offer API", () => {
 
     it("rejects a salary amount without a currency", async () => {
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Backend Engineer", salary_amount: 90000 });
       expect(res.status).toBe(400);
@@ -184,41 +190,41 @@ describe("Offer API", () => {
 
     it("rejects a currency without a salary amount", async () => {
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Backend Engineer", salary_currency: "USD" });
       expect(res.status).toBe(400);
     });
 
     it("allows creation with no salary at all", async () => {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ title: "Backend Engineer" });
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ title: "Backend Engineer" });
       expect(res.status).toBe(201);
       expect(res.body.offer.salary_amount).toBeNull();
     });
 
     it("rejects unknown fields on the create request body", async () => {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ status: "sent" }));
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ status: "sent" }));
       expect(res.status).toBe(400);
     });
   });
 
   describe("GET current offer", () => {
     it("returns null when no live offer exists", async () => {
-      const res = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer).toBeNull();
     });
 
     it("returns the live offer once created", async () => {
       await createDraft();
-      const res = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.offer.status).toBe("draft");
     });
 
     it("returns null again after the offer is withdrawn", async () => {
-      const offerId = await createDraft();
-      await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const res = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.offer).toBeNull();
     });
   });
@@ -227,9 +233,9 @@ describe("Offer API", () => {
   describe("editing a draft", () => {
     // 10. edit draft
     it("10. allows editing title/salary/dates while still a draft", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       const res = await request(app)
-        .patch(offerUrl(offerId))
+        .patch(offerUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Senior Backend Engineer", salary_amount: 100000, salary_currency: "EUR" });
       expect(res.status).toBe(200);
@@ -238,17 +244,17 @@ describe("Offer API", () => {
     });
 
     it("allows editing just the salary amount when a currency is already stored", async () => {
-      const offerId = await createDraft({ salary_amount: 90000, salary_currency: "USD" });
-      const res = await request(app).patch(offerUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ salary_amount: 95000 });
+      const { publicId } = await createDraft({ salary_amount: 90000, salary_currency: "USD" });
+      const res = await request(app).patch(offerUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ salary_amount: 95000 });
       expect(res.status).toBe(200);
       expect(res.body.offer.salary_amount).toBe(95000);
       expect(res.body.offer.salary_currency).toBe("USD");
     });
 
     it("allows clearing salary entirely by setting both to null", async () => {
-      const offerId = await createDraft({ salary_amount: 90000, salary_currency: "USD" });
+      const { publicId } = await createDraft({ salary_amount: 90000, salary_currency: "USD" });
       const res = await request(app)
-        .patch(offerUrl(offerId))
+        .patch(offerUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ salary_amount: null, salary_currency: null });
       expect(res.status).toBe(200);
@@ -257,22 +263,22 @@ describe("Offer API", () => {
 
     // 15. sent offer locks core terms
     it("15. rejects editing once the offer has been sent", async () => {
-      const offerId = await createAndSend();
-      const res = await request(app).patch(offerUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ title: "Changed" });
+      const { id, publicId } = await createAndSend();
+      const res = await request(app).patch(offerUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ title: "Changed" });
       expect(res.status).toBe(409);
-      expect((await Offer.findById(offerId))!.title).toBe("Backend Engineer");
+      expect((await Offer.findById(id))!.title).toBe("Backend Engineer");
     });
 
     it("rejects unknown fields on the edit request body", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).patch(offerUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "sent" });
+      const { publicId } = await createDraft();
+      const res = await request(app).patch(offerUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "sent" });
       expect(res.status).toBe(400);
     });
 
     // 20. cross-company blocked
     it("20. returns 404 for a cross-company edit attempt", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).patch(offerUrl(offerId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({ title: "Hijacked" });
+      const { publicId } = await createDraft();
+      const res = await request(app).patch(offerUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({ title: "Hijacked" });
       expect(res.status).toBe(404);
     });
   });
@@ -281,13 +287,13 @@ describe("Offer API", () => {
   describe("sending an offer", () => {
     // 13. send offer
     it("13. sends the offer and moves the application to offered", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockResolvedValueOnce(undefined);
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(201);
       expect(res.body.notification.status).toBe("sent");
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
+      expect((await Offer.findById(id))!.status).toBe("sent");
       expect((await Application.findById(application.id))!.status).toBe("offered");
     });
 
@@ -300,39 +306,39 @@ describe("Offer API", () => {
 
     // 18. candidate recipient trusted from DB
     it("18. sends to the candidate's own stored email, never a client-supplied address", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       // The strict body schema rejects an unexpected field outright...
       const maliciousRes = await request(app)
-        .post(sendUrl(offerId))
+        .post(sendUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ recipient_email: "attacker@evil.test" });
       expect(maliciousRes.status).toBe(400);
 
       // ...and a normal, valid request always uses the real candidate email.
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(mockSend.mock.calls[0][0].to).toBe(candidate.email);
     });
 
     // 19. internal notes excluded from email
     it("19. never includes internal_notes anywhere in the offer email", async () => {
-      const offerId = await createDraft({ internal_notes: "Candidate negotiated hard, approve up to 110k" });
+      const { id, publicId } = await createDraft({ internal_notes: "Candidate negotiated hard, approve up to 110k" });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const [sendCall] = mockSend.mock.calls;
       expect(sendCall[0].text).not.toMatch(/negotiated hard/);
       expect(sendCall[0].html).not.toMatch(/negotiated hard/);
 
-      const stored = await EmailNotification.findOne({ offer_id: offerId, category: "offer_sent" });
+      const stored = await EmailNotification.findOne({ offer_id: id, category: "offer_sent" });
       const snapshotKeys = Object.keys(JSON.parse(JSON.stringify(stored!.offer_snapshot)));
       expect(snapshotKeys).not.toContain("internal_notes");
     });
 
     it("includes candidate name, company name, job title, offer title, salary, and candidate message in the email", async () => {
-      const offerId = await createDraft({ candidate_message: "We're excited to have you!", start_date: "2026-10-01T00:00:00.000Z" });
+      const { publicId } = await createDraft({ candidate_message: "We're excited to have you!", start_date: "2026-10-01T00:00:00.000Z" });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const [sendCall] = mockSend.mock.calls;
       expect(sendCall[0].text).toMatch(/Ahmad Khalil/);
@@ -344,25 +350,25 @@ describe("Offer API", () => {
 
     // 16. SMTP failure recoverable
     it("16. keeps the offer sent even when SMTP delivery fails", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(201);
       expect(res.body.notification.status).toBe("failed");
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
+      expect((await Offer.findById(id))!.status).toBe("sent");
       expect((await Application.findById(application.id))!.status).toBe("offered");
     });
 
     // 17. retry notification works
     it("17. retries a failed offer notification", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const sendRes = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       mockSend.mockResolvedValueOnce(undefined);
       const res = await request(app)
-        .post(retryUrl(offerId, sendRes.body.notification.id))
+        .post(retryUrl(publicId, sendRes.body.notification.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -370,52 +376,52 @@ describe("Offer API", () => {
     });
 
     it("rejects retrying a notification that has not failed", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockResolvedValueOnce(undefined);
-      const sendRes = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const res = await request(app)
-        .post(retryUrl(offerId, sendRes.body.notification.id))
+        .post(retryUrl(publicId, sendRes.body.notification.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("blocks sending once the Job is soft-deleted", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
     it("rejects sending an offer that isn't a draft", async () => {
-      const offerId = await createAndSend();
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("lists notification history for an offer", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const res = await request(app).get(notificationsUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(notificationsUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.notifications).toHaveLength(1);
     });
 
     // 20. cross-company blocked
     it("20. returns 404 for a cross-company send attempt", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const { publicId } = await createDraft();
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
       expect(mockSend).not.toHaveBeenCalled();
     });
 
     // 42. never a raw SMTP error
     it("42. never exposes a raw SMTP error anywhere in the response", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("ECONNREFUSED 127.0.0.1:587 raw stack"));
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(JSON.stringify(res.body)).not.toMatch(/ECONNREFUSED/);
     });
   });
@@ -426,8 +432,8 @@ describe("Offer API", () => {
 
     // 22. sent -> accepted
     it("22. marks a sent offer accepted, without changing the application's status", async () => {
-      const offerId = await createAndSend();
-      const res = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      const res = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer.status).toBe("accepted");
       // 28-adjacent: Accepted does NOT automatically Hire.
@@ -437,8 +443,8 @@ describe("Offer API", () => {
 
     // 23. sent -> declined
     it("23. marks a sent offer declined, recording final_decision without touching status", async () => {
-      const offerId = await createAndSend();
-      const res = await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      const res = await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer.status).toBe("declined");
 
@@ -448,21 +454,21 @@ describe("Offer API", () => {
     });
 
     it("rejects accepting a draft offer", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const res = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("rejects declining a draft offer", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const res = await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     // 24. draft -> withdrawn
     it("24. withdraws a draft offer without touching the application", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const res = await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer.status).toBe("withdrawn");
       expect((await Application.findById(application.id))!.status).toBe("in_process");
@@ -470,65 +476,65 @@ describe("Offer API", () => {
 
     // 25. sent -> withdrawn
     it("25. withdraws a sent offer and reverts the application to in_process", async () => {
-      const offerId = await createAndSend();
-      const res = await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      const res = await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer.status).toBe("withdrawn");
       expect((await Application.findById(application.id))!.status).toBe("in_process");
     });
 
     it("allows creating a brand-new offer after withdrawing the previous one (Part 16)", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ title: "Revised Offer" }));
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ title: "Revised Offer" }));
       expect(res.status).toBe(201);
       expect(res.body.offer.title).toBe("Revised Offer");
     });
 
     // 26. accepted cannot withdraw
     it("26. rejects withdrawing an accepted offer", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const res = await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("rejects withdrawing a declined offer", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const res = await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("rejects withdrawing an already-withdrawn offer", async () => {
-      const offerId = await createDraft();
-      await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const res = await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     // 27. declined cannot accept
     it("27. rejects accepting a declined offer", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const res = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     it("rejects declining an accepted offer", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      const res = await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     // 28. accepted -> hired explicit
     it("28. marks the application hired once the offer is accepted", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const res = await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.application.status).toBe("hired");
       expect(res.body.application.final_decision).toBe("hired");
@@ -540,25 +546,25 @@ describe("Offer API", () => {
 
     // 29. sent cannot directly become hired
     it("29. rejects marking hired directly from sent (never through accepted)", async () => {
-      const offerId = await createAndSend();
-      const res = await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      const res = await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
       expect((await Application.findById(application.id))!.status).toBe("offered");
     });
 
     it("rejects marking hired from a draft offer", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const res = await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     // 30. hired Application terminal
     it("30. blocks creating a new offer once the application is hired", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
     });
 
@@ -567,50 +573,50 @@ describe("Offer API", () => {
       const step = new Types.ObjectId();
       await Application.updateOne({ _id: application.id }, { $set: { current_step_id: step } });
 
-      const offerId = await createAndSend();
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect((await Application.findById(application.id))!.current_step_id!.toString()).toBe(step.toString());
     });
 
     // 32. race accepted vs declined safe
     it("32. only one of a concurrent accept/decline race wins, never both", async () => {
-      const offerId = await createAndSend();
+      const { id, publicId } = await createAndSend();
 
       const [acceptRes, declineRes] = await Promise.all([
-        request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
-        request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
+        request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
+        request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
       ]);
 
       const statuses = [acceptRes.status, declineRes.status].sort();
       expect(statuses).toEqual([200, 409]);
 
-      const stored = await Offer.findById(offerId);
+      const stored = await Offer.findById(id);
       expect(["accepted", "declined"]).toContain(stored!.status);
     });
 
     // 33. duplicate hired safe/conflict
     it("33. a duplicate Mark as Hired attempt safely conflicts", async () => {
-      const offerId = await createAndSend();
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createAndSend();
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const hireSpy = jest.spyOn(Application, "findOneAndUpdate").mockResolvedValueOnce(null);
-      const res = await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
       hireSpy.mockRestore();
     });
 
     // 20. cross-company blocked for every transition
     it("20. returns 404 for cross-company accept/decline/withdraw/hire attempts", async () => {
-      const offerId = await createAndSend();
-      const acceptRes = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const { publicId } = await createAndSend();
+      const acceptRes = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(acceptRes.status).toBe(404);
-      const declineRes = await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const declineRes = await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(declineRes.status).toBe(404);
-      const withdrawRes = await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const withdrawRes = await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(withdrawRes.status).toBe(404);
-      const hireRes = await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const hireRes = await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(hireRes.status).toBe(404);
     });
   });
@@ -619,25 +625,25 @@ describe("Offer API", () => {
   describe("lifecycle", () => {
     // 34. closed Job existing applicant behavior — accept/decline/hire still work post-close
     it("34. still allows accept/decline/hire actions after the Job is closed (not deleted)", async () => {
-      const offerId = await createAndSend();
+      const { publicId } = await createAndSend();
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
-      const acceptRes = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const acceptRes = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(acceptRes.status).toBe(200);
-      const hireRes = await request(app).post(hireUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const hireRes = await request(app).post(hireUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(hireRes.status).toBe(200);
     });
 
     // 36. historical Offer readable afterward
     it("36. keeps a withdrawn/historical Offer readable via the list and its own record", async () => {
-      const offerId = await createDraft();
-      await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { id, publicId } = await createDraft();
+      await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const stored = await Offer.findById(offerId);
+      const stored = await Offer.findById(id);
       expect(stored!.status).toBe("withdrawn");
 
       const res = await request(app).get(listUrl()).set("Authorization", authHeaderFor(hrA, companyA.id));
-      expect(res.body.offers.map((o: { id: string }) => o.id)).toContain(offerId);
+      expect(res.body.offers.map((o: { id: string }) => o.id)).toContain(id);
     });
   });
 
@@ -671,7 +677,7 @@ describe("Offer API", () => {
 
     // 38. filters
     it("38. filters by jobId and status", async () => {
-      const offerId = await createAndSend();
+      const offer = await createAndSend();
 
       // A second application (same Job) for the second, still-draft offer —
       // only one LIVE offer is ever allowed per application.
@@ -683,15 +689,28 @@ describe("Offer API", () => {
         status: "in_process",
       });
       await request(app)
-        .post(`/api/v1/applications/${secondApplication.id}/offer`)
+        .post(`/api/v1/applications/${secondApplication.public_id}/offer`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ title: "Another Draft" }));
 
       const byStatus = await request(app).get(listUrl("?status=sent")).set("Authorization", authHeaderFor(hrA, companyA.id));
-      expect(byStatus.body.offers.map((o: { id: string }) => o.id)).toEqual([offerId]);
+      expect(byStatus.body.offers.map((o: { id: string }) => o.id)).toEqual([offer.id]);
 
-      const byJob = await request(app).get(listUrl(`?jobId=${jobA.id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const byJob = await request(app).get(listUrl(`?jobId=${jobA.public_id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(byJob.body.offers).toHaveLength(2);
+    });
+
+    // Phase 1 dual-accept migration: the jobId filter is a "special
+    // attention" case — resolved to Job's real internal id before being
+    // used against Offer.job_id.
+    it("filters by jobId given as the Job's public_id", async () => {
+      await createAndSend();
+
+      const res = await request(app)
+        .get(listUrl(`?jobId=${jobA.public_id}`))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.offers).toHaveLength(1);
     });
 
     // 39. search
@@ -753,9 +772,9 @@ describe("Offer API", () => {
   describe("email architecture", () => {
     // 41. immutable snapshot
     it("41. retry renders from the immutable snapshot, not the offer's current data", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const sendRes = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       // Offer terms are locked once sent, so there's nothing to "edit" here
       // — this asserts the snapshot itself, which is what a retry always renders from.
@@ -763,7 +782,7 @@ describe("Offer API", () => {
       expect(stored!.offer_snapshot!.offer_title).toBe("Backend Engineer");
 
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(offerId, sendRes.body.notification.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(retryUrl(publicId, sendRes.body.notification.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(mockSend.mock.calls[1][0].text).toMatch(/Backend Engineer/);
     });
   });
@@ -774,28 +793,28 @@ describe("Offer API", () => {
   describe("send offer notification durability (bug fix)", () => {
     // 1. draft offer + no notification -> Not sent (a normal, valid state)
     it("1. a draft offer has no notification history at all", async () => {
-      const offerId = await createDraft();
-      const res = await request(app).get(notificationsUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const res = await request(app).get(notificationsUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.notifications).toEqual([]);
     });
 
     // 2. Send Offer success -> notification persisted
     it("2. persists exactly one EmailNotification row the moment Send Offer succeeds", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      expect(await EmailNotification.countDocuments({ offer_id: offerId, category: "offer_sent" })).toBe(1);
+      expect(await EmailNotification.countDocuments({ offer_id: id, category: "offer_sent" })).toBe(1);
     });
 
     // 3 & 4 & 5 already covered by tests 13/16/17 above; this asserts the
     // INVARIANT directly rather than just the individual outcomes: a
     // notification row exists in BOTH the success and the failure case.
     it("keeps exactly one notification row whether SMTP succeeds or fails", async () => {
-      const successOfferId = await createDraft({ title: "Success Offer" });
+      const { id: successOfferId, publicId: successOfferPublicId } = await createDraft({ title: "Success Offer" });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(successOfferId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(successOfferPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(await EmailNotification.countDocuments({ offer_id: successOfferId })).toBe(1);
 
       // A second, independent Application — only one LIVE offer is ever
@@ -808,14 +827,15 @@ describe("Offer API", () => {
         status: "in_process",
       });
       const createRes = await request(app)
-        .post(`/api/v1/applications/${secondApplication.id}/offer`)
+        .post(`/api/v1/applications/${secondApplication.public_id}/offer`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ title: "Failure Offer" }));
       expect(createRes.status).toBe(201);
       const failureOfferId = createRes.body.offer.id as string;
+      const failureOfferPublicId = createRes.body.offer.public_id as string;
 
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const sendRes = await request(app).post(sendUrl(failureOfferId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const sendRes = await request(app).post(sendUrl(failureOfferPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(sendRes.status).toBe(201);
       expect(await EmailNotification.countDocuments({ offer_id: failureOfferId })).toBe(1);
       expect((await Offer.findById(failureOfferId))!.status).toBe("sent");
@@ -825,55 +845,55 @@ describe("Offer API", () => {
     // itself fails for any reason, the ENTIRE send transaction rolls back —
     // never a "sent" Offer with zero notification history.
     it("rolls back the Offer/Application transition entirely if EmailNotification creation fails", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       const createSpy = jest.spyOn(EmailNotification, "create").mockRejectedValueOnce(new Error("unexpected write failure"));
 
-      const res = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       createSpy.mockRestore();
 
       expect(res.status).toBe(500);
-      expect((await Offer.findById(offerId))!.status).toBe("draft");
+      expect((await Offer.findById(id))!.status).toBe("draft");
       expect((await Application.findById(application.id))!.status).toBe("in_process");
-      expect(await EmailNotification.countDocuments({ offer_id: offerId })).toBe(0);
+      expect(await EmailNotification.countDocuments({ offer_id: id })).toBe(0);
       expect(mockSend).not.toHaveBeenCalled();
 
       // HR can simply retry — the Offer is still a clean draft.
       mockSend.mockResolvedValueOnce(undefined);
-      const retryRes = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const retryRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(retryRes.status).toBe(201);
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
-      expect(await EmailNotification.countDocuments({ offer_id: offerId })).toBe(1);
+      expect((await Offer.findById(id))!.status).toBe("sent");
+      expect(await EmailNotification.countDocuments({ offer_id: id })).toBe(1);
     });
 
     // 9. rapid double Send -> one business transition / safe notification behavior
     it("9. a rapid concurrent double Send Offer results in exactly one business transition and one notification", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockResolvedValue(undefined);
 
       const [resA, resB] = await Promise.all([
-        request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
-        request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
+        request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
+        request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
       ]);
 
       const statuses = [resA.status, resB.status].sort();
       expect(statuses).toEqual([201, 409]);
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
-      expect(await EmailNotification.countDocuments({ offer_id: offerId, category: "offer_sent" })).toBe(1);
+      expect((await Offer.findById(id))!.status).toBe("sent");
+      expect(await EmailNotification.countDocuments({ offer_id: id, category: "offer_sent" })).toBe(1);
     });
 
     // 10. Offer.status sent + notification failed -> Mark Accepted etc may
     // remain, but Candidate Email clearly says Failed (asserted via the
     // notification's own persisted status).
     it("10. still allows Mark Accepted after a failed send — the failure is only reflected on the notification", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const acceptRes = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const acceptRes = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(acceptRes.status).toBe(200);
       expect(acceptRes.body.offer.status).toBe("accepted");
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       expect(notification!.status).toBe("failed");
     });
 
@@ -894,13 +914,100 @@ describe("Offer API", () => {
         updated_by_user_id: hrA.id,
       });
 
-      const notificationsRes = await request(app).get(notificationsUrl(legacyOffer.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const notificationsRes = await request(app).get(notificationsUrl(legacyOffer.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(notificationsRes.status).toBe(200);
       expect(notificationsRes.body.notifications).toEqual([]);
 
-      const offerRes = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const offerRes = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(offerRes.status).toBe(200);
       expect(offerRes.body.offer.status).toBe("sent");
+    });
+  });
+
+  // ===== Phase 1 opaque public ID migration =====
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the offer_ prefix and 24-char hex suffix", async () => {
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      expect(res.body.offer.public_id).toMatch(/^offer_[a-f0-9]{24}$/);
+    });
+
+    it("updates a draft offer looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app)
+        .patch(offerUrl(createRes.body.offer.public_id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ title: "Renamed Offer" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.offer.title).toBe("Renamed Offer");
+    });
+
+    it("returns 404 for another company's offer looked up by public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app)
+        .patch(offerUrl(createRes.body.offer.public_id))
+        .set("Authorization", authHeaderFor(hrB, companyB.id))
+        .send({ title: "Hijacked" });
+
+      expect(res.status).toBe(404);
+    });
+
+    it("sends an offer looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      mockSend.mockResolvedValueOnce(undefined);
+
+      const res = await request(app).post(sendUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(201);
+    });
+
+    it("marks an offer accepted looked up by its public_id (HR manual fallback)", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      mockSend.mockResolvedValueOnce(undefined);
+      await request(app).post(sendUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const res = await request(app).post(acceptUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.offer.status).toBe("accepted");
+    });
+
+    it("withdraws an offer looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app).post(withdrawUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.offer.status).toBe("withdrawn");
+    });
+
+    it("marks an application hired from an offer looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      mockSend.mockResolvedValueOnce(undefined);
+      await request(app).post(sendUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(acceptUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const res = await request(app).post(hireUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.application.status).toBe("hired");
+    });
+
+    it("lists notifications for an offer looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      mockSend.mockResolvedValueOnce(undefined);
+      await request(app).post(sendUrl(createRes.body.offer.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      const res = await request(app)
+        .get(notificationsUrl(createRes.body.offer.public_id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.notifications).toHaveLength(1);
+    });
+
+    it("exposes the owning application's public_id on the company-wide list row", async () => {
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app).get(listUrl()).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.body.offers[0].application_public_id).toBe(application.public_id);
     });
   });
 });

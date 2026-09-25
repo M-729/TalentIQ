@@ -85,7 +85,7 @@ export async function rejectApplication(
     // this ticket's explicit Part 24 "double Reject" concurrency
     // requirement).
     const updatedApplication = await Application.findOneAndUpdate(
-      { _id: applicationId, status: application.status },
+      { _id: application._id, status: application.status },
       { $set: rejectionFields },
       { new: true }
     );
@@ -105,7 +105,7 @@ export async function rejectApplication(
   // should be unreachable in practice.
   if (!candidate || !job) {
     const updatedApplication = await Application.findOneAndUpdate(
-      { _id: applicationId, status: application.status },
+      { _id: application._id, status: application.status },
       { $set: rejectionFields },
       { new: true }
     );
@@ -131,7 +131,7 @@ export async function rejectApplication(
 
     await session.withTransaction(async () => {
       const updated = await Application.findOneAndUpdate(
-        { _id: applicationId, status: application.status },
+        { _id: application._id, status: application.status },
         { $set: rejectionFields },
         { new: true, session }
       );
@@ -206,8 +206,10 @@ export async function rejectApplication(
  * Candidate/Job/Company lookup.
  */
 export async function retryRejectionEmail(companyId: string, applicationId: string): Promise<EmailNotificationDoc> {
+  const application = await getAccessibleApplication(applicationId, companyId);
+
   const notification = await EmailNotification.findOne({
-    application_id: applicationId,
+    application_id: application.id,
     company_id: companyId,
     category: "application_rejection",
   }).sort({ created_at: -1 });
@@ -236,7 +238,7 @@ export async function getRejectionInfo(companyId: string, applicationId: string)
 
   const [rejectedByUser, notification] = await Promise.all([
     application.rejected_by_user_id ? User.findById(application.rejected_by_user_id).select("name") : Promise.resolve(null),
-    EmailNotification.findOne({ application_id: applicationId, category: "application_rejection" })
+    EmailNotification.findOne({ application_id: application.id, category: "application_rejection" })
       .sort({ created_at: -1 })
       .select("status"),
   ]);

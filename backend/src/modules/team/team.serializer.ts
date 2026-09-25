@@ -6,6 +6,9 @@ import { isInvitationExpired } from "./companyInvitationState";
 
 export interface MemberDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for a User created before
+  // this field existed and not yet covered by the backfill script.
+  public_id?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -16,6 +19,7 @@ export interface MemberDTO {
 export function serializeMember(user: UserDoc): MemberDTO {
   return {
     id: user.id,
+    public_id: user.public_id ?? undefined,
     name: user.name,
     email: user.email,
     role: user.role,
@@ -26,6 +30,11 @@ export function serializeMember(user: UserDoc): MemberDTO {
 
 export interface InvitationDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for an invitation created
+  // before this field existed and not yet covered by the backfill script.
+  // Never the invitee's own accept token (see CompanyInvitation.model.ts's
+  // public_id doc comment).
+  public_id?: string;
   email: string;
   role: UserRole;
   // The raw stored lifecycle value — "pending" even once expired (see
@@ -57,6 +66,7 @@ export async function serializeInvitations(invitations: CompanyInvitationDoc[]):
     const inviterName = inviterNameById.get(inviterId);
     return {
       id: invitation.id,
+      public_id: invitation.public_id ?? undefined,
       email: invitation.email,
       role: invitation.role,
       status: invitation.status,

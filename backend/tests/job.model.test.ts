@@ -100,4 +100,97 @@ describe("Job model", () => {
     const hasIndex = indexes.some(([spec]) => spec.company_id === 1 && spec.deleted_at === 1);
     expect(hasIndex).toBe(true);
   });
+
+  describe("public_id", () => {
+    it("is assigned automatically on creation", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Auto Public Id" });
+      expect(job.public_id).toEqual(expect.any(String));
+    });
+
+    it("starts with the job_ prefix and a 24-char hex suffix", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Prefixed" });
+      expect(job.public_id).toMatch(/^job_[a-f0-9]{24}$/);
+    });
+
+    it("is never derived from _id", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Not Derived" });
+      expect(job.public_id).not.toContain(job.id);
+    });
+
+    it("assigns a different public_id to every new job", async () => {
+      const jobs = await Promise.all(
+        Array.from({ length: 5 }, (_, i) =>
+          Job.create({ company_id: company.id, created_by: hr.id, title: `Unique ${i}` })
+        )
+      );
+      const publicIds = new Set(jobs.map((job) => job.public_id));
+      expect(publicIds.size).toBe(5);
+    });
+
+    it("rejects a second job explicitly assigned an already-used public_id", async () => {
+      const first = await Job.create({ company_id: company.id, created_by: hr.id, title: "First" });
+      await expect(
+        Job.create({
+          company_id: company.id,
+          created_by: hr.id,
+          title: "Duplicate",
+          public_id: first.public_id,
+        })
+      ).rejects.toThrow();
+    });
+
+    it("has a unique index on public_id", () => {
+      const indexes = Job.schema.indexes();
+      const publicIdIndex = indexes.find(([spec]) => spec.public_id === 1);
+      expect(publicIdIndex).toBeDefined();
+      expect(publicIdIndex?.[1]).toMatchObject({ unique: true, sparse: true });
+    });
+
+    it("does not require public_id on a legacy-style document missing one (sparse index tolerates it)", async () => {
+      // Simulates a pre-migration document: bypasses the pre("validate")
+      // hook's auto-assignment via an update-level insert, the same way
+      // the backfill script finds documents that predate this field.
+      await Job.collection.insertOne({
+        company_id: company._id,
+        created_by: hr._id,
+        title: "Legacy No Public Id",
+        required_skills: [],
+        status: "draft",
+        deleted_at: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const found = await Job.findOne({ title: "Legacy No Public Id" });
+      expect(found).not.toBeNull();
+      expect(found?.public_id).toBeUndefined();
+
+      // A second legacy-style document without public_id must not collide
+      // on the sparse unique index either.
+      await expect(
+        Job.collection.insertOne({
+          company_id: company._id,
+          created_by: hr._id,
+          title: "Second Legacy No Public Id",
+          required_skills: [],
+          status: "draft",
+          deleted_at: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+      ).resolves.toBeDefined();
+    });
+
+    it("leaves public_id untouched when an existing job is re-saved", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Resave Me" });
+      const originalPublicId = job.public_id;
+
+      job.title = "Resave Me (edited)";
+      await job.save();
+
+      expect(job.public_id).toBe(originalPublicId);
+      const reread = await Job.findById(job.id);
+      expect(reread?.public_id).toBe(originalPublicId);
+    });
+  });
 });

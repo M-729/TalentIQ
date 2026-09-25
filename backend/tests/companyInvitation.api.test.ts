@@ -195,7 +195,7 @@ describe("Team Invitations", () => {
     it("30. resends the email with a fresh token, invalidating the old one", async () => {
       const created = await invite("resend-check@acme.test");
       const originalToken = extractTokenFromLastEmail();
-      const invitationId = created.body.invitation.id as string;
+      const invitationId = created.body.invitation.public_id as string;
 
       mockSend.mockResolvedValueOnce(undefined);
       const res = await request(app).post(resendUrl(invitationId)).set("Authorization", authHeaderFor(adminA, companyA.id)).send({});
@@ -216,7 +216,7 @@ describe("Team Invitations", () => {
     it("13. returns 404 when resending another company's invitation", async () => {
       const created = await invite("cross-resend@acme.test", adminA, companyA.id);
       const res = await request(app)
-        .post(resendUrl(created.body.invitation.id))
+        .post(resendUrl(created.body.invitation.public_id))
         .set("Authorization", authHeaderFor(adminB, companyB.id))
         .send({});
       expect(res.status).toBe(404);
@@ -228,7 +228,7 @@ describe("Team Invitations", () => {
       await request(app).post(acceptUrl).send({ token: rawToken, full_name: "New HR", password: DEFAULT_PASSWORD });
 
       const res = await request(app)
-        .post(resendUrl(created.body.invitation.id))
+        .post(resendUrl(created.body.invitation.public_id))
         .set("Authorization", authHeaderFor(adminA, companyA.id))
         .send({});
       expect(res.status).toBe(409);
@@ -240,7 +240,7 @@ describe("Team Invitations", () => {
     it("ADMIN can revoke a pending invitation", async () => {
       const created = await invite("revoke-check@acme.test");
       const res = await request(app)
-        .post(revokeUrl(created.body.invitation.id))
+        .post(revokeUrl(created.body.invitation.public_id))
         .set("Authorization", authHeaderFor(adminA, companyA.id))
         .send({});
       expect(res.status).toBe(200);
@@ -251,7 +251,7 @@ describe("Team Invitations", () => {
     it("13. returns 404 when revoking another company's invitation", async () => {
       const created = await invite("cross-revoke@acme.test", adminA, companyA.id);
       const res = await request(app)
-        .post(revokeUrl(created.body.invitation.id))
+        .post(revokeUrl(created.body.invitation.public_id))
         .set("Authorization", authHeaderFor(adminB, companyB.id))
         .send({});
       expect(res.status).toBe(404);
@@ -261,7 +261,7 @@ describe("Team Invitations", () => {
     it("26. a revoked invitation can no longer be accepted", async () => {
       const created = await invite("revoke-then-accept@acme.test");
       const rawToken = extractTokenFromLastEmail();
-      await request(app).post(revokeUrl(created.body.invitation.id)).set("Authorization", authHeaderFor(adminA, companyA.id)).send({});
+      await request(app).post(revokeUrl(created.body.invitation.public_id)).set("Authorization", authHeaderFor(adminA, companyA.id)).send({});
 
       const res = await request(app).post(acceptUrl).send({ token: rawToken, full_name: "Too Late", password: DEFAULT_PASSWORD });
       expect(res.status).toBe(200);
@@ -482,6 +482,59 @@ describe("Team Invitations", () => {
       const raw = res.headers["set-cookie"];
       const cookies = Array.isArray(raw) ? raw : raw ? [raw] : [];
       expect(cookies.some((c: string) => c.startsWith("talentiq_refresh_token="))).toBe(true);
+    });
+  });
+
+  // ===== Phase 1 opaque public ID migration =====
+  // Admin-facing invitationId (list/resend/revoke) only — never the
+  // invitee's own accept token, which every test above continues to
+  // exercise entirely unchanged via extractTokenFromLastEmail()/lookupUrl/
+  // acceptUrl.
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the invite_ prefix and 24-char hex suffix", async () => {
+      const created = await invite("public-id-format@acme.test");
+      expect(created.body.invitation.public_id).toMatch(/^invite_[a-f0-9]{24}$/);
+    });
+
+    it("resends an invitation looked up by its public_id", async () => {
+      const created = await invite("resend-public-id@acme.test");
+      mockSend.mockResolvedValueOnce(undefined);
+
+      const res = await request(app)
+        .post(resendUrl(created.body.invitation.public_id))
+        .set("Authorization", authHeaderFor(adminA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+    });
+
+    it("returns 404 when resending another company's invitation looked up by public_id", async () => {
+      const created = await invite("cross-resend-public-id@acme.test", adminA, companyA.id);
+      const res = await request(app)
+        .post(resendUrl(created.body.invitation.public_id))
+        .set("Authorization", authHeaderFor(adminB, companyB.id))
+        .send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("revokes an invitation looked up by its public_id", async () => {
+      const created = await invite("revoke-public-id@acme.test");
+
+      const res = await request(app)
+        .post(revokeUrl(created.body.invitation.public_id))
+        .set("Authorization", authHeaderFor(adminA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.invitation.status).toBe("revoked");
+    });
+
+    it("rejects a revoke addressed by legacy Mongo ObjectId", async () => {
+      const created = await invite("revoke-legacy-id@acme.test");
+
+      const res = await request(app)
+        .post(revokeUrl(created.body.invitation.id))
+        .set("Authorization", authHeaderFor(adminA, companyA.id))
+        .send({});
+      expect(res.status).toBe(400);
     });
   });
 });

@@ -8,6 +8,7 @@ import { HiringPipelineJobSelect } from "@/components/hiringPipeline/HiringPipel
 import { HiringPipelineWorkspaceTabs, type HiringPipelineWorkspaceTab } from "@/components/hiringPipeline/HiringPipelineWorkspaceTabs";
 import { PipelineSetupPanel } from "@/components/hiringPipeline/PipelineSetupPanel";
 import { useJobs } from "@/hooks/useJobs";
+import { jobUrlId } from "@/lib/jobUrlId";
 
 const JOB_ID_PARAM = "jobId";
 
@@ -35,7 +36,7 @@ export function HiringPipelinePage() {
   const [activeTab, setActiveTab] = useState<HiringPipelineWorkspaceTab>("board");
 
   const urlJobId = searchParams.get(JOB_ID_PARAM);
-  const selectedJobId = jobs && urlJobId && jobs.some((job) => job._id === urlJobId) ? urlJobId : null;
+  const selectedJobId = jobs && urlJobId && jobs.some((job) => jobUrlId(job) === urlJobId) ? urlJobId : null;
 
   useEffect(() => {
     // Only ever strips a jobId once the Jobs list has actually loaded and

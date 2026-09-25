@@ -97,7 +97,7 @@ describe("External Assessment API", () => {
   // ===== 1-10: ASSESSMENT CREATION =====
   describe("creation eligibility", () => {
     it("1. allows creation for an application currently in an assessment-type stage", async () => {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(201);
       expect(res.body.assessment.name).toBe("Backend Technical Test");
       expect(res.body.assessment.status).toBe("pending");
@@ -106,14 +106,14 @@ describe("External Assessment API", () => {
 
     it("2. blocks creation when the application is in a review-type stage", async () => {
       await Application.updateOne({ _id: application.id }, { $set: { current_step_id: review._id } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
       expect(await ApplicationAssessment.countDocuments()).toBe(0);
     });
 
     it("3. blocks creation when the application is in an interview-type stage", async () => {
       await Application.updateOne({ _id: application.id }, { $set: { current_step_id: interviewStage._id } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
     });
 
@@ -123,32 +123,32 @@ describe("External Assessment API", () => {
       // Simulates corrupted/legacy cross-job current_step_id — never reachable through the normal API.
       await Application.updateOne({ _id: application.id }, { $set: { current_step_id: foreignStep._id } });
 
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
     });
 
     it.each(["rejected", "offered", "hired"] as const)("5. blocks creation for a(n) %s (terminal) application", async (status) => {
       await Application.updateOne({ _id: application.id }, { $set: { status } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(409);
     });
 
     it("6. blocks creation for an application whose Job is soft-deleted", async () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(404);
     });
 
     it("7. allows creation for an existing candidate when the Job is closed (not deleted)", async () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(201);
     });
 
     it("8. prevents a duplicate assessment for the same application + stage", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ name: "A different name" }));
       expect(res.status).toBe(409);
@@ -159,7 +159,7 @@ describe("External Assessment API", () => {
       "9. rejects an unsafe external_url scheme (%s)",
       async (unsafeUrl) => {
         const res = await request(app)
-          .post(createUrl(application.id))
+          .post(createUrl(application.public_id!))
           .set("Authorization", authHeaderFor(hrA, companyA.id))
           .send(validBody({ external_url: unsafeUrl }));
         expect(res.status).toBe(400);
@@ -179,13 +179,13 @@ describe("External Assessment API", () => {
         current_step_id: otherStage._id,
       });
 
-      const res = await request(app).post(createUrl(otherApplication.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).post(createUrl(otherApplication.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       expect(res.status).toBe(404);
     });
 
     it("rejects a name over the max length", async () => {
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ name: "a".repeat(151) }));
       expect(res.status).toBe(400);
@@ -193,21 +193,21 @@ describe("External Assessment API", () => {
 
     it("rejects unknown fields on the request body", async () => {
       const res = await request(app)
-        .post(createUrl(application.id))
+        .post(createUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ status: "passed", company_id: companyB.id }));
       expect(res.status).toBe(400);
     });
 
     it("GET returns null when no assessment exists for the current stage yet", async () => {
-      const res = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.assessment).toBeNull();
     });
 
     it("GET returns the assessment for the current stage once created", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      const res = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessment.name).toBe("Backend Technical Test");
     });
   });
@@ -225,15 +225,15 @@ describe("External Assessment API", () => {
     }
 
     it("returns an empty array (never 404) when no assessment has ever been created", async () => {
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.assessments).toEqual([]);
     });
 
     // 1 & 2 (covered by existing GET .../assessment tests above) + is_current wiring
     it("marks the current-stage record is_current: true while still on that stage", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.assessments).toHaveLength(1);
       expect(res.body.assessments[0].id).toBe(createRes.body.assessment.id);
@@ -243,10 +243,10 @@ describe("External Assessment API", () => {
 
     // 3. candidate moves from Assessment to Interview -> previous assessment remains visible
     it("keeps a historical assessment visible after the candidate moves to a different stage", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      await moveReq(application.id, interviewStage.id);
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await moveReq(application.public_id!, interviewStage.id);
 
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessments).toHaveLength(1);
       expect(res.body.assessments[0].name).toBe("Backend Technical Test");
       expect(res.body.assessments[0].is_current).toBe(false);
@@ -254,42 +254,42 @@ describe("External Assessment API", () => {
 
     // 4. historical Passed + grade remains visible
     it("keeps a historical Passed result and grade visible after the candidate moves on", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       await request(app)
-        .patch(resultUrl(createRes.body.assessment.id))
+        .patch(resultUrl(createRes.body.assessment.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "passed", grade: 87 });
-      await moveReq(application.id, interviewStage.id);
+      await moveReq(application.public_id!, interviewStage.id);
 
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessments[0].status).toBe("passed");
       expect(res.body.assessments[0].grade).toBe(87);
     });
 
     // 5. historical notes remain visible
     it("keeps historical notes visible after the candidate moves on", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       await request(app)
-        .patch(resultUrl(createRes.body.assessment.id))
+        .patch(resultUrl(createRes.body.assessment.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "passed", notes: "Strong result" });
-      await moveReq(application.id, interviewStage.id);
+      await moveReq(application.public_id!, interviewStage.id);
 
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessments[0].notes).toBe("Strong result");
     });
 
     // 7. multiple historical assessment-stage records render deterministically
     it("returns multiple historical assessment records, newest first", async () => {
-      const createRes1 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First Assessment" }));
+      const createRes1 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First Assessment" }));
       await request(app).patch(resultUrl(createRes1.body.assessment.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "failed" });
-      await moveReq(application.id, review.id);
+      await moveReq(application.public_id!, review.id);
 
       const secondStage = await HiringStep.create({ job_id: jobA.id, name: "Follow-up Assessment", type: "assessment", position: 3 });
-      await moveReq(application.id, secondStage.id);
-      const createRes2 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second Assessment" }));
+      await moveReq(application.public_id!, secondStage.id);
+      const createRes2 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second Assessment" }));
 
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessments).toHaveLength(2);
       expect(res.body.assessments.map((a: { id: string }) => a.id)).toEqual([createRes2.body.assessment.id, createRes1.body.assessment.id]);
       expect(res.body.assessments[0].is_current).toBe(true);
@@ -299,15 +299,15 @@ describe("External Assessment API", () => {
     // 8/9. no N+1 — every record here has its own stage_snapshot, so the
     // legacy live-HiringStep fallback should never even run.
     it("does not issue any HiringStep query when every historical record has a stage_snapshot (no N+1)", async () => {
-      const createRes1 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
+      const createRes1 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
       await request(app).patch(resultUrl(createRes1.body.assessment.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "failed" });
-      await moveReq(application.id, review.id);
+      await moveReq(application.public_id!, review.id);
       const secondStage = await HiringStep.create({ job_id: jobA.id, name: "Second Assessment Stage", type: "assessment", position: 3 });
-      await moveReq(application.id, secondStage.id);
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
+      await moveReq(application.public_id!, secondStage.id);
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
 
       const findSpy = jest.spyOn(HiringStep, "find");
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.assessments).toHaveLength(2);
@@ -319,11 +319,11 @@ describe("External Assessment API", () => {
     // snapshot-bearing ones — the fallback batches by distinct stage, not
     // once per record.
     it("batches the legacy-fallback HiringStep lookup instead of issuing one query per legacy record (no N+1)", async () => {
-      const createRes1 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
-      await moveReq(application.id, review.id);
+      const createRes1 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
+      await moveReq(application.public_id!, review.id);
       const secondStage = await HiringStep.create({ job_id: jobA.id, name: "Second Assessment Stage", type: "assessment", position: 3 });
-      await moveReq(application.id, secondStage.id);
-      const createRes2 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
+      await moveReq(application.public_id!, secondStage.id);
+      const createRes2 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
 
       // Simulate legacy data: strip stage_snapshot from both existing records.
       await ApplicationAssessment.updateMany(
@@ -332,7 +332,7 @@ describe("External Assessment API", () => {
       );
 
       const findSpy = jest.spyOn(HiringStep, "find");
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(res.body.assessments).toHaveLength(2);
@@ -353,15 +353,15 @@ describe("External Assessment API", () => {
         current_step_id: otherStage._id,
       });
 
-      const res = await request(app).get(historyUrl(otherApplication.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(otherApplication.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
     it("remains readable even after the Job is soft-deleted (historical read, not a new write)", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.assessments).toHaveLength(1);
     });
@@ -370,7 +370,7 @@ describe("External Assessment API", () => {
     describe("stage_snapshot immutability", () => {
       // 1. assessment creation persists stage_snapshot
       it("persists a stage_snapshot at creation time", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         const stored = await ApplicationAssessment.findById(createRes.body.assessment.id);
         expect(stored!.stage_snapshot).toEqual(
           expect.objectContaining({ id: assessmentStage._id, name: "Technical Assessment", type: "assessment" })
@@ -379,17 +379,17 @@ describe("External Assessment API", () => {
 
       // 2. stage renamed later -> assessment history still shows original name
       it("keeps showing the original stage name in history after the HiringStep is renamed", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         await HiringStep.updateOne({ _id: assessmentStage.id }, { $set: { name: "Renamed Assessment Stage" } });
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         expect(res.body.assessments[0].id).toBe(createRes.body.assessment.id);
         expect(res.body.assessments[0].stage).toEqual({ id: assessmentStage.id, name: "Technical Assessment", type: "assessment" });
       });
 
       // 3. stage type/name changes do not mutate the historical snapshot
       it("does not mutate the stored stage_snapshot when the live HiringStep's name/type change", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         await HiringStep.updateOne({ _id: assessmentStage.id }, { $set: { name: "Totally Different Name" } });
 
         const stored = await ApplicationAssessment.findById(createRes.body.assessment.id);
@@ -398,75 +398,75 @@ describe("External Assessment API", () => {
 
       // 4. stage deleted later -> history still shows original snapshot
       it("keeps showing the original stage identity in history after the HiringStep is deleted", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         // Move away first so the stage is no longer referenced by
         // current_step_id (the existing deletion-in-use rule only guards
         // that reference, not ApplicationAssessment.hiring_step_id).
-        await moveReq(application.id, review.id);
+        await moveReq(application.public_id!, review.id);
         await request(app)
-          .delete(`/api/v1/jobs/${jobA.id}/hiring-steps/${assessmentStage.id}`)
+          .delete(`/api/v1/jobs/${jobA.public_id}/hiring-steps/${assessmentStage.public_id}`)
           .set("Authorization", authHeaderFor(hrA, companyA.id));
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         expect(res.body.assessments[0].id).toBe(createRes.body.assessment.id);
         expect(res.body.assessments[0].stage).toEqual({ id: assessmentStage.id, name: "Technical Assessment", type: "assessment" });
       });
 
       // 5. candidate moves to another assessment stage -> old snapshot remains original
       it("leaves the old record's snapshot untouched after the candidate moves to a new assessment stage", async () => {
-        const createRes1 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
-        await moveReq(application.id, review.id);
+        const createRes1 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
+        await moveReq(application.public_id!, review.id);
         const secondStage = await HiringStep.create({ job_id: jobA.id, name: "Second Assessment Stage", type: "assessment", position: 3 });
-        await moveReq(application.id, secondStage.id);
-        await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
+        await moveReq(application.public_id!, secondStage.id);
+        await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         const firstRecord = res.body.assessments.find((a: { id: string }) => a.id === createRes1.body.assessment.id);
         expect(firstRecord.stage).toEqual({ id: assessmentStage.id, name: "Technical Assessment", type: "assessment" });
       });
 
       // 6. new assessment in new stage gets its own new snapshot
       it("gives the new assessment in the new stage its own distinct stage_snapshot", async () => {
-        await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
-        await moveReq(application.id, review.id);
+        await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "First" }));
+        await moveReq(application.public_id!, review.id);
         const secondStage = await HiringStep.create({ job_id: jobA.id, name: "Second Assessment Stage", type: "assessment", position: 3 });
-        await moveReq(application.id, secondStage.id);
-        const createRes2 = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
+        await moveReq(application.public_id!, secondStage.id);
+        const createRes2 = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Second" }));
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         const secondRecord = res.body.assessments.find((a: { id: string }) => a.id === createRes2.body.assessment.id);
         expect(secondRecord.stage).toEqual({ id: secondStage.id, name: "Second Assessment Stage", type: "assessment" });
       });
 
       // 7. legacy assessment without snapshot falls back safely
       it("falls back to the live HiringStep for a legacy record with no stage_snapshot", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         await ApplicationAssessment.updateOne({ _id: createRes.body.assessment.id }, { $unset: { stage_snapshot: "" } });
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         expect(res.body.assessments[0].stage).toEqual({ id: assessmentStage.id, name: "Technical Assessment", type: "assessment" });
       });
 
       it("does not crash and returns a null stage for a legacy record whose live HiringStep is also gone", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         await ApplicationAssessment.updateOne({ _id: createRes.body.assessment.id }, { $unset: { stage_snapshot: "" } });
-        await moveReq(application.id, review.id);
+        await moveReq(application.public_id!, review.id);
         await request(app)
-          .delete(`/api/v1/jobs/${jobA.id}/hiring-steps/${assessmentStage.id}`)
+          .delete(`/api/v1/jobs/${jobA.public_id}/hiring-steps/${assessmentStage.public_id}`)
           .set("Authorization", authHeaderFor(hrA, companyA.id));
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         expect(res.status).toBe(200);
         expect(res.body.assessments[0].stage).toBeNull();
       });
 
       // 10. current-stage detection still uses hiring_step_id, never snapshot content
       it("still determines is_current via hiring_step_id, not by comparing snapshot name/type", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         const otherAssessmentStage = await HiringStep.create({ job_id: jobA.id, name: "Another Assessment Stage", type: "assessment", position: 3 });
-        await moveReq(application.id, otherAssessmentStage.id);
+        await moveReq(application.public_id!, otherAssessmentStage.id);
 
-        const res = await request(app).get(historyUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(historyUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         const original = res.body.assessments.find((a: { id: string }) => a.id === createRes.body.assessment.id);
         // Even though the old record's snapshot.type ("assessment") matches
         // the type of the stage the candidate is now on, is_current must be
@@ -480,8 +480,8 @@ describe("External Assessment API", () => {
   // ===== EDIT LINK (Part 7) =====
   describe("editing the assessment link", () => {
     it("allows correcting name/external_url before a result is recorded", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      const assessmentId = createRes.body.assessment.id;
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const assessmentId = createRes.body.assessment.public_id;
 
       const res = await request(app)
         .patch(assessmentUrl(assessmentId))
@@ -495,13 +495,14 @@ describe("External Assessment API", () => {
 
     it("editing the link after a failed send does not automatically send a new email", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       const assessmentId = createRes.body.assessment.id;
-      await request(app).post(sendUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const assessmentPublicId = createRes.body.assessment.public_id;
+      await request(app).post(sendUrl(assessmentPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockSend.mockClear();
       await request(app)
-        .patch(assessmentUrl(assessmentId))
+        .patch(assessmentUrl(assessmentPublicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ external_url: "https://external-platform.example/test/corrected" });
 
@@ -510,26 +511,26 @@ describe("External Assessment API", () => {
     });
 
     it("rejects unknown fields (status/grade) on the edit-link endpoint", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       const res = await request(app)
-        .patch(assessmentUrl(createRes.body.assessment.id))
+        .patch(assessmentUrl(createRes.body.assessment.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "passed" });
       expect(res.status).toBe(400);
     });
 
     it("returns 404 for a cross-company edit attempt", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       const res = await request(app)
-        .patch(assessmentUrl(createRes.body.assessment.id))
+        .patch(assessmentUrl(createRes.body.assessment.public_id))
         .set("Authorization", authHeaderFor(hrB, companyB.id))
         .send({ name: "Hijacked" });
       expect(res.status).toBe(404);
     });
 
     it("does not overwrite grade/notes recorded while still pending when the link is later edited", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      const assessmentId = createRes.body.assessment.id;
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const assessmentId = createRes.body.assessment.public_id;
       // A result row can carry grade/notes while status is still explicitly
       // "pending" (see recording-a-result test 11/14) — editing the link at
       // that point must still leave those alone.
@@ -552,9 +553,9 @@ describe("External Assessment API", () => {
     describe("read-only after a result is recorded", () => {
       // 1. pending assessment can edit name/link
       it("allows editing name/link while the assessment is still pending", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         const res = await request(app)
-          .patch(assessmentUrl(createRes.body.assessment.id))
+          .patch(assessmentUrl(createRes.body.assessment.public_id))
           .set("Authorization", authHeaderFor(hrA, companyA.id))
           .send({ name: "Updated Name" });
         expect(res.status).toBe(200);
@@ -563,8 +564,8 @@ describe("External Assessment API", () => {
 
       // 2. passed assessment cannot edit name/link
       it("rejects a name/link edit once the assessment has been marked passed", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-        const assessmentId = createRes.body.assessment.id;
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const assessmentId = createRes.body.assessment.public_id;
         await request(app).patch(resultUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed", grade: 90 });
 
         const res = await request(app)
@@ -576,8 +577,8 @@ describe("External Assessment API", () => {
 
       // 3. failed assessment cannot edit name/link
       it("rejects a name/link edit once the assessment has been marked failed", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-        const assessmentId = createRes.body.assessment.id;
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const assessmentId = createRes.body.assessment.public_id;
         await request(app).patch(resultUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "failed" });
 
         const res = await request(app)
@@ -589,12 +590,13 @@ describe("External Assessment API", () => {
 
       // 4. backend rejects a direct edit attempt after a result and mutates nothing
       it("leaves the name/link completely untouched after a rejected post-result edit attempt", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
         const assessmentId = createRes.body.assessment.id;
-        await request(app).patch(resultUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed", grade: 77 });
+        const assessmentPublicId = createRes.body.assessment.public_id;
+        await request(app).patch(resultUrl(assessmentPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed", grade: 77 });
 
         await request(app)
-          .patch(assessmentUrl(assessmentId))
+          .patch(assessmentUrl(assessmentPublicId))
           .set("Authorization", authHeaderFor(hrA, companyA.id))
           .send({ name: "Attempted Change", external_url: "https://external-platform.example/test/attempted" });
 
@@ -608,8 +610,8 @@ describe("External Assessment API", () => {
       // 8. result-edit behavior unchanged — recording/correcting a result
       // still works fine even though the link is now locked.
       it("still allows correcting the result after the link has become locked", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-        const assessmentId = createRes.body.assessment.id;
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const assessmentId = createRes.body.assessment.public_id;
         await request(app).patch(resultUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "failed" });
 
         const res = await request(app)
@@ -626,11 +628,11 @@ describe("External Assessment API", () => {
       // 7. Open Assessment / Copy Link rely on external_url/name still being
       // readable from the API after lock — GET still returns them normally.
       it("still returns the (now read-only) name/link via GET after a result is recorded", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-        const assessmentId = createRes.body.assessment.id;
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const assessmentId = createRes.body.assessment.public_id;
         await request(app).patch(resultUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed", grade: 90 });
 
-        const res = await request(app).get(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        const res = await request(app).get(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
         expect(res.body.assessment.name).toBe("Backend Technical Test");
         expect(res.body.assessment.external_url).toBe("https://external-platform.example/test/abc");
       });
@@ -639,8 +641,8 @@ describe("External Assessment API", () => {
       // edit while pending, and is still rejected the same way once locked.
       it("still allows a same-company ADMIN to edit while pending, and rejects them the same way once locked", async () => {
         const adminA = await createUser({ companyId: companyA.id, email: "admin@a.test", role: "ADMIN" });
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-        const assessmentId = createRes.body.assessment.id;
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const assessmentId = createRes.body.assessment.public_id;
 
         const pendingRes = await request(app)
           .patch(assessmentUrl(assessmentId))
@@ -661,8 +663,8 @@ describe("External Assessment API", () => {
       // for a different company, never leaking a 409 that would confirm
       // the record's existence/status to an unauthorized company.
       it("still returns 404 (not 409) for a cross-company edit attempt on a locked assessment", async () => {
-        const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-        const assessmentId = createRes.body.assessment.id;
+        const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        const assessmentId = createRes.body.assessment.public_id;
         await request(app).patch(resultUrl(assessmentId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed" });
 
         const res = await request(app)
@@ -677,8 +679,11 @@ describe("External Assessment API", () => {
   // ===== 11-22: RESULT =====
   describe("recording a result", () => {
     async function createOne() {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      return res.body.assessment.id as string;
+      const res = await request(app)
+        .post(createUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody());
+      return res.body.assessment.public_id as string;
     }
 
     it("11. accepts a pending result", async () => {
@@ -819,14 +824,17 @@ describe("External Assessment API", () => {
   // ===== 23-37: EMAIL =====
   describe("candidate email", () => {
     async function createOne() {
-      const res = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      return res.body.assessment.id as string;
+      const res = await request(app)
+        .post(createUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody());
+      return { id: res.body.assessment.id as string, publicId: res.body.assessment.public_id as string };
     }
 
     it("23. explicit Send Assessment works", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(201);
       expect(res.body.notification.status).toBe("sent");
       expect(mockSend).toHaveBeenCalledTimes(1);
@@ -840,19 +848,19 @@ describe("External Assessment API", () => {
 
     it("25. the candidate recipient comes from trusted Candidate data, never the request body", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
+      const { id, publicId } = await createOne();
       // The strict send-body schema rejects a client-supplied recipient
       // outright (never merely ignores it) — a stronger guarantee than
       // "the server happens to overwrite it". A normal, valid (empty)
       // send confirms the recipient always resolves to the real
       // candidate's own trusted email.
       const attackRes = await request(app)
-        .post(sendUrl(id))
+        .post(sendUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ recipient_email: "attacker@evil.test" });
       expect(attackRes.status).toBe(400);
 
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(201);
 
       const notification = await EmailNotification.findOne({ application_assessment_id: id });
@@ -861,8 +869,8 @@ describe("External Assessment API", () => {
 
     it("26. the external URL is included in the email content", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
-      await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [callArgs] = mockSend.mock.calls[0]!;
       expect(callArgs.text).toContain("https://external-platform.example/test/abc");
@@ -871,12 +879,12 @@ describe("External Assessment API", () => {
 
     it("27. notes/result/grade are excluded from the candidate email", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
+      const { publicId } = await createOne();
       await request(app)
-        .patch(resultUrl(id))
+        .patch(resultUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "passed", grade: 84, notes: "Strong API knowledge, weaker SQL section." });
-      await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [callArgs] = mockSend.mock.calls[0]!;
       expect(callArgs.text).not.toMatch(/84|Passed|Strong API knowledge/);
@@ -885,16 +893,16 @@ describe("External Assessment API", () => {
 
     it("28. an SMTP failure does not remove the assessment record", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const id = await createOne();
-      await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { id, publicId } = await createOne();
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(await ApplicationAssessment.findById(id)).not.toBeNull();
     });
 
     it("29. delivery failure is persisted safely (status failed, safe failure_code)", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const id = await createOne();
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(res.status).toBe(201);
       expect(res.body.notification.status).toBe("failed");
@@ -903,12 +911,16 @@ describe("External Assessment API", () => {
 
     it("30. retrying a failed notification works", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const id = await createOne();
-      const sendRes = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { id, publicId } = await createOne();
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       const notificationId = sendRes.body.notification.id;
+      const notificationPublicId = sendRes.body.notification.public_id;
 
       mockSend.mockResolvedValueOnce(undefined);
-      const retryRes = await request(app).post(retryUrl(id, notificationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const retryRes = await request(app)
+        .post(retryUrl(publicId, notificationPublicId))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
 
       expect(retryRes.status).toBe(200);
       expect(retryRes.body.notification.status).toBe("sent");
@@ -918,17 +930,17 @@ describe("External Assessment API", () => {
 
     it("31. retry uses the original immutable snapshot, not the assessment's current data", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const id = await createOne();
-      const sendRes = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const notificationId = sendRes.body.notification.id;
+      const { publicId } = await createOne();
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const notificationPublicId = sendRes.body.notification.public_id;
 
       await request(app)
-        .patch(assessmentUrl(id))
+        .patch(assessmentUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ external_url: "https://external-platform.example/test/corrected" });
 
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(id, notificationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(retryUrl(publicId, notificationPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const [callArgs] = mockSend.mock.calls[mockSend.mock.calls.length - 1]!;
       expect(callArgs.text).toContain("https://external-platform.example/test/abc");
@@ -937,12 +949,12 @@ describe("External Assessment API", () => {
 
     it("32. editing the assessment after a failed send does not mutate the old notification's snapshot", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const id = await createOne();
-      const sendRes = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       const notificationId = sendRes.body.notification.id;
 
       await request(app)
-        .patch(assessmentUrl(id))
+        .patch(assessmentUrl(publicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Renamed Assessment", external_url: "https://external-platform.example/test/corrected" });
 
@@ -953,11 +965,11 @@ describe("External Assessment API", () => {
 
     it("33. Send Again (after a successful send) creates a new communication event", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
-      await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { id, publicId } = await createOne();
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockSend.mockResolvedValueOnce(undefined);
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(res.status).toBe(201);
       expect(await EmailNotification.countDocuments({ application_assessment_id: id })).toBe(2);
@@ -970,10 +982,10 @@ describe("External Assessment API", () => {
       // on real two-request timing — same failure-injection approach used
       // elsewhere in this codebase for this exact class of test (see
       // hiringPipelineBulkMove.api.test.ts's own concurrency test).
-      const id = await createOne();
+      const { id, publicId } = await createOne();
       const createSpy = jest.spyOn(EmailNotification, "create").mockRejectedValueOnce({ code: 11000 } as never);
 
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(res.status).toBe(409);
       expect(mockSend).not.toHaveBeenCalled();
@@ -983,19 +995,19 @@ describe("External Assessment API", () => {
     });
 
     it("35. cross-company send is blocked", async () => {
-      const id = await createOne();
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
+      const { publicId } = await createOne();
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
       expect(res.status).toBe(404);
       expect(mockSend).not.toHaveBeenCalled();
     });
 
     it("35b. cross-company retry is blocked", async () => {
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const id = await createOne();
-      const sendRes = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const res = await request(app)
-        .post(retryUrl(id, sendRes.body.notification.id))
+        .post(retryUrl(publicId, sendRes.body.notification.public_id))
         .set("Authorization", authHeaderFor(hrB, companyB.id))
         .send({});
       expect(res.status).toBe(404);
@@ -1003,45 +1015,48 @@ describe("External Assessment API", () => {
 
     it("36. never exposes a raw SMTP error anywhere in the response", async () => {
       mockSend.mockRejectedValueOnce(new Error("534 5.7.9 raw SMTP auth failure detail"));
-      const id = await createOne();
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(JSON.stringify(res.body)).not.toMatch(/534|raw SMTP auth failure/);
     });
 
     it("blocks sending a NEW invitation once the Job is soft-deleted", async () => {
-      const id = await createOne();
+      const { publicId } = await createOne();
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(404);
       expect(mockSend).not.toHaveBeenCalled();
     });
 
     it("allows sending for an existing candidate when the Job is merely closed", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
+      const { publicId } = await createOne();
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
-      const res = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(201);
     });
 
     it("rejects retrying a notification that has not failed", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
-      const sendRes = await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      const res = await request(app).post(retryUrl(id, sendRes.body.notification.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app)
+        .post(retryUrl(publicId, sendRes.body.notification.public_id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
       expect(res.status).toBe(409);
     });
 
     it("lists notification history for an assessment", async () => {
       mockSend.mockResolvedValueOnce(undefined);
-      const id = await createOne();
-      await request(app).post(sendUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { publicId } = await createOne();
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      const res = await request(app).get(notificationsUrl(id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(notificationsUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.notifications).toHaveLength(1);
       expect(res.body.notifications[0].status).toBe("sent");
@@ -1059,7 +1074,7 @@ describe("External Assessment API", () => {
   describe("GET /api/v1/application-assessments (company-wide list)", () => {
     it("47. is company-scoped", async () => {
       mockSend.mockResolvedValue(undefined);
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
 
       const res = await request(app).get(listUrl()).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
@@ -1069,8 +1084,8 @@ describe("External Assessment API", () => {
     });
 
     it("48. filters by jobId and status", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
-      await request(app).patch(resultUrl(createRes.body.assessment.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed" });
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).patch(resultUrl(createRes.body.assessment.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({ status: "passed" });
 
       const otherJob = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Other Job", status: "active" });
       const otherStage = await HiringStep.create({ job_id: otherJob.id, name: "Assessment", type: "assessment", position: 0 });
@@ -1082,9 +1097,9 @@ describe("External Assessment API", () => {
         status: "in_process",
         current_step_id: otherStage._id,
       });
-      await request(app).post(createUrl(otherApplication.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(otherApplication.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
 
-      const byJob = await request(app).get(listUrl(`?jobId=${jobA.id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const byJob = await request(app).get(listUrl(`?jobId=${jobA.public_id}`)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(byJob.body.assessments).toHaveLength(1);
       expect(byJob.body.assessments[0].job.id).toBe(jobA.id);
 
@@ -1094,7 +1109,7 @@ describe("External Assessment API", () => {
     });
 
     it("49. never shows Company B's assessments to Company A", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
 
       const jobB = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Job B", status: "active" });
       const stageB = await HiringStep.create({ job_id: jobB.id, name: "Assessment", type: "assessment", position: 0 });
@@ -1124,7 +1139,7 @@ describe("External Assessment API", () => {
           status: "in_process",
           current_step_id: step._id,
         });
-        await request(app).post(createUrl(app2.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+        await request(app).post(createUrl(app2.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       }
 
       const findSpy = jest.spyOn(Candidate, "find");
@@ -1137,13 +1152,13 @@ describe("External Assessment API", () => {
     });
 
     it("search matches by assessment name", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Unique Assessment Name" }));
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody({ name: "Unique Assessment Name" }));
       const res = await request(app).get(listUrl("?search=Unique%20Assessment")).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessments).toHaveLength(1);
     });
 
     it("search matches by candidate name", async () => {
-      await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       const res = await request(app).get(listUrl("?search=Ahmad%20Khalil")).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.assessments).toHaveLength(1);
     });
@@ -1154,15 +1169,109 @@ describe("External Assessment API", () => {
     });
 
     it("never exposes notes/internal ids in the list row", async () => {
-      const createRes = await request(app).post(createUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
       await request(app)
-        .patch(resultUrl(createRes.body.assessment.id))
+        .patch(resultUrl(createRes.body.assessment.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ status: "passed", notes: "Private HR note" });
 
       const res = await request(app).get(listUrl()).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(JSON.stringify(res.body)).not.toContain("Private HR note");
       expect(JSON.stringify(res.body)).not.toMatch(/company_id/i);
+    });
+  });
+
+  // ===== Phase 1 opaque public ID migration =====
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the assess_ prefix and 24-char hex suffix", async () => {
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      expect(res.body.assessment.public_id).toMatch(/^assess_[a-f0-9]{24}$/);
+    });
+
+    it("is never derived from the assessment's own _id", async () => {
+      const res = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      expect(res.body.assessment.public_id).not.toContain(res.body.assessment.id);
+    });
+
+    it("has a unique, sparse index on public_id", () => {
+      const indexes = ApplicationAssessment.schema.indexes();
+      const publicIdIndex = indexes.find(([spec]) => spec.public_id === 1);
+      expect(publicIdIndex).toBeDefined();
+      expect(publicIdIndex?.[1]).toMatchObject({ unique: true, sparse: true });
+    });
+
+    it("updates an assessment link looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app)
+        .patch(assessmentUrl(createRes.body.assessment.public_id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ name: "Renamed Test" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.assessment.name).toBe("Renamed Test");
+    });
+
+    it("rejects an assessment link edit addressed by legacy Mongo ObjectId", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app)
+        .patch(assessmentUrl(createRes.body.assessment.id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ name: "Renamed Via Legacy Id" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for another company's assessment looked up by public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app)
+        .patch(assessmentUrl(createRes.body.assessment.public_id))
+        .set("Authorization", authHeaderFor(hrB, companyB.id))
+        .send({ name: "Hijacked" });
+
+      expect(res.status).toBe(404);
+    });
+
+    it("sends an invitation for an assessment looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      mockSend.mockResolvedValue(undefined);
+
+      const res = await request(app).post(sendUrl(createRes.body.assessment.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      expect(res.status).toBe(201);
+    });
+
+    it("lists notifications for an assessment looked up by its public_id", async () => {
+      const createRes = await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+      mockSend.mockResolvedValue(undefined);
+      await request(app).post(sendUrl(createRes.body.assessment.public_id)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+
+      const res = await request(app)
+        .get(notificationsUrl(createRes.body.assessment.public_id))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.notifications).toHaveLength(1);
+    });
+
+    it("exposes the owning application's public_id on the company-wide list row", async () => {
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app).get(listUrl()).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.body.assessments[0].application_public_id).toBe(application.public_id);
+    });
+
+    // "Special attention" case: the jobId filter on the company-wide list
+    // is resolved to Job's real internal id before being used against
+    // ApplicationAssessment.job_id.
+    it("filters the company-wide list by jobId given as the Job's public_id", async () => {
+      await request(app).post(createUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody());
+
+      const res = await request(app)
+        .get(listUrl(`?jobId=${jobA.public_id}`))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.assessments).toHaveLength(1);
     });
   });
 });

@@ -149,4 +149,35 @@ describe("Interview model", () => {
     expect(doc.get("calendar_event_id")).toBeNull();
     expect(doc.get("meeting_url")).toBeNull();
   });
+
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the int_ prefix and 24-char hex suffix", async () => {
+      const doc = await Interview.create(validAttrs());
+      expect(doc.public_id).toMatch(/^int_[a-f0-9]{24}$/);
+    });
+
+    it("assigns a different public_id to every new interview", async () => {
+      const docs = await Promise.all(
+        Array.from({ length: 3 }, () => Interview.create(validAttrs({ application_id: new Types.ObjectId() })))
+      );
+      expect(new Set(docs.map((d) => d.public_id)).size).toBe(3);
+    });
+
+    it("has a unique, sparse index on public_id", () => {
+      const indexes = Interview.schema.indexes();
+      const publicIdIndex = indexes.find(([spec]) => spec.public_id === 1);
+      expect(publicIdIndex).toBeDefined();
+      expect(publicIdIndex?.[1]).toMatchObject({ unique: true, sparse: true });
+    });
+
+    it("leaves public_id untouched when an existing interview is re-saved", async () => {
+      const doc = await Interview.create(validAttrs());
+      const originalPublicId = doc.public_id;
+
+      doc.title = "Renamed";
+      await doc.save();
+
+      expect(doc.public_id).toBe(originalPublicId);
+    });
+  });
 });
