@@ -17,7 +17,7 @@ describe("LandingPage", () => {
   // coverage (that "/" actually mounts this page) lives in router.test.tsx.
   it("1. renders the hero headline", () => {
     renderPage();
-    expect(screen.getByRole("heading", { name: /Hire smarter/i, level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Smarter hiring/i, level: 1 })).toBeInTheDocument();
   });
 
   // 2. Start Free -> /signup
@@ -55,10 +55,10 @@ describe("LandingPage", () => {
     renderPage();
     expect(screen.getByRole("heading", { name: "Everything hiring teams need" })).toBeInTheDocument();
     expect(screen.getByText("AI-Assisted CV Screening")).toBeInTheDocument();
-    expect(screen.getByText("Dynamic Hiring Pipeline")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hiring Pipeline" })).toBeInTheDocument();
     expect(screen.getByText("Interview Scheduling")).toBeInTheDocument();
     expect(screen.getByText("External Assessments")).toBeInTheDocument();
-    expect(screen.getByText("Offers & Final Decisions")).toBeInTheDocument();
+    expect(screen.getByText("Offer Management")).toBeInTheDocument();
     expect(screen.getByText("Hiring Analytics")).toBeInTheDocument();
   });
 

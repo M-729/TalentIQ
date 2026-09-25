@@ -33,6 +33,24 @@ describe("ApplicationInterviewsSection", () => {
     expect(await screen.findByText("Backend Technical Interview")).toBeInTheDocument();
   });
 
+  // Phase 1 opaque public ID migration: prefers public_id over the raw
+  // Mongo _id (exposed here as `id`) once the backend provides one.
+  it("links to the interview detail page using public_id when present, not id", async () => {
+    vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({
+      interviews: [
+        buildInterview({
+          id: "internal-object-id",
+          public_id: "int_a8f13c92e51b4f638dde79bf",
+          title: "Backend Technical Interview",
+        }),
+      ],
+    });
+    renderSection();
+
+    const link = await screen.findByRole("link", { name: "Backend Technical Interview" });
+    expect(link).toHaveAttribute("href", "/interviews/int_a8f13c92e51b4f638dde79bf");
+  });
+
   it("shows the empty state when no interviews have been scheduled", async () => {
     vi.mocked(interviewsApi.listApplicationInterviews).mockResolvedValue({ interviews: [] });
     renderSection();

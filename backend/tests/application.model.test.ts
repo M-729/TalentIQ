@@ -106,4 +106,51 @@ describe("Application model", () => {
       Application.create({ job_id: jobB.id, candidate_id: candidate.id, cv_file: SAMPLE_CV_FILE })
     ).resolves.toBeTruthy();
   });
+
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the app_ prefix and 24-char hex suffix", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Public Id Job", status: "active" });
+      const candidate = await Candidate.create({ full_name: "Public Id", email: "public-id@application-model.test" });
+
+      const application = await Application.create({ job_id: job.id, candidate_id: candidate.id, cv_file: SAMPLE_CV_FILE });
+
+      expect(application.public_id).toMatch(/^app_[a-f0-9]{24}$/);
+    });
+
+    it("assigns a different public_id to every new application", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Unique Ids Job", status: "active" });
+      const candidates = await Promise.all(
+        Array.from({ length: 3 }, (_, i) =>
+          Candidate.create({ full_name: `Cand ${i}`, email: `unique-${i}@application-model.test` })
+        )
+      );
+
+      const applications = await Promise.all(
+        candidates.map((candidate) =>
+          Application.create({ job_id: job.id, candidate_id: candidate.id, cv_file: SAMPLE_CV_FILE })
+        )
+      );
+
+      expect(new Set(applications.map((a) => a.public_id)).size).toBe(3);
+    });
+
+    it("has a unique, sparse index on public_id (tolerates legacy documents without one)", () => {
+      const indexes = Application.schema.indexes();
+      const publicIdIndex = indexes.find(([spec]) => spec.public_id === 1);
+      expect(publicIdIndex).toBeDefined();
+      expect(publicIdIndex?.[1]).toMatchObject({ unique: true, sparse: true });
+    });
+
+    it("leaves public_id untouched when an existing application is re-saved", async () => {
+      const job = await Job.create({ company_id: company.id, created_by: hr.id, title: "Resave Job", status: "active" });
+      const candidate = await Candidate.create({ full_name: "Resave", email: "resave@application-model.test" });
+      const application = await Application.create({ job_id: job.id, candidate_id: candidate.id, cv_file: SAMPLE_CV_FILE });
+      const originalPublicId = application.public_id;
+
+      application.status = "in_process";
+      await application.save();
+
+      expect(application.public_id).toBe(originalPublicId);
+    });
+  });
 });

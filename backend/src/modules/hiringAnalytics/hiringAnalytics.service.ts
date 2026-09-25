@@ -3,8 +3,10 @@ import { Application, type ApplicationDoc } from "../../models/Application.model
 import { Job } from "../../models/Job.model";
 import { HiringStep } from "../../models/HiringStep.model";
 import { Offer, type OfferDoc } from "../../models/Offer.model";
-import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
+import { companyFilter } from "../../security/companyScope";
+import { NotFoundError } from "../../security/AppError";
 import { resolveCompanyJobScope } from "../reporting/reporting.service";
+import { resolveJobId } from "../jobs/job.service";
 import { computeRate, type ApplicationsOverTimePointDTO, type HiringAnalyticsDTO } from "./hiringAnalytics.serializer";
 import type { AnalyticsRange } from "./hiringAnalytics.validation";
 
@@ -180,15 +182,25 @@ export async function getHiringAnalytics(
   companyId: string,
   filters: { range: AnalyticsRange; jobId?: string }
 ): Promise<HiringAnalyticsDTO> {
+  // filters.jobId is a dual-accept public_id-or-ObjectId (see
+  // job.service.ts's resolveJobId) — resolved ONCE, here, to the real
+  // internal id every use below actually needs (Application.job_id/
+  // Offer.job_id are always plain ObjectId references and were never
+  // themselves migrated). Every other reference to the job filter in this
+  // function uses this resolved value, never the raw filters.jobId.
+  let resolvedJobId: string | null = null;
   if (filters.jobId) {
-    await assertOwnedByCompany(Job, { _id: filters.jobId }, companyId, { notFoundMessage: "Job not found" });
+    resolvedJobId = await resolveJobId(companyId, filters.jobId);
+    if (!resolvedJobId) {
+      throw new NotFoundError("Job not found");
+    }
   }
 
   const { from, to } = resolveDateRange(filters.range);
   const appliedAtFilter = dateRangeFilter(from, to);
 
   const { jobIds: allCompanyJobIds } = await resolveCompanyJobScope(companyId);
-  const scopedJobIds = filters.jobId ? [new Types.ObjectId(filters.jobId)] : allCompanyJobIds;
+  const scopedJobIds = resolvedJobId ? [new Types.ObjectId(resolvedJobId)] : allCompanyJobIds;
 
   const applicationBaseFilter: FilterQuery<ApplicationDoc> = { job_id: { $in: scopedJobIds } };
 
@@ -208,8 +220,8 @@ export async function getHiringAnalytics(
       status: "hired",
       ...(appliedAtFilter ? { hired_at: appliedAtFilter } : {}),
     }).select("applied_at hired_at"),
-    countOffers(companyId, filters.jobId, { status: "accepted", timestampField: "accepted_at", from, to }),
-    countOffers(companyId, filters.jobId, { status: "declined", timestampField: "declined_at", from, to }),
+    countOffers(companyId, resolvedJobId ?? undefined, { status: "accepted", timestampField: "accepted_at", from, to }),
+    countOffers(companyId, resolvedJobId ?? undefined, { status: "declined", timestampField: "declined_at", from, to }),
     getApplicationsOverTime(applicationBaseFilter, appliedAtFilter, filters.range),
     Application.aggregate<{ _id: Types.ObjectId; count: number }>([
       { $match: { ...applicationBaseFilter, ...(appliedAtFilter ? { applied_at: appliedAtFilter } : {}) } },
@@ -217,7 +229,7 @@ export async function getHiringAnalytics(
       { $sort: { count: -1 } },
     ]),
     Application.find(applicationBaseFilter).select("status current_step_id final_decision"),
-    getOfferOutcomeCounts(companyId, filters.jobId, from, to),
+    getOfferOutcomeCounts(companyId, resolvedJobId ?? undefined, from, to),
   ]);
 
   // ===== Average Time to Hire =====
@@ -277,7 +289,7 @@ export async function getHiringAnalytics(
 
   return {
     range: filters.range,
-    job_id: filters.jobId ?? null,
+    job_id: resolvedJobId,
     kpis: {
       total_applications: totalApplications,
       hired: hiredApplicationsInPeriod.length,

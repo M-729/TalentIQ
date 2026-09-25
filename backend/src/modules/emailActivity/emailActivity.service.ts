@@ -1,6 +1,10 @@
 import { Types, type PipelineStage } from "mongoose";
 import { EmailNotification, type EmailNotificationCategory } from "../../models/EmailNotification.model";
 import { CompanyInvitation } from "../../models/CompanyInvitation.model";
+import { Application } from "../../models/Application.model";
+import { Interview } from "../../models/Interview.model";
+import { Offer } from "../../models/Offer.model";
+import { ApplicationAssessment } from "../../models/ApplicationAssessment.model";
 import { escapeRegExp } from "../../utils/regex";
 import { emailActivityTypeLabel, type EmailActivityRowDTO, type EmailActivityListDTO } from "./emailActivity.serializer";
 import type { ListEmailActivityQuery } from "./emailActivity.validation";
@@ -77,6 +81,7 @@ export async function listEmailActivity(companyId: string, query: ListEmailActiv
       created_at: 1,
       updated_at: 1,
       activity_at: { $ifNull: ["$sent_at", { $ifNull: ["$attempted_at", "$created_at"] }] },
+      public_id: 1,
       application_id: 1,
       interview_id: 1,
       application_assessment_id: 1,
@@ -99,6 +104,7 @@ export async function listEmailActivity(companyId: string, query: ListEmailActiv
       created_at: 1,
       updated_at: 1,
       activity_at: { $ifNull: ["$email_sent_at", { $ifNull: ["$email_attempted_at", "$created_at"] }] },
+      public_id: 1,
       application_id: "$$REMOVE",
       interview_id: "$$REMOVE",
       application_assessment_id: "$$REMOVE",
@@ -145,8 +151,31 @@ export async function listEmailActivity(companyId: string, query: ListEmailActiv
   const rows = result?.rows ?? [];
   const total = result?.totalCount[0]?.count ?? 0;
 
+  // Batched lookups (never one per row) purely to resolve each related
+  // resource's opaque public_id for link-building/retry actions — see
+  // EmailActivityTable.tsx's "View" link and useRetryEmailActivity.ts.
+  // Every other field on a row already comes from the union pipeline
+  // itself, including the row's own public_id (projected directly above,
+  // no lookup needed since it's on the row's own document).
+  const applicationIds = [...new Set(rows.filter((r) => r.application_id).map((r) => r.application_id!.toString()))];
+  const interviewIds = [...new Set(rows.filter((r) => r.interview_id).map((r) => r.interview_id!.toString()))];
+  const offerIds = [...new Set(rows.filter((r) => r.offer_id).map((r) => r.offer_id!.toString()))];
+  const assessmentIds = [...new Set(rows.filter((r) => r.application_assessment_id).map((r) => r.application_assessment_id!.toString()))];
+  const [applications, interviews, offers, assessments] = await Promise.all([
+    applicationIds.length ? Application.find({ _id: { $in: applicationIds } }).select("public_id") : Promise.resolve([]),
+    interviewIds.length ? Interview.find({ _id: { $in: interviewIds } }).select("public_id") : Promise.resolve([]),
+    offerIds.length ? Offer.find({ _id: { $in: offerIds } }).select("public_id") : Promise.resolve([]),
+    assessmentIds.length ? ApplicationAssessment.find({ _id: { $in: assessmentIds } }).select("public_id") : Promise.resolve([]),
+  ]);
+  const applicationPublicIdById = new Map(applications.map((a) => [a.id, a.public_id ?? undefined]));
+  const interviewPublicIdById = new Map(interviews.map((i) => [i.id, i.public_id ?? undefined]));
+  const offerPublicIdById = new Map(offers.map((o) => [o.id, o.public_id ?? undefined]));
+  const assessmentPublicIdById = new Map(assessments.map((a) => [a.id, a.public_id ?? undefined]));
+
   return {
-    emails: rows.map(serializeRow),
+    emails: rows.map((row) =>
+      serializeRow(row, applicationPublicIdById, interviewPublicIdById, offerPublicIdById, assessmentPublicIdById)
+    ),
     pagination: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) },
   };
 }
@@ -164,6 +193,7 @@ interface RawUnifiedRow {
   status: "pending" | "sent" | "failed";
   sent_at: Date | null;
   updated_at: Date;
+  public_id?: string;
   application_id?: Types.ObjectId;
   interview_id?: Types.ObjectId | null;
   application_assessment_id?: Types.ObjectId;
@@ -185,10 +215,17 @@ function buildRelatedLabel(row: RawUnifiedRow): string {
   return parts.length ? parts.join(" — ") : "—";
 }
 
-function serializeRow(row: RawUnifiedRow): EmailActivityRowDTO {
+function serializeRow(
+  row: RawUnifiedRow,
+  applicationPublicIdById: Map<string, string | undefined>,
+  interviewPublicIdById: Map<string, string | undefined>,
+  offerPublicIdById: Map<string, string | undefined>,
+  assessmentPublicIdById: Map<string, string | undefined>
+): EmailActivityRowDTO {
   const type = row.type as EmailActivityRowDTO["type"];
   return {
     id: row._id.toString(),
+    public_id: row.public_id ?? undefined,
     source: row.source,
     type,
     type_label: emailActivityTypeLabel(type),
@@ -198,9 +235,16 @@ function serializeRow(row: RawUnifiedRow): EmailActivityRowDTO {
     updated_at: row.updated_at.toISOString(),
     related_label: buildRelatedLabel(row),
     related_application_id: row.application_id ? row.application_id.toString() : undefined,
+    related_application_public_id: row.application_id ? applicationPublicIdById.get(row.application_id.toString()) : undefined,
     related_interview_id: row.interview_id ? row.interview_id.toString() : undefined,
+    related_interview_public_id: row.interview_id ? interviewPublicIdById.get(row.interview_id.toString()) : undefined,
     related_offer_id: row.offer_id ? row.offer_id.toString() : undefined,
+    related_offer_public_id: row.offer_id ? offerPublicIdById.get(row.offer_id.toString()) : undefined,
     related_assessment_id: row.application_assessment_id ? row.application_assessment_id.toString() : undefined,
+    related_assessment_public_id: row.application_assessment_id
+      ? assessmentPublicIdById.get(row.application_assessment_id.toString())
+      : undefined,
     related_invitation_id: row.source === "company_invitation" ? row._id.toString() : undefined,
+    related_invitation_public_id: row.source === "company_invitation" ? (row.public_id ?? undefined) : undefined,
   };
 }

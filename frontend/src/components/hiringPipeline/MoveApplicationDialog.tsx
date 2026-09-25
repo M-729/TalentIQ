@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useMoveApplicationHiringStep } from "@/hooks/useMoveApplicationHiringStep";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { HiringPipelineApplicationCard, MoveApplicationHiringStepInput } from "@/types/hiringPipelineBoard";
 
 const NOTE_MAX_LENGTH = 1000;
@@ -158,7 +159,7 @@ export function MoveApplicationDialog({
 
   async function handleSubmit(input: MoveApplicationHiringStepInput) {
     if (!application) return;
-    const succeeded = await run(application.id, input);
+    const succeeded = await run(resourceUrlId(application), input);
     // Refetch on every attempt, not just success — a 409 in particular
     // means another recruiter changed this application concurrently, so
     // the board the user is looking at may already be stale (see

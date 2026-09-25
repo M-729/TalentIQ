@@ -5,9 +5,9 @@ import { Candidate } from "../../models/Candidate.model";
 import { HiringStep } from "../../models/HiringStep.model";
 import { Interview } from "../../models/Interview.model";
 import { InterviewFeedback } from "../../models/InterviewFeedback.model";
-import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
+import { Job, NOT_DELETED_JOB_FILTER, jobIdentifierFilter } from "../../models/Job.model";
 import { ConflictError, NotFoundError, PayloadTooLargeError } from "../../security/AppError";
-import { assertOwnedByCompany } from "../../security/companyScope";
+import { companyFilter } from "../../security/companyScope";
 import { batchAssessmentsForCurrentStage } from "../assessments/applicationAssessment.service";
 import { batchLatestAssessmentEmailStatus } from "../assessments/applicationAssessmentEmail.service";
 import { getLatestScreeningSummaries } from "../applications/applicationHr.service";
@@ -182,20 +182,23 @@ async function getAssessmentSummaries(
  * status changes, no history is created, no AI/R2/email call is made.
  */
 export async function getHiringPipelineBoard(companyId: string, jobId: string): Promise<HiringPipelineBoardDTO> {
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, {
-    notFoundMessage: "Job not found",
-  });
-  const job = await Job.findOne({ _id: jobId, ...NOT_DELETED_JOB_FILTER });
+  // jobId is a dual-accept public_id-or-ObjectId path segment (see
+  // job.validation.ts's jobIdentifierString) — resolving it directly via
+  // Job.findOne (rather than a separate assertOwnedByCompany + a second
+  // lookup) gives the real internal id every HiringStep/Application
+  // job_id query below actually needs, in one query.
+  const job = await Job.findOne({ ...jobIdentifierFilter(jobId), ...companyFilter(companyId), ...NOT_DELETED_JOB_FILTER });
   if (!job) {
     throw new NotFoundError("Job not found");
   }
+  const resolvedJobId = job.id;
 
   // The HR-configured pipeline order is canonical — never alphabetical.
   // _id is a deterministic tie-break; position has no unique index (see
   // HiringStep.model.ts) so two steps could theoretically share one.
-  const steps = await HiringStep.find({ job_id: jobId }).sort({ position: 1, _id: 1 });
+  const steps = await HiringStep.find({ job_id: resolvedJobId }).sort({ position: 1, _id: 1 });
 
-  const activeFilter = { job_id: jobId, status: { $in: ACTIVE_STATUSES } };
+  const activeFilter = { job_id: resolvedJobId, status: { $in: ACTIVE_STATUSES } };
   const activeCount = await Application.countDocuments(activeFilter);
   assertBoardWithinCapacity(activeCount);
 
@@ -358,18 +361,25 @@ export async function bulkMoveApplications(
 ): Promise<BulkMoveApplicationsResult> {
   // Same active-Job gate as single movement (getAccessibleApplicationForActiveJob):
   // a soft-deleted Job's pipeline is unavailable for movement; a merely
-  // closed Job still permits moving its existing applicants.
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, {
-    notFoundMessage: "Job not found",
-  });
+  // closed Job still permits moving its existing applicants. jobId is a
+  // dual-accept public_id-or-ObjectId path segment — resolved to the real
+  // internal id here, since every query below is against a plain
+  // ObjectId job_id FK that was never itself migrated.
+  const job = await Job.findOne({ ...jobIdentifierFilter(jobId), ...companyFilter(companyId), ...NOT_DELETED_JOB_FILTER }).select(
+    "_id"
+  );
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  const resolvedJobId = job.id;
 
-  const targetStep = await HiringStep.findOne({ _id: input.target_hiring_step_id, job_id: jobId });
+  const targetStep = await HiringStep.findOne({ _id: input.target_hiring_step_id, job_id: resolvedJobId });
   if (!targetStep) {
     throw new NotFoundError("Hiring stage not found");
   }
 
   const objectIds = input.application_ids.map((id) => new Types.ObjectId(id));
-  const applications = await Application.find({ _id: { $in: objectIds }, job_id: jobId });
+  const applications = await Application.find({ _id: { $in: objectIds }, job_id: resolvedJobId });
 
   // Every selected id must resolve to an Application belonging to THIS
   // Job — a missing id (nonexistent, another Job, another company) fails
@@ -386,7 +396,7 @@ export async function bulkMoveApplications(
     ...new Set(applications.filter((a) => a.current_step_id).map((a) => a.current_step_id!.toString())),
   ];
   const currentSteps = currentStepIds.length
-    ? await HiringStep.find({ _id: { $in: currentStepIds }, job_id: jobId })
+    ? await HiringStep.find({ _id: { $in: currentStepIds }, job_id: resolvedJobId })
     : [];
   const currentStepById = new Map(currentSteps.map((step) => [step.id, step]));
 

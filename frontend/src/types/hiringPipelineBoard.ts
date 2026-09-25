@@ -46,6 +46,9 @@ export interface AssessmentSummary {
 
 export interface HiringPipelineApplicationCard {
   id: string;
+  // Opaque, URL-safe identifier — see types/application.ts's
+  // ApplicationListRow.public_id.
+  public_id?: string;
   candidate: {
     id: string;
     full_name: string;

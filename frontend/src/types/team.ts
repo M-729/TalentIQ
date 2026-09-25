@@ -2,6 +2,11 @@ import type { UserRole, UserStatus } from "@/types/auth";
 
 export interface TeamMember {
   id: string;
+  // Opaque, URL-safe identifier — kept in sync with every other migrated
+  // resource; Team Settings currently passes `id` to its action calls
+  // (dual-accepted by the backend either way), so nothing else reads this
+  // yet.
+  public_id?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -14,6 +19,8 @@ export type InvitationEmailStatus = "pending" | "sent" | "failed";
 
 export interface TeamInvitation {
   id: string;
+  // Opaque, URL-safe identifier — see TeamMember.public_id.
+  public_id?: string;
   email: string;
   role: UserRole;
   status: InvitationStatus;

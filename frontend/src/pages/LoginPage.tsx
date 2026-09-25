@@ -2,10 +2,10 @@ import { useState, type FormEvent } from "react";
 import { Lock, Mail } from "lucide-react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconInput } from "@/components/ui/icon-input";
 import { Label } from "@/components/ui/label";
 import { BrandMark } from "@/components/layout/BrandMark";
+import { AuthPromoPanel } from "@/components/auth/AuthPromoPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/services/api/client";
 
@@ -40,20 +40,22 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <h1 className="sr-only">Sign in to TalentIQ</h1>
-        <div className="flex items-center justify-center">
-          <BrandMark to="/" />
-        </div>
+    <div className="public-brand-theme min-h-svh bg-[#fbfbfd]">
+      <div className="min-h-svh lg:grid lg:grid-cols-[minmax(0,1.28fr)_minmax(26rem,1fr)] xl:grid-cols-[minmax(0,1.32fr)_minmax(30rem,1fr)]">
+        <AuthPromoPanel variant="login" />
 
-        <Card>
-          <CardHeader className="space-y-1.5 text-center">
-            <CardTitle className="text-2xl">Sign in to your account</CardTitle>
-            <CardDescription>HR and Admin access only.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
+        <main className="flex min-h-svh items-center justify-center px-6 py-10 sm:px-10 lg:px-14 xl:px-20">
+          <div className="w-full max-w-md space-y-8">
+            <BrandMark to="/" className="w-fit [&_svg]:size-10 [&_span]:text-[28px]" />
+
+            <div className="space-y-2">
+              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-[34px]">
+                Sign in to your account
+              </h1>
+              <p className="text-base text-muted-foreground">HR and admin access only.</p>
+            </div>
+
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <IconInput
@@ -65,6 +67,8 @@ export function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className="h-14 rounded-lg bg-white text-base shadow-none"
                 />
               </div>
 
@@ -79,6 +83,8 @@ export function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Your password"
+                  className="h-14 rounded-lg bg-white text-base shadow-none"
                 />
               </div>
 
@@ -88,27 +94,22 @@ export function LoginPage() {
                 </p>
               )}
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit" size="lg" className="h-14 w-full rounded-lg text-base shadow-sm" disabled={isSubmitting}>
                 {isSubmitting ? "Signing in…" : "Sign in"}
               </Button>
             </form>
-          </CardContent>
-        </Card>
 
-        <p className="text-center text-sm text-muted-foreground">
-          Looking for a job?{" "}
-          <Link to="/careers" className="font-medium text-primary underline underline-offset-2">
-            Browse open positions
-          </Link>
-        </p>
-
-        <p className="text-center text-sm text-muted-foreground">
-          New to TalentIQ?{" "}
-          <Link to="/signup" className="font-medium text-primary underline underline-offset-2">
-            Create company
-          </Link>
-        </p>
+            <div className="border-t border-border pt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Don't have an account?{" "}
+                <Link to="/signup" className="font-medium text-primary hover:underline">
+                  Create your company
+                </Link>
+              </p>
+            </div>
+          </div>
+        </main>
       </div>
-    </main>
+    </div>
   );
 }

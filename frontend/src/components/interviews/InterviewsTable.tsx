@@ -5,6 +5,7 @@ import { InterviewCalendarBadge } from "@/components/interviews/InterviewCalenda
 import { InterviewStatusBadge } from "@/components/interviews/InterviewStatusBadge";
 import { JoinMeetLink, canJoinMeet } from "@/components/interviews/JoinMeetLink";
 import { formatDateTime } from "@/lib/formatDate";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { InterviewListRow } from "@/types/interview";
 
 // Professional, compact SaaS density — a plain table, matching
@@ -88,7 +89,7 @@ export function InterviewsTable({ interviews }: { interviews: InterviewListRow[]
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <Button variant="outline" size="sm" asChild>
-                    <Link to={`/interviews/${interview.id}`}>View</Link>
+                    <Link to={`/interviews/${resourceUrlId(interview)}`}>View</Link>
                   </Button>
                 </td>
               </tr>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { jobUrlId } from "@/lib/jobUrlId";
 import type { Job } from "@/types/job";
 
 // The public Careers detail route — see routes/router.tsx. Kept in one
@@ -33,7 +34,7 @@ export function PublicJobLinkAction({ job }: { job: Job }) {
     return <p className="text-xs text-muted-foreground">{unavailabilityReason(job.status)}</p>;
   }
 
-  const path = publicJobPath(job._id);
+  const path = publicJobPath(jobUrlId(job));
   const url = `${window.location.origin}${path}`;
 
   async function handleCopy() {

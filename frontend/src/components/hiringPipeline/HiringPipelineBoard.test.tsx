@@ -227,9 +227,17 @@ describe("HiringPipelineBoard", () => {
     });
 
     it("View Application links to the correct Application detail route", async () => {
-      await renderWithOneCard({ id: "application-42" });
+      await renderWithOneCard({ id: "application-42", public_id: "application-42" });
       const links = screen.getAllByRole("link", { name: "View Application" });
       expect(links[0]).toHaveAttribute("href", "/applications/application-42");
+    });
+
+    // Phase 1 opaque public ID migration: prefers public_id over the raw
+    // Mongo _id (exposed here as `id`) once the backend provides one.
+    it("View Application links using public_id when present, not id", async () => {
+      await renderWithOneCard({ id: "internal-object-id", public_id: "app_a8f13c92e51b4f638dde79bf" });
+      const links = screen.getAllByRole("link", { name: "View Application" });
+      expect(links[0]).toHaveAttribute("href", "/applications/app_a8f13c92e51b4f638dde79bf");
     });
 
     it('shows "AI Match X%" for a screened application', async () => {
@@ -603,7 +611,7 @@ describe("HiringPipelineBoard", () => {
 
     it("View Application works from needs_attention", async () => {
       vi.mocked(hiringPipelineBoardApi.getHiringPipelineBoard).mockResolvedValue(
-        buildHiringPipelineBoard({ needs_attention: [buildHiringPipelineNeedsAttentionApplication({ id: "app-needs-1" })] })
+        buildHiringPipelineBoard({ needs_attention: [buildHiringPipelineNeedsAttentionApplication({ id: "app-needs-1", public_id: "app-needs-1" })] })
       );
       renderBoard();
       await screen.findByText("Applications need attention");
@@ -978,7 +986,7 @@ describe("HiringPipelineBoard", () => {
       await renderWithTwoCandidatesInReview();
       await userEvent.click(screen.getByRole("checkbox", { name: "Select Sarah Ahmed" }));
       const links = screen.getAllByRole("link", { name: "View Application" });
-      expect(links[0]).toHaveAttribute("href", "/applications/a1");
+      expect(links[0]).toHaveAttribute("href", "/applications/application-1-public");
     });
 
     it("toggles selection on and off", async () => {

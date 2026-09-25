@@ -1,6 +1,11 @@
 import mongoose from "mongoose";
-import { EmailNotification, type EmailNotificationDoc, type OfferSnapshot } from "../../models/EmailNotification.model";
-import { Offer, type OfferDoc } from "../../models/Offer.model";
+import {
+  EmailNotification,
+  emailNotificationIdentifierFilter,
+  type EmailNotificationDoc,
+  type OfferSnapshot,
+} from "../../models/EmailNotification.model";
+import { Offer, offerIdentifierFilter, type OfferDoc } from "../../models/Offer.model";
 import { Application } from "../../models/Application.model";
 import { Candidate } from "../../models/Candidate.model";
 import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
@@ -154,7 +159,7 @@ function buildContentFromSnapshot(snapshot: OfferSnapshot, responseUrls: { accep
  * this codebase.
  */
 export async function sendOffer(companyId: string, userId: string, offerId: string): Promise<EmailNotificationDoc> {
-  const offer = await Offer.findOne({ _id: offerId, company_id: companyId });
+  const offer = await Offer.findOne({ ...offerIdentifierFilter(offerId), company_id: companyId });
   if (!offer) {
     throw new NotFoundError("Offer not found");
   }
@@ -189,7 +194,7 @@ export async function sendOffer(companyId: string, userId: string, offerId: stri
 
     await session.withTransaction(async () => {
       const updatedOffer = await Offer.findOneAndUpdate(
-        { _id: offerId, status: "draft" },
+        { _id: offer._id, status: "draft" },
         { $set: { status: "sent", sent_at: new Date(), updated_by_user_id: userId } },
         { new: true, session }
       );
@@ -311,10 +316,15 @@ export async function sendOffer(companyId: string, userId: string, offerId: stri
  * recent attempt failing.
  */
 export async function retryOfferNotification(companyId: string, offerId: string, notificationId: string): Promise<EmailNotificationDoc> {
+  const offer = await Offer.findOne({ ...offerIdentifierFilter(offerId), company_id: companyId });
+  if (!offer) {
+    throw new NotFoundError("Offer not found");
+  }
+
   const notification = await EmailNotification.findOne({
-    _id: notificationId,
+    ...emailNotificationIdentifierFilter(notificationId),
     company_id: companyId,
-    offer_id: offerId,
+    offer_id: offer.id,
     category: "offer_sent",
   });
   if (!notification) {
@@ -322,11 +332,6 @@ export async function retryOfferNotification(companyId: string, offerId: string,
   }
   if (notification.status !== "failed") {
     throw new ConflictError(NOT_RETRYABLE_MESSAGE);
-  }
-
-  const offer = await Offer.findOne({ _id: offerId, company_id: companyId });
-  if (!offer) {
-    throw new NotFoundError("Offer not found");
   }
 
   const rawToken = await generateOfferResponseToken(offer, notification.id);
@@ -344,9 +349,9 @@ export async function retryOfferNotification(companyId: string, offerId: string,
  * listNotificationsForAssessment.
  */
 export async function listNotificationsForOffer(companyId: string, offerId: string): Promise<EmailNotificationDoc[]> {
-  const offer = await Offer.findOne({ _id: offerId, company_id: companyId });
+  const offer = await Offer.findOne({ ...offerIdentifierFilter(offerId), company_id: companyId });
   if (!offer) {
     throw new NotFoundError("Offer not found");
   }
-  return EmailNotification.find({ offer_id: offerId }).sort({ created_at: -1 });
+  return EmailNotification.find({ offer_id: offer.id }).sort({ created_at: -1 });
 }

@@ -8,6 +8,11 @@ export type HiringStepType = (typeof HIRING_STEP_TYPES)[number];
 
 export interface HiringStep {
   id: string;
+  // Opaque, URL-safe identifier — kept in sync with every other migrated
+  // resource; HiringStep has no dedicated detail route/link today (always
+  // managed inline via the Pipeline Setup panel), so nothing currently
+  // reads this.
+  public_id?: string;
   name: string;
   type: HiringStepType;
   description: string | null;

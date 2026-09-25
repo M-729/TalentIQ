@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { JobStatusBadge } from "@/components/jobs/JobStatusBadge";
+import { jobUrlId } from "@/lib/jobUrlId";
 import type { Job } from "@/types/job";
 
 function formatDate(iso: string): string {
@@ -53,11 +54,17 @@ export function JobsTable({ jobs }: { jobs: Job[] }) {
                 </td>
                 <td className="px-4 py-2.5 text-muted-foreground">{formatDate(job.created_at)}</td>
                 <td className="px-4 py-2.5 text-right">
-                  <Button variant="outline" size="icon" asChild aria-label={`Edit ${job.title}`}>
-                    <Link to={`/jobs/${job._id}/edit`}>
+                  {job.public_id ? (
+                    <Button variant="outline" size="icon" asChild aria-label={`Edit ${job.title}`}>
+                      <Link to={`/jobs/${jobUrlId(job)}/edit`}>
+                        <Pencil className="size-4" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="icon" disabled aria-label={`Edit ${job.title}`}>
                       <Pencil className="size-4" aria-hidden="true" />
-                    </Link>
-                  </Button>
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -121,7 +121,7 @@ describe("Interview scheduling API", () => {
   describe("schedule: auth and tenancy", () => {
     it("rejects an unauthenticated request with 401", async () => {
       const application = await createApplicationInInterviewStage();
-      const res = await request(app).post(scheduleUrl(application.id)).send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+      const res = await request(app).post(scheduleUrl(application.public_id!)).send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(401);
     });
 
@@ -138,7 +138,7 @@ describe("Interview scheduling API", () => {
     it("allows an authenticated HR user in the same company", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -148,7 +148,7 @@ describe("Interview scheduling API", () => {
       const admin = await createUser({ companyId: companyA.id, email: "admin@a.test", role: "ADMIN" });
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(admin, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -157,15 +157,15 @@ describe("Interview scheduling API", () => {
     it("returns 404 for a cross-company Application", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrB, companyB.id))
         .send(validBody({ interviewer_user_ids: [interviewerB.id] }));
       expect(res.status).toBe(404);
     });
 
-    it("returns 404 for a nonexistent Application", async () => {
+    it("returns 404 for a well-formed but nonexistent Application public_id", async () => {
       const res = await request(app)
-        .post(scheduleUrl(new Types.ObjectId().toString()))
+        .post(scheduleUrl(`app_${"a".repeat(24)}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(404);
@@ -185,7 +185,7 @@ describe("Interview scheduling API", () => {
     it("works when the current stage type is interview", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -194,7 +194,7 @@ describe("Interview scheduling API", () => {
     it("returns 409 when the current stage type is review", async () => {
       const application = await createApplicationIn({ status: "in_process", current_step_id: review._id });
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(409);
@@ -204,7 +204,7 @@ describe("Interview scheduling API", () => {
     it("returns 409 when the current stage type is assessment", async () => {
       const application = await createApplicationIn({ status: "in_process", current_step_id: assessment._id });
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(409);
@@ -213,7 +213,7 @@ describe("Interview scheduling API", () => {
     it("returns 409 when the current stage type is other", async () => {
       const application = await createApplicationIn({ status: "in_process", current_step_id: other._id });
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(409);
@@ -222,7 +222,7 @@ describe("Interview scheduling API", () => {
     it("returns 409 when current_step_id is null", async () => {
       const application = await createApplicationIn({ status: "applied", current_step_id: null });
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(409);
@@ -234,7 +234,7 @@ describe("Interview scheduling API", () => {
       const application = await createApplicationIn({ status: "in_process", current_step_id: foreignStep._id });
 
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -248,7 +248,7 @@ describe("Interview scheduling API", () => {
     it("works for in_process", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -257,7 +257,7 @@ describe("Interview scheduling API", () => {
     it.each(["rejected", "offered", "hired"] as const)("blocks scheduling for a(n) %s application", async (status) => {
       const application = await createApplicationIn({ status, current_step_id: interviewStage._id });
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(409);
@@ -266,7 +266,7 @@ describe("Interview scheduling API", () => {
     it("blocks scheduling for an applied application with no current step", async () => {
       const application = await createApplicationIn();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(409);
@@ -278,7 +278,7 @@ describe("Interview scheduling API", () => {
     it("works for a valid future range", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], starts_at: hoursFromNow(2), ends_at: hoursFromNow(3) }));
       expect(res.status).toBe(201);
@@ -287,7 +287,7 @@ describe("Interview scheduling API", () => {
     it("rejects a past starts_at", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], starts_at: hoursFromNow(-1), ends_at: hoursFromNow(1) }));
       expect(res.status).toBe(400);
@@ -296,7 +296,7 @@ describe("Interview scheduling API", () => {
     it("rejects ends_at before starts_at", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], starts_at: hoursFromNow(3), ends_at: hoursFromNow(2) }));
       expect(res.status).toBe(400);
@@ -306,7 +306,7 @@ describe("Interview scheduling API", () => {
       const application = await createApplicationInInterviewStage();
       const same = hoursFromNow(3);
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], starts_at: same, ends_at: same }));
       expect(res.status).toBe(400);
@@ -315,7 +315,7 @@ describe("Interview scheduling API", () => {
     it("rejects an excessive duration (> 8 hours)", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], starts_at: hoursFromNow(2), ends_at: hoursFromNow(11) }));
       expect(res.status).toBe(400);
@@ -324,7 +324,7 @@ describe("Interview scheduling API", () => {
     it("rejects an invalid timezone", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], timezone: "Not/A_Timezone" }));
       expect(res.status).toBe(400);
@@ -333,7 +333,7 @@ describe("Interview scheduling API", () => {
     it("accepts Asia/Beirut", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], timezone: "Asia/Beirut" }));
       expect(res.status).toBe(201);
@@ -343,7 +343,7 @@ describe("Interview scheduling API", () => {
     it("accepts Europe/Berlin", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], timezone: "Europe/Berlin" }));
       expect(res.status).toBe(201);
@@ -356,7 +356,7 @@ describe("Interview scheduling API", () => {
     it("requires at least one interviewer", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [] }));
       expect(res.status).toBe(400);
@@ -365,7 +365,7 @@ describe("Interview scheduling API", () => {
     it("accepts a same-company User as an interviewer", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -377,7 +377,7 @@ describe("Interview scheduling API", () => {
       const secondInterviewer = await createUser({ companyId: companyA.id, email: "second@a.test", role: "HR" });
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id, secondInterviewer.id] }));
       expect(res.status).toBe(201);
@@ -387,7 +387,7 @@ describe("Interview scheduling API", () => {
     it("rejects a cross-company interviewer safely", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerB.id] }));
       expect(res.status).toBe(400);
@@ -397,7 +397,7 @@ describe("Interview scheduling API", () => {
     it("rejects a nonexistent interviewer", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [new Types.ObjectId().toString()] }));
       expect(res.status).toBe(400);
@@ -406,7 +406,7 @@ describe("Interview scheduling API", () => {
     it("normalizes duplicate interviewer ids", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id, interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -416,7 +416,7 @@ describe("Interview scheduling API", () => {
     it("cannot inject arbitrary interviewer data beyond an id", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [{ id: interviewerA.id, name: "Injected Name" }] }));
       // Zod rejects a non-string array element outright.
@@ -429,12 +429,12 @@ describe("Interview scheduling API", () => {
     it("returns 409 when a second scheduled Interview is attempted for the same Application+stage", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -445,17 +445,17 @@ describe("Interview scheduling API", () => {
     it("allows a new Interview after the previous one for the same stage was cancelled", async () => {
       const application = await createApplicationInInterviewStage();
       const first = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       await request(app)
-        .patch(`${interviewUrl(first.body.interview.id)}/cancel`)
+        .patch(`${interviewUrl(first.body.interview.public_id!)}/cancel`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
       const second = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -467,11 +467,11 @@ describe("Interview scheduling API", () => {
 
       const [resA, resB] = await Promise.all([
         request(app)
-          .post(scheduleUrl(application.id))
+          .post(scheduleUrl(application.public_id!))
           .set("Authorization", authHeaderFor(hrA, companyA.id))
           .send(validBody({ interviewer_user_ids: [interviewerA.id] })),
         request(app)
-          .post(scheduleUrl(application.id))
+          .post(scheduleUrl(application.public_id!))
           .set("Authorization", authHeaderFor(hrA, companyA.id))
           .send(validBody({ interviewer_user_ids: [interviewerA.id] })),
       ]);
@@ -486,7 +486,7 @@ describe("Interview scheduling API", () => {
   describe("list and detail", () => {
     it("returns [] for an Application with no Interviews", async () => {
       const application = await createApplicationInInterviewStage();
-      const res = await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.interviews).toEqual([]);
     });
@@ -494,11 +494,11 @@ describe("Interview scheduling API", () => {
     it("returns Interviews for an Application", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
-      const res = await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.interviews).toHaveLength(1);
     });
 
@@ -532,41 +532,69 @@ describe("Interview scheduling API", () => {
         status: "scheduled",
       });
 
-      const res = await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.interviews.map((i: { title: string }) => i.title)).toEqual(["Later scheduled", "First scheduled"]);
     });
 
     it("returns Interview detail", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       const res = await request(app)
-        .get(interviewUrl(scheduleRes.body.interview.id))
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.interview.id).toBe(scheduleRes.body.interview.id);
+    });
+
+    // Phase 1 dual-accept migration.
+    it("returns Interview detail looked up by its public_id", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      const res = await request(app)
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.interview.id).toBe(scheduleRes.body.interview.id);
+    });
+
+    it("returns 404 for a cross-company Interview looked up by public_id", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      const res = await request(app)
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
+        .set("Authorization", authHeaderFor(hrB, companyB.id));
+      expect(res.status).toBe(404);
     });
 
     it("returns candidate and job on Interview detail (unlike the per-application list)", async () => {
       const application = await createApplicationInInterviewStage();
       const candidate = await Candidate.findById(application.candidate_id);
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       const res = await request(app)
-        .get(interviewUrl(scheduleRes.body.interview.id))
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.interview.candidate).toEqual({ id: candidate!.id, name: candidate!.full_name, email: candidate!.email });
       expect(res.body.interview.job).toEqual({ id: jobA.id, title: jobA.title });
 
       // The per-application list deliberately omits these — that page
       // already has its own candidate/job context.
-      const listRes = await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const listRes = await request(app).get(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(listRes.body.interviews[0]).not.toHaveProperty("candidate");
       expect(listRes.body.interviews[0]).not.toHaveProperty("job");
     });
@@ -574,12 +602,12 @@ describe("Interview scheduling API", () => {
     it("returns 404 for cross-company Interview detail", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       const res = await request(app)
-        .get(interviewUrl(scheduleRes.body.interview.id))
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
         .set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
@@ -587,7 +615,7 @@ describe("Interview scheduling API", () => {
     it("uses an explicit serializer excluding internal/unsafe fields", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -595,6 +623,7 @@ describe("Interview scheduling API", () => {
       expect(Object.keys(scheduleRes.body.interview).sort()).toEqual(
         [
           "id",
+          "public_id",
           "title",
           "stage",
           "starts_at",
@@ -617,19 +646,19 @@ describe("Interview scheduling API", () => {
     it("batches User lookups instead of one query per Interview", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       const secondApplication = await createApplicationInInterviewStage();
       await request(app)
-        .post(scheduleUrl(secondApplication.id))
+        .post(scheduleUrl(secondApplication.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       const { User } = await import("../src/models/User.model");
       const findSpy = jest.spyOn(User, "find");
 
-      await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(findSpy).toHaveBeenCalledTimes(1);
       findSpy.mockRestore();
@@ -641,10 +670,10 @@ describe("Interview scheduling API", () => {
     async function scheduleOne() {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
-      return { application, interviewId: res.body.interview.id as string };
+      return { application, interviewId: res.body.interview.public_id as string, mongoId: res.body.interview.id as string };
     }
 
     it("reschedules a scheduled Interview", async () => {
@@ -654,6 +683,25 @@ describe("Interview scheduling API", () => {
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Europe/Berlin" });
       expect(res.status).toBe(200);
+    });
+
+    // Phase 1 dual-accept migration — regression coverage for the guarded
+    // findOneAndUpdate underneath this endpoint, which must resolve the
+    // Interview's real ObjectId before using it in a Mongo filter (a
+    // public_id string would otherwise fail to cast).
+    it("reschedules a scheduled Interview looked up by its public_id", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      const res = await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/reschedule`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Europe/Berlin" });
+      expect(res.status).toBe(200);
+      expect(res.body.interview.timezone).toBe("Europe/Berlin");
     });
 
     it("persists the new time", async () => {
@@ -685,13 +733,13 @@ describe("Interview scheduling API", () => {
     });
 
     it("leaves the stage_snapshot unchanged", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app)
         .patch(`${interviewUrl(interviewId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Europe/Berlin" });
 
-      const reread = await Interview.findById(interviewId);
+      const reread = await Interview.findById(mongoId);
       expect(reread?.stage_snapshot.name).toBe("Technical Interview");
       expect(reread?.stage_snapshot.type).toBe("interview");
     });
@@ -708,8 +756,8 @@ describe("Interview scheduling API", () => {
     });
 
     it("returns 409 for a completed Interview", async () => {
-      const { interviewId } = await scheduleOne();
-      await Interview.updateOne({ _id: interviewId }, { $set: { status: "completed" } });
+      const { interviewId, mongoId } = await scheduleOne();
+      await Interview.updateOne({ _id: mongoId }, { $set: { status: "completed" } });
 
       const res = await request(app)
         .patch(`${interviewUrl(interviewId)}/reschedule`)
@@ -750,10 +798,10 @@ describe("Interview scheduling API", () => {
     async function scheduleOne() {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
-      return { application, interviewId: res.body.interview.id as string };
+      return { application, interviewId: res.body.interview.public_id as string, mongoId: res.body.interview.id as string };
     }
 
     it("cancels a scheduled Interview", async () => {
@@ -766,23 +814,23 @@ describe("Interview scheduling API", () => {
     });
 
     it("sets status to cancelled", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const reread = await Interview.findById(interviewId);
+      const reread = await Interview.findById(mongoId);
       expect(reread?.status).toBe("cancelled");
     });
 
     it("sets cancelled_at", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const reread = await Interview.findById(interviewId);
+      const reread = await Interview.findById(mongoId);
       expect(reread?.cancelled_at).toBeInstanceOf(Date);
     });
 
     it("sets cancelled_by to the authenticated actor", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const reread = await Interview.findById(interviewId);
+      const reread = await Interview.findById(mongoId);
       expect(reread?.cancelled_by?.toString()).toBe(hrA.id);
     });
 
@@ -803,16 +851,34 @@ describe("Interview scheduling API", () => {
     });
 
     it("returns 409 for a completed Interview", async () => {
-      const { interviewId } = await scheduleOne();
-      await Interview.updateOne({ _id: interviewId }, { $set: { status: "completed" } });
+      const { interviewId, mongoId } = await scheduleOne();
+      await Interview.updateOne({ _id: mongoId }, { $set: { status: "completed" } });
       const res = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
     });
 
     it("never physically deletes the Interview document", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      expect(await Interview.findById(interviewId)).not.toBeNull();
+      expect(await Interview.findById(mongoId)).not.toBeNull();
+    });
+
+    // Phase 1 dual-accept migration — regression coverage for the guarded
+    // findOneAndUpdate underneath this endpoint (see reschedule's own
+    // identical regression test above for why this matters).
+    it("cancels a scheduled Interview looked up by its public_id", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      const res = await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/cancel`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.interview.status).toBe("cancelled");
     });
   });
 
@@ -821,10 +887,10 @@ describe("Interview scheduling API", () => {
     async function scheduleOne() {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
-      return { application, interviewId: res.body.interview.id as string };
+      return { application, interviewId: res.body.interview.public_id as string, mongoId: res.body.interview.id as string };
     }
 
     // 1. scheduled -> completed succeeds
@@ -840,17 +906,17 @@ describe("Interview scheduling API", () => {
 
     // 2. stores completed_at
     it("stores completed_at", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const reread = await Interview.findById(interviewId);
+      const reread = await Interview.findById(mongoId);
       expect(reread?.completed_at).toBeInstanceOf(Date);
     });
 
     // 3. stores completed_by
     it("stores completed_by as the authenticated actor", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      const reread = await Interview.findById(interviewId);
+      const reread = await Interview.findById(mongoId);
       expect(reread?.completed_by?.toString()).toBe(hrA.id);
     });
 
@@ -863,6 +929,24 @@ describe("Interview scheduling API", () => {
         .send({});
       expect(res.body.interview.completion.completed_at).toEqual(expect.any(String));
       expect(res.body.interview.completion.completed_by).toEqual({ id: hrA.id, name: hrA.name });
+    });
+
+    // Phase 1 dual-accept migration — regression coverage for the guarded
+    // findOneAndUpdate underneath this endpoint (see reschedule's own
+    // identical regression test above for why this matters).
+    it("completes a scheduled Interview looked up by its public_id", async () => {
+      const application = await createApplicationInInterviewStage();
+      const scheduleRes = await request(app)
+        .post(scheduleUrl(application.public_id!))
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
+
+      const res = await request(app)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/complete`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id))
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.interview.status).toBe("completed");
     });
 
     // 5. cancelled -> complete rejected
@@ -879,18 +963,18 @@ describe("Interview scheduling API", () => {
 
     // 6. duplicate Complete request is safe/no duplicate mutation
     it("is idempotent — a second complete request is a safe no-op, not an error", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       const first = await request(app)
         .patch(`${interviewUrl(interviewId)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
-      const before = await Interview.findById(interviewId);
+      const before = await Interview.findById(mongoId);
 
       const second = await request(app)
         .patch(`${interviewUrl(interviewId)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
-      const after = await Interview.findById(interviewId);
+      const after = await Interview.findById(mongoId);
 
       expect(first.status).toBe(200);
       expect(second.status).toBe(200);
@@ -937,9 +1021,9 @@ describe("Interview scheduling API", () => {
     });
 
     it("never physically deletes the Interview document", async () => {
-      const { interviewId } = await scheduleOne();
+      const { interviewId, mongoId } = await scheduleOne();
       await request(app).patch(`${interviewUrl(interviewId)}/complete`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
-      expect(await Interview.findById(interviewId)).not.toBeNull();
+      expect(await Interview.findById(mongoId)).not.toBeNull();
     });
   });
 
@@ -948,7 +1032,7 @@ describe("Interview scheduling API", () => {
     it("allows scheduling for an active Job", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -958,7 +1042,7 @@ describe("Interview scheduling API", () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(201);
@@ -967,13 +1051,13 @@ describe("Interview scheduling API", () => {
     it("allows rescheduling for a closed Job", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/reschedule`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
       expect(res.status).toBe(200);
@@ -982,13 +1066,13 @@ describe("Interview scheduling API", () => {
     it("allows cancelling for a closed Job", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/cancel`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/cancel`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
       expect(res.status).toBe(200);
@@ -998,13 +1082,13 @@ describe("Interview scheduling API", () => {
     it("allows completing an existing Interview for a closed (not deleted) Job", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
       expect(res.status).toBe(200);
@@ -1016,7 +1100,7 @@ describe("Interview scheduling API", () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(res.status).toBe(404);
@@ -1025,13 +1109,13 @@ describe("Interview scheduling API", () => {
     it("blocks reschedule for a soft-deleted Job", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/reschedule`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
       expect(res.status).toBe(404);
@@ -1041,13 +1125,13 @@ describe("Interview scheduling API", () => {
     it("blocks completion for a soft-deleted Job", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
       expect(res.status).toBe(404);
@@ -1056,17 +1140,17 @@ describe("Interview scheduling API", () => {
     it("keeps historical Interview reads working after Job soft-delete", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const listRes = await request(app).get(scheduleUrl(application.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const listRes = await request(app).get(scheduleUrl(application.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(listRes.status).toBe(200);
       expect(listRes.body.interviews).toHaveLength(1);
 
       const detailRes = await request(app)
-        .get(interviewUrl(scheduleRes.body.interview.id))
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(detailRes.status).toBe(200);
     });
@@ -1074,13 +1158,13 @@ describe("Interview scheduling API", () => {
     it("still allows cancelling an already-scheduled Interview after Job soft-delete", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/cancel`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/cancel`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ reason: "Job closed administratively" });
       expect(res.status).toBe(200);
@@ -1090,7 +1174,7 @@ describe("Interview scheduling API", () => {
     it("never deletes Interview records when the Job is soft-deleted", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -1118,7 +1202,7 @@ describe("Interview scheduling API", () => {
       const before = await Application.findById(application.id);
 
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -1135,12 +1219,12 @@ describe("Interview scheduling API", () => {
       const application = await createApplicationInInterviewStage();
       const before = await Application.findById(application.id);
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -1152,7 +1236,7 @@ describe("Interview scheduling API", () => {
     it("scheduling an Interview does NOT run AI", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -1170,7 +1254,7 @@ describe("Interview scheduling API", () => {
     it("scheduling an Interview attempts a candidate notification email (see interviewNotification.api.test.ts for full coverage)", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -1182,13 +1266,13 @@ describe("Interview scheduling API", () => {
     it("completing an Interview sends no candidate email", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       emailService.send.mockClear();
 
       await request(app)
-        .patch(`${interviewUrl(scheduleRes.body.interview.id)}/complete`)
+        .patch(`${interviewUrl(scheduleRes.body.interview.public_id!)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -1198,7 +1282,7 @@ describe("Interview scheduling API", () => {
     it("scheduling an Interview does NOT populate calendar/meeting fields (no Google call)", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
@@ -1223,14 +1307,14 @@ describe("Interview scheduling API", () => {
 
       const rejected = await createApplicationIn({ status: "in_process", current_step_id: namedInterviewButWrongType._id });
       const resRejected = await request(app)
-        .post(scheduleUrl(rejected.id))
+        .post(scheduleUrl(rejected.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(resRejected.status).toBe(409);
 
       const accepted = await createApplicationIn({ status: "in_process", current_step_id: namedUnrelatedButInterviewType._id });
       const resAccepted = await request(app)
-        .post(scheduleUrl(accepted.id))
+        .post(scheduleUrl(accepted.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
       expect(resAccepted.status).toBe(201);
@@ -1242,7 +1326,7 @@ describe("Interview scheduling API", () => {
     it("defaults the title to the current HiringStep's name when omitted", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], title: undefined }));
       expect(res.body.interview.title).toBe("Technical Interview");
@@ -1251,7 +1335,7 @@ describe("Interview scheduling API", () => {
     it("uses the provided title when given", async () => {
       const application = await createApplicationInInterviewStage();
       const res = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id], title: "Custom Title" }));
       expect(res.body.interview.title).toBe("Custom Title");
@@ -1263,17 +1347,17 @@ describe("Interview scheduling API", () => {
     it("preserves the historical stage name after the live HiringStep is renamed", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id] }));
 
       await request(app)
-        .patch(`/api/v1/jobs/${jobA.id}/hiring-steps/${interviewStage.id}`)
+        .patch(`/api/v1/jobs/${jobA.public_id}/hiring-steps/${interviewStage.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ name: "Engineering Interview" });
 
       const res = await request(app)
-        .get(interviewUrl(scheduleRes.body.interview.id))
+        .get(interviewUrl(scheduleRes.body.interview.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.interview.stage.name).toBe("Technical Interview");
 

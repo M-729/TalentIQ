@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PipelineStageBadge } from "@/components/applications/PipelineStageBadge";
 import { ScreeningStatusBadge } from "@/components/applications/ScreeningStatusBadge";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationListRow } from "@/types/application";
 
 function formatDate(iso: string): string {
@@ -69,7 +70,7 @@ export function ApplicationsTable({ applications }: { applications: ApplicationL
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <Button variant="outline" size="sm" asChild>
-                    <Link to={`/applications/${application.id}`}>View Application</Link>
+                    <Link to={`/applications/${resourceUrlId(application)}`}>View Application</Link>
                   </Button>
                 </td>
               </tr>

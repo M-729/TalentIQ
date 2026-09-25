@@ -7,6 +7,7 @@ import type { Job } from "@/types/job";
 function buildJob(overrides: Partial<Job> = {}): Job {
   return {
     _id: "job-1",
+    public_id: "job-1-public",
     company_id: "company-1",
     created_by: "user-1",
     title: "Backend Engineer",
@@ -27,16 +28,27 @@ describe("PublicJobLinkAction", () => {
     render(<PublicJobLinkAction job={buildJob({ status: "active" })} />);
 
     const viewLink = screen.getByRole("link", { name: "View Public Job" });
-    expect(viewLink).toHaveAttribute("href", "/careers/jobs/job-1");
+    expect(viewLink).toHaveAttribute("href", "/careers/jobs/job-1-public");
     expect(screen.getByRole("button", { name: "Copy Public Link" })).toBeInTheDocument();
   });
 
+  // Phase 1 opaque public ID migration: the public link must prefer
+  // public_id over the raw Mongo _id once the backend provides one.
+  it("uses public_id for the public link when present, not _id", () => {
+    render(
+      <PublicJobLinkAction job={buildJob({ _id: "internal-object-id", public_id: "job_a8f13c92e51b4f638dde79bf", status: "active" })} />
+    );
+
+    const viewLink = screen.getByRole("link", { name: "View Public Job" });
+    expect(viewLink).toHaveAttribute("href", "/careers/jobs/job_a8f13c92e51b4f638dde79bf");
+  });
+
   it("copies the full public URL to the clipboard", async () => {
-    render(<PublicJobLinkAction job={buildJob({ _id: "job-42", status: "active" })} />);
+    render(<PublicJobLinkAction job={buildJob({ _id: "job-42", public_id: "job-42-public", status: "active" })} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Copy Public Link" }));
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/careers/jobs/job-42`);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/careers/jobs/job-42-public`);
     expect(await screen.findByRole("button", { name: "Link copied!" })).toBeInTheDocument();
   });
 

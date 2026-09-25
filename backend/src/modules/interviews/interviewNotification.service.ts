@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import {
   EmailNotification,
+  emailNotificationIdentifierFilter,
   type EmailNotificationCategory,
   type EmailNotificationDoc,
   type EmailNotificationStatus,
@@ -314,8 +315,8 @@ export async function sendInterviewCancelledNotification(interview: InterviewDoc
  * business/audit history.
  */
 export async function listNotificationsForInterview(interviewId: string, companyId: string): Promise<EmailNotificationDoc[]> {
-  await getAccessibleInterview(interviewId, companyId);
-  return EmailNotification.find({ interview_id: interviewId }).sort({ created_at: -1 });
+  const interview = await getAccessibleInterview(interviewId, companyId);
+  return EmailNotification.find({ interview_id: interview.id }).sort({ created_at: -1 });
 }
 
 /**
@@ -336,7 +337,10 @@ export async function listNotificationsForInterview(interviewId: string, company
  * client-supplied address.
  */
 export async function retryNotification(notificationId: string, companyId: string): Promise<EmailNotificationDoc> {
-  const notification = await EmailNotification.findOne({ _id: notificationId, company_id: companyId });
+  const notification = await EmailNotification.findOne({
+    ...emailNotificationIdentifierFilter(notificationId),
+    company_id: companyId,
+  });
   // Also denies an assessment_invitation notification's id here (this
   // endpoint is interview-specific — see applicationAssessmentEmail
   // .service.ts's own retry for that category) with the same safe 404 a

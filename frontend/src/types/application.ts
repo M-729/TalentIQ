@@ -43,6 +43,10 @@ export interface ApplicationCurrentStepSummary {
 
 export interface ApplicationListRow {
   id: string;
+  // Opaque, URL-safe identifier — prefer via lib/resourceUrlId.ts over `id`
+  // for any URL/navigation use. Optional only until the backend backfill
+  // covers every pre-existing Application.
+  public_id?: string;
   status: ApplicationStatus;
   /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). */
   final_decision: string | null;
@@ -68,6 +72,8 @@ export interface ApplicationListRow {
 
 export interface ApplicationDetail {
   id: string;
+  // Opaque, URL-safe identifier — see ApplicationListRow.public_id.
+  public_id?: string;
   status: ApplicationStatus;
   /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). */
   final_decision: string | null;

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDeleteHiringStep } from "@/hooks/useDeleteHiringStep";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { HiringStep } from "@/types/hiringStep";
 
 export interface DeleteHiringStepDialogProps {
@@ -28,7 +29,7 @@ export function DeleteHiringStepDialog({ open, onOpenChange, jobId, step, onSucc
 
   async function handleConfirm() {
     if (!step) return;
-    const succeeded = await run(step.id);
+    const succeeded = await run(resourceUrlId(step));
     if (succeeded) {
       onSuccess();
       onOpenChange(false);

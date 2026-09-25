@@ -12,6 +12,7 @@ vi.mock("@/services/api/jobs");
 function buildJob(overrides: Partial<Job> = {}): Job {
   return {
     _id: "job-1",
+    public_id: "job-1-public",
     company_id: "company-1",
     created_by: "user-1",
     title: "Backend Engineer",
@@ -42,6 +43,29 @@ describe("JobsPage", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Jobs" })).toBeInTheDocument();
     expect(await screen.findByText("Backend Engineer")).toBeInTheDocument();
+  });
+
+  // Phase 1 opaque public ID migration: the Edit link must prefer public_id
+  // over the raw Mongo _id once the backend provides one.
+  it("links to the Edit page using public_id when present, not _id", async () => {
+    vi.mocked(jobsApi.listJobs).mockResolvedValue({
+      jobs: [buildJob({ _id: "internal-object-id", public_id: "job_a8f13c92e51b4f638dde79bf" })],
+    });
+    renderPage();
+    await screen.findByText("Backend Engineer");
+
+    const editLink = screen.getByRole("link", { name: "Edit Backend Engineer" });
+    expect(editLink).toHaveAttribute("href", "/jobs/job_a8f13c92e51b4f638dde79bf/edit");
+  });
+
+  it("disables the Edit action rather than falling back to _id when public_id is absent", async () => {
+    vi.mocked(jobsApi.listJobs).mockResolvedValue({ jobs: [buildJob({ _id: "legacy-object-id", public_id: undefined })] });
+    renderPage();
+    await screen.findByText("Backend Engineer");
+
+    const editButton = screen.getByRole("button", { name: "Edit Backend Engineer" });
+    expect(editButton).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Edit Backend Engineer" })).not.toBeInTheDocument();
   });
 
   it("shows loading skeletons before jobs resolve", () => {

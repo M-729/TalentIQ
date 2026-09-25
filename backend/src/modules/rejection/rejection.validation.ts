@@ -1,11 +1,8 @@
 import { z } from "zod";
-import { Types } from "mongoose";
-
-const objectIdString = (label: string) =>
-  z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
+import { applicationIdentifierString } from "../applications/applicationHr.validation";
 
 export const applicationIdParamsSchema = z.object({
-  applicationId: objectIdString("application id"),
+  applicationId: applicationIdentifierString("application id"),
 });
 
 // `.strict()` — status/rejected_at/rejected_by are all backend-derived and

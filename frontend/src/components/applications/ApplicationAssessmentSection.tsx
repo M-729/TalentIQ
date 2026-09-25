@@ -13,6 +13,7 @@ import { useAssessmentNotifications } from "@/hooks/useAssessmentNotifications";
 import { useSendAssessmentInvitation } from "@/hooks/useSendAssessmentInvitation";
 import { useRetryAssessmentNotification } from "@/hooks/useRetryAssessmentNotification";
 import { formatDateTime } from "@/lib/formatDate";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationDetail } from "@/types/application";
 import type { ApplicationAssessment, ApplicationAssessmentStatus } from "@/types/applicationAssessment";
 
@@ -39,7 +40,7 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
   // One request covers both the active (current-stage) record and every
   // historical one — never a second request just to also learn the
   // current one, and never one request per historical stage.
-  const { assessments, isLoading, error, refetch } = useApplicationAssessmentHistory(application.id);
+  const { assessments, isLoading, error, refetch } = useApplicationAssessmentHistory(resourceUrlId(application));
   const assessment = assessments?.find((item) => item.is_current) ?? null;
   const historicalAssessments = assessments?.filter((item) => !item.is_current) ?? [];
 
@@ -51,7 +52,7 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
     notifications,
     isLoading: isLoadingNotifications,
     refetch: refetchNotifications,
-  } = useAssessmentNotifications(assessment?.id ?? null);
+  } = useAssessmentNotifications(assessment ? resourceUrlId(assessment) : null);
   const { run: runSend, isSubmitting: isSending, error: sendError, clearError: clearSendError } = useSendAssessmentInvitation();
   const { run: runRetry, isSubmitting: isRetrying, error: retryError, clearError: clearRetryError } = useRetryAssessmentNotification();
 
@@ -60,14 +61,14 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
   async function handleSend() {
     clearSendError();
     if (!assessment) return;
-    const result = await runSend(assessment.id);
+    const result = await runSend(resourceUrlId(assessment));
     if (result) refetchNotifications();
   }
 
   async function handleRetry(notificationId: string) {
     clearRetryError();
     if (!assessment) return;
-    const result = await runRetry(assessment.id, notificationId);
+    const result = await runRetry(resourceUrlId(assessment), notificationId);
     if (result) refetchNotifications();
   }
 
@@ -189,7 +190,7 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
                   ) : latestNotification.status === "failed" ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="destructive">Failed</Badge>
-                      <Button variant="outline" size="sm" onClick={() => void handleRetry(latestNotification.id)} disabled={isRetrying}>
+                      <Button variant="outline" size="sm" onClick={() => void handleRetry(resourceUrlId(latestNotification))} disabled={isRetrying}>
                         {isRetrying ? "Retrying…" : "Retry Email"}
                       </Button>
                     </div>
@@ -227,7 +228,7 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
           <AssessmentFormDialog
             open={isFormOpen}
             onOpenChange={setIsFormOpen}
-            applicationId={application.id}
+            applicationId={resourceUrlId(application)}
             existingAssessment={null}
             onSaved={handleSaved}
           />
@@ -236,7 +237,7 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
               <AssessmentFormDialog
                 open={isEditingLink}
                 onOpenChange={setIsEditingLink}
-                applicationId={application.id}
+                applicationId={resourceUrlId(application)}
                 existingAssessment={assessment}
                 onSaved={handleSaved}
               />

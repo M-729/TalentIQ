@@ -2,6 +2,9 @@ import type { HiringStepDoc, HiringStepType } from "../../models/HiringStep.mode
 
 export interface HiringStepDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for a HiringStep created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   name: string;
   type: HiringStepType;
   // Always present (never an omitted key) — `null` when not set, so
@@ -18,6 +21,7 @@ export interface HiringStepDTO {
 export function serializeHiringStep(step: HiringStepDoc): HiringStepDTO {
   return {
     id: step.id,
+    public_id: step.public_id ?? undefined,
     name: step.name,
     type: step.type,
     description: step.description ?? null,

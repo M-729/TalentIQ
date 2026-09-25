@@ -1,4 +1,5 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { generatePublicId } from "../utils/publicId";
 
 // Per ERD: only "status" is an enumerated field on jobs. employment_type and
 // experience_level are plain strings in the ERD (no enumerated values given
@@ -8,6 +9,26 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 
 const jobSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts. Mongo `_id`
+    // remains the internal identifier everywhere (relationships, indexes on
+    // other collections, etc.); this field exists solely so a Job's own id
+    // never has to appear in a URL/API response. `sparse: true` (not just
+    // `unique: true`) is required, not optional: existing Jobs created
+    // before this field existed have no public_id at all until the
+    // separate backfill script (see scripts/backfillJobPublicIds.ts) runs,
+    // and a plain unique index would reject every one of those documents
+    // past the first for having a "duplicate" missing value. A sparse
+    // index simply excludes documents that lack the field from the unique
+    // constraint entirely, so deployment never has to be blocked on
+    // backfill completing first.
+    // Populated automatically by the pre("validate") hook below for every
+    // NEW Job — never accepted from a request body (absent from both
+    // createJobSchema and updateJobSchema in job.validation.ts) and never
+    // reassigned once set (the hook only ever fires for `isNew` documents),
+    // which is what makes it effectively immutable without needing
+    // Mongoose's `immutable` schema option (whose query-level `updateOne`
+    // semantics would otherwise complicate the backfill script).
+    public_id: { type: String, unique: true, sparse: true },
     company_id: { type: Schema.Types.ObjectId, ref: "Company", required: true },
     created_by: { type: Schema.Types.ObjectId, ref: "User", required: true },
     title: { type: String, required: true, trim: true },
@@ -40,6 +61,24 @@ const jobSchema = new Schema(
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   }
 );
+
+// Assigns public_id exactly once, only for a brand-new document that
+// doesn't already have one — covers every creation path uniformly
+// (job.service.ts's createJob, the seed script, and every test's direct
+// Job.create()) without each call site needing to remember to set it.
+// Deliberately does nothing for an existing document being re-saved (guards
+// on isNew), and deliberately does nothing if public_id is already present
+// (guards on !this.public_id) — the backfill script assigns it directly via
+// a query-level updateOne for legacy documents that predate this field,
+// which never runs this hook (Mongoose document middleware only fires for
+// `save()`/`create()`, not `updateOne`/`updateMany`), so this guard also
+// prevents this hook from ever clobbering what the backfill wrote.
+jobSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("job");
+  }
+  next();
+});
 
 // Covers the normal company-scoped access patterns: "this company's jobs"
 // (either index serves that alone via its leading field), "this company's
@@ -76,5 +115,24 @@ jobSchema.index({ company_id: 1, deleted_at: 1 });
 export const NOT_DELETED_JOB_FILTER = { deleted_at: null } as const;
 
 export type JobDoc = HydratedDocument<InferSchemaType<typeof jobSchema>>;
+type JobShape = InferSchemaType<typeof jobSchema>;
+
+/**
+ * The one place a URL/route id param is turned into a Job lookup filter —
+ * used by job.service.ts, publicJob.service.ts, and
+ * application.service.ts's public submission Job resolution. Public-id
+ * only (Phase 2 cutover — see this ticket's report): a legacy Mongo
+ * ObjectId no longer resolves here, matching every migrated resource.
+ * Kept as its own named function (not inlined at each call site) so this
+ * remains the one place that decision lives, and so the shape stays
+ * trivially swappable again if ever needed. Always spread alongside the
+ * caller's own company/visibility filter (e.g.
+ * `{ ...jobIdentifierFilter(id), ...NOT_DELETED_JOB_FILTER }`) — this
+ * function only ever resolves WHICH document is being asked for, never
+ * whether the caller is allowed to see it.
+ */
+export function jobIdentifierFilter(idParam: string): FilterQuery<JobShape> {
+  return { public_id: idParam };
+}
 
 export const Job = model("Job", jobSchema);

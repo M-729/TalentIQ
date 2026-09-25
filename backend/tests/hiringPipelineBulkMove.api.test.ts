@@ -86,7 +86,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -95,12 +95,28 @@ describe("Bulk hiring pipeline movement", () => {
       expect(res.body.moved_count).toBe(2);
     });
 
+    // Phase 1 dual-accept migration: the Job parent-scoping path segment
+    // ("special attention" case) is resolved to Job's real internal id
+    // before being used against HiringStep.job_id/Application.job_id.
+    it("moves applications for a job addressed by its public_id", async () => {
+      const a = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
+
+      const res = await bulkMoveReq(
+        jobA.public_id!,
+        { application_ids: [a.id], target_hiring_step_id: interview.id },
+        authHeaderFor(hrA, companyA.id)
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.moved_count).toBe(1);
+    });
+
     it("moves applications from different source stages to the same target", async () => {
       const fromReview = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
       const fromNew = await createApplicationIn(jobA);
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [fromReview.id, fromNew.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -118,7 +134,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id }); // stays in_process
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -139,7 +155,7 @@ describe("Bulk hiring pipeline movement", () => {
     it("returns the target step summary", async () => {
       const a = await createApplicationIn(jobA);
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -150,7 +166,7 @@ describe("Bulk hiring pipeline movement", () => {
     it("supports backward movement in bulk, same as single-candidate movement", async () => {
       const a = await createApplicationIn(jobA, { status: "in_process", current_step_id: finalInterview._id });
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id], target_hiring_step_id: review.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -168,7 +184,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
 
       await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -184,7 +200,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA); // no current step yet
 
       await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -205,7 +221,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA);
 
       await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -219,7 +235,7 @@ describe("Bulk hiring pipeline movement", () => {
     it("leaves single-candidate movement fully working alongside bulk movement", async () => {
       const application = await createApplicationIn(jobA);
       const res = await request(app)
-        .patch(`/api/v1/applications/${application.id}/hiring-step`)
+        .patch(`/api/v1/applications/${application.public_id}/hiring-step`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ step_id: review.id });
 
@@ -234,7 +250,7 @@ describe("Bulk hiring pipeline movement", () => {
       const a = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, new Types.ObjectId().toString()], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -250,7 +266,7 @@ describe("Bulk hiring pipeline movement", () => {
       const rejected = await createApplicationIn(jobA, { status: "rejected", current_step_id: review._id });
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, rejected.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -266,7 +282,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: new Types.ObjectId().toString() },
         authHeaderFor(hrA, companyA.id)
       );
@@ -281,7 +297,7 @@ describe("Bulk hiring pipeline movement", () => {
       const wrongJobApplication = await createApplicationIn(otherJob);
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, wrongJobApplication.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -307,7 +323,7 @@ describe("Bulk hiring pipeline movement", () => {
         .mockResolvedValueOnce({ modifiedCount: 1 } as never);
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -326,19 +342,19 @@ describe("Bulk hiring pipeline movement", () => {
   // ===== VALIDATION =====
   describe("validation", () => {
     it("rejects an empty application_ids array", async () => {
-      const res = await bulkMoveReq(jobA.id, { application_ids: [], target_hiring_step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await bulkMoveReq(jobA.public_id!, { application_ids: [], target_hiring_step_id: interview.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(400);
     });
 
     it("rejects a batch larger than the maximum size", async () => {
       const ids = Array.from({ length: 101 }, () => new Types.ObjectId().toString());
-      const res = await bulkMoveReq(jobA.id, { application_ids: ids, target_hiring_step_id: interview.id }, authHeaderFor(hrA, companyA.id));
+      const res = await bulkMoveReq(jobA.public_id!, { application_ids: ids, target_hiring_step_id: interview.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(400);
     });
 
     it("rejects a malformed application id", async () => {
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: ["not-an-object-id"], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -348,7 +364,7 @@ describe("Bulk hiring pipeline movement", () => {
     it("rejects a malformed target_hiring_step_id", async () => {
       const a = await createApplicationIn(jobA);
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id], target_hiring_step_id: "not-an-object-id" },
         authHeaderFor(hrA, companyA.id)
       );
@@ -358,7 +374,7 @@ describe("Bulk hiring pipeline movement", () => {
     it("rejects duplicate application ids in the same request", async () => {
       const a = await createApplicationIn(jobA);
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, a.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -368,7 +384,7 @@ describe("Bulk hiring pipeline movement", () => {
     it("rejects company_id, status, or interviewer/assessment fields on the request body", async () => {
       const a = await createApplicationIn(jobA);
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         {
           application_ids: [a.id],
           target_hiring_step_id: interview.id,
@@ -386,7 +402,7 @@ describe("Bulk hiring pipeline movement", () => {
       const other = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [already.id, other.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -404,7 +420,7 @@ describe("Bulk hiring pipeline movement", () => {
       const a = await createApplicationIn(jobA);
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
 
-      const res = await bulkMoveReq(jobA.id, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await bulkMoveReq(jobA.public_id!, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
     });
 
@@ -412,7 +428,7 @@ describe("Bulk hiring pipeline movement", () => {
       const a = await createApplicationIn(jobA);
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await bulkMoveReq(jobA.id, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      const res = await bulkMoveReq(jobA.public_id!, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
       const reread = await Application.findById(a.id);
       expect(reread?.current_step_id).toBeNull();
@@ -423,7 +439,7 @@ describe("Bulk hiring pipeline movement", () => {
   describe("tenant isolation", () => {
     it("returns 404 for a bulk move request against another company's Job", async () => {
       const a = await createApplicationIn(jobA);
-      const res = await bulkMoveReq(jobA.id, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrB, companyB.id));
+      const res = await bulkMoveReq(jobA.public_id!, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
 
@@ -433,7 +449,7 @@ describe("Bulk hiring pipeline movement", () => {
       const ownApplication = await createApplicationIn(jobA);
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [ownApplication.id, foreignApplication.id], target_hiring_step_id: review.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -447,14 +463,14 @@ describe("Bulk hiring pipeline movement", () => {
       const foreignStep = await HiringStep.create({ job_id: jobB.id, name: "Portfolio Review", type: "review", position: 0 });
       const a = await createApplicationIn(jobA);
 
-      const res = await bulkMoveReq(jobA.id, { application_ids: [a.id], target_hiring_step_id: foreignStep.id }, authHeaderFor(hrA, companyA.id));
+      const res = await bulkMoveReq(jobA.public_id!, { application_ids: [a.id], target_hiring_step_id: foreignStep.id }, authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
 
     it("rejects an unauthenticated bulk move request", async () => {
       const a = await createApplicationIn(jobA);
       const res = await request(app)
-        .patch(`/api/v1/jobs/${jobA.id}/hiring-pipeline/bulk-move`)
+        .patch(`/api/v1/jobs/${jobA.public_id}/hiring-pipeline/bulk-move`)
         .send({ application_ids: [a.id], target_hiring_step_id: review.id });
       expect(res.status).toBe(401);
     });
@@ -467,7 +483,7 @@ describe("Bulk hiring pipeline movement", () => {
       const b = await createApplicationIn(jobA, { status: "in_process", current_step_id: review._id });
 
       const res = await bulkMoveReq(
-        jobA.id,
+        jobA.public_id!,
         { application_ids: [a.id, b.id], target_hiring_step_id: interview.id },
         authHeaderFor(hrA, companyA.id)
       );
@@ -478,13 +494,13 @@ describe("Bulk hiring pipeline movement", () => {
 
     it("does not trigger AI screening", async () => {
       const a = await createApplicationIn(jobA);
-      await bulkMoveReq(jobA.id, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await bulkMoveReq(jobA.public_id!, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(mockCreateScreening).not.toHaveBeenCalled();
     });
 
     it("does not send email", async () => {
       const a = await createApplicationIn(jobA);
-      await bulkMoveReq(jobA.id, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
+      await bulkMoveReq(jobA.public_id!, { application_ids: [a.id], target_hiring_step_id: review.id }, authHeaderFor(hrA, companyA.id));
       expect(emailService.send).not.toHaveBeenCalled();
     });
   });

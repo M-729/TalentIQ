@@ -1,4 +1,5 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { generatePublicId } from "../utils/publicId";
 
 // Deliberately small and linear — no "revised"/"countered" states. Per this
 // ticket's explicit "prefer Withdraw + new Offer if simpler" guidance: if
@@ -53,6 +54,9 @@ export type OfferResponseSource = (typeof OFFER_RESPONSE_SOURCES)[number];
  */
 const offerSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale.
+    public_id: { type: String, unique: true, sparse: true },
     company_id: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     application_id: { type: Schema.Types.ObjectId, ref: "Application", required: true },
     // Denormalized from the Application at creation time — same rationale
@@ -125,6 +129,15 @@ const offerSchema = new Schema(
   }
 );
 
+// Assigns public_id exactly once, only for a brand-new document — same
+// pattern/rationale as Job.model.ts's own pre("validate") hook.
+offerSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("offer");
+  }
+  next();
+});
+
 // At most one LIVE (non-withdrawn) Offer per Application — see this
 // model's own doc comment and is_live's own doc comment above. A withdrawn
 // Offer no longer matches this partial filter, so creating a genuinely
@@ -140,5 +153,11 @@ offerSchema.index({ company_id: 1, status: 1 });
 offerSchema.index({ application_id: 1, created_at: -1 });
 
 export type OfferDoc = HydratedDocument<InferSchemaType<typeof offerSchema>>;
+type OfferShape = InferSchemaType<typeof offerSchema>;
+
+/** URL/route id resolution for Offer — see Job.model.ts's jobIdentifierFilter for the full rationale. Public-id only (Phase 2 cutover). */
+export function offerIdentifierFilter(idParam: string): FilterQuery<OfferShape> {
+  return { public_id: idParam };
+}
 
 export const Offer = model("Offer", offerSchema);

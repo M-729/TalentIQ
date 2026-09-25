@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { HiringStepForm } from "@/components/hiringPipeline/HiringStepForm";
 import { useCreateHiringStep } from "@/hooks/useCreateHiringStep";
 import { useUpdateHiringStep } from "@/hooks/useUpdateHiringStep";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { CreateHiringStepInput, HiringStep } from "@/types/hiringStep";
 
 export interface HiringStepFormDialogProps {
@@ -25,7 +26,7 @@ export function HiringStepFormDialog({ open, onOpenChange, jobId, mode, step, on
 
   async function handleSubmit(payload: CreateHiringStepInput) {
     const result =
-      mode === "create" ? await create.run(payload) : step ? await update.run(step.id, payload) : null;
+      mode === "create" ? await create.run(payload) : step ? await update.run(resourceUrlId(step), payload) : null;
 
     if (result) {
       onSuccess();

@@ -113,7 +113,7 @@ describe("regression: public application submission triggers automatic AI screen
     );
 
     const res = await request(app)
-      .post(`/api/v1/public/jobs/${job.id}/applications`)
+      .post(`/api/v1/public/jobs/${job.public_id}/applications`)
       .field("full_name", "Jane Candidate")
       .field("email", "jane.candidate@example.test")
       .attach("cv", path.join(FIXTURES, "sample.pdf"));
@@ -135,7 +135,7 @@ describe("regression: public application submission triggers automatic AI screen
     (createApplicationScreening as jest.Mock).mockResolvedValue(screeningFixture());
 
     const res = await request(app)
-      .post(`/api/v1/public/jobs/${job.id}/applications`)
+      .post(`/api/v1/public/jobs/${job.public_id}/applications`)
       .field("full_name", "Jane Candidate")
       .field("email", "jane.background@example.test")
       .attach("cv", path.join(FIXTURES, "sample.pdf"));
@@ -154,7 +154,7 @@ describe("regression: public application submission triggers automatic AI screen
     (createApplicationScreening as jest.Mock).mockResolvedValue(screeningFixture());
 
     await request(app)
-      .post(`/api/v1/public/jobs/${job.id}/applications`)
+      .post(`/api/v1/public/jobs/${job.public_id}/applications`)
       .field("full_name", "Jane Candidate")
       .field("email", "jane.persisted@example.test")
       .attach("cv", path.join(FIXTURES, "sample.pdf"));
@@ -172,7 +172,7 @@ describe("regression: public application submission triggers automatic AI screen
     (createApplicationScreening as jest.Mock).mockRejectedValue(new Error("simulated screening failure"));
 
     const res = await request(app)
-      .post(`/api/v1/public/jobs/${job.id}/applications`)
+      .post(`/api/v1/public/jobs/${job.public_id}/applications`)
       .field("full_name", "Jane Candidate")
       .field("email", "jane.failure@example.test")
       .attach("cv", path.join(FIXTURES, "sample.pdf"));

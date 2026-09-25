@@ -6,6 +6,11 @@
 // because Job has them.
 export interface PublicJob {
   _id: string;
+  // Opaque, URL-safe identifier — prefer this over `_id` for any
+  // URL/navigation use. Optional only until the backend's one-time
+  // backfill assigns it to every pre-existing Job; present on every Job
+  // going forward.
+  public_id?: string;
   title: string;
   department?: string;
   description?: string;

@@ -15,8 +15,11 @@ const STATUS_CONFIG: Record<EmailActivityStatus, { label: string; variant: "neut
 /** Where "View related record" navigates — the closest useful detail page this HR user can already reach, never a raw email viewer (see this ticket's explicit "operational history, not an email viewer" rule). */
 function relatedLinkFor(row: EmailActivityRow): string | null {
   if (row.type === "company_invitation") return "/settings/team";
-  if (row.related_interview_id) return `/interviews/${row.related_interview_id}`;
-  if (row.related_application_id) return `/applications/${row.related_application_id}`;
+  // public_id is always populated for these resources post-migration — if
+  // it's ever unexpectedly missing, show no link rather than construct a
+  // Mongo ObjectId URL (see lib/resourceUrlId.ts's own fail-safe rule).
+  if (row.related_interview_id) return row.related_interview_public_id ? `/interviews/${row.related_interview_public_id}` : null;
+  if (row.related_application_id) return row.related_application_public_id ? `/applications/${row.related_application_public_id}` : null;
   return null;
 }
 

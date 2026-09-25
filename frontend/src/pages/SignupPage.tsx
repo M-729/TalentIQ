@@ -2,10 +2,10 @@ import { useState, type FormEvent } from "react";
 import { Briefcase, Lock, Mail, User } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconInput } from "@/components/ui/icon-input";
 import { Label } from "@/components/ui/label";
 import { BrandMark } from "@/components/layout/BrandMark";
+import { AuthPromoPanel } from "@/components/auth/AuthPromoPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/services/api/client";
 import { getCompanySignupErrorMessage } from "@/lib/companySignupErrors";
@@ -44,20 +44,22 @@ export function SignupPage() {
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <h1 className="sr-only">Sign up for TalentIQ</h1>
-        <div className="flex items-center justify-center">
-          <BrandMark to="/" />
-        </div>
+    <div className="public-brand-theme min-h-svh bg-[#fbfbfd]">
+      <div className="min-h-svh lg:grid lg:grid-cols-[minmax(0,1.28fr)_minmax(26rem,1fr)] xl:grid-cols-[minmax(0,1.32fr)_minmax(30rem,1fr)]">
+        <AuthPromoPanel variant="login" />
 
-        <Card>
-          <CardHeader className="space-y-1.5 text-center">
-            <CardTitle className="text-2xl">Create your TalentIQ workspace</CardTitle>
-            <CardDescription>Set up your company and get started in minutes.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
+        <main className="flex min-h-svh items-center justify-center px-6 py-10 sm:px-10 lg:px-14 xl:px-20">
+          <div className="w-full max-w-md space-y-8">
+            <BrandMark to="/" className="w-fit [&_svg]:size-10 [&_span]:text-[28px]" />
+
+            <div className="space-y-2">
+              <h1 className="font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-[34px]">
+                Create your TalentIQ workspace
+              </h1>
+              <p className="text-base text-muted-foreground">Set up your company and get started in minutes.</p>
+            </div>
+
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="full-name">Full name</Label>
                 <IconInput
@@ -69,6 +71,8 @@ export function SignupPage() {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Your full name"
+                  className="h-14 rounded-lg bg-white text-base shadow-none"
                 />
               </div>
 
@@ -83,6 +87,8 @@ export function SignupPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className="h-14 rounded-lg bg-white text-base shadow-none"
                 />
               </div>
 
@@ -98,6 +104,8 @@ export function SignupPage() {
                   minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Create a password"
+                  className="h-14 rounded-lg bg-white text-base shadow-none"
                 />
               </div>
 
@@ -112,6 +120,8 @@ export function SignupPage() {
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Your company name"
+                  className="h-14 rounded-lg bg-white text-base shadow-none"
                 />
               </div>
 
@@ -121,20 +131,22 @@ export function SignupPage() {
                 </p>
               )}
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit" size="lg" className="h-14 w-full rounded-lg text-base shadow-sm" disabled={isSubmitting}>
                 {isSubmitting ? "Creating workspace…" : "Create workspace"}
               </Button>
             </form>
-          </CardContent>
-        </Card>
 
-        <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link to="/login" className="font-medium text-primary underline underline-offset-2">
-            Log in
-          </Link>
-        </p>
+            <div className="border-t border-border pt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/login" className="font-medium text-primary hover:underline">
+                  Log in
+                </Link>
+              </p>
+            </div>
+          </div>
+        </main>
       </div>
-    </main>
+    </div>
   );
 }

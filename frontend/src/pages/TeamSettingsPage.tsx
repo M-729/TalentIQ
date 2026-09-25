@@ -16,6 +16,7 @@ import { useResendTeamInvitation } from "@/hooks/useResendTeamInvitation";
 import { useRevokeTeamInvitation } from "@/hooks/useRevokeTeamInvitation";
 import { useTeamInvitations } from "@/hooks/useTeamInvitations";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { TeamInvitation, TeamMember } from "@/types/team";
 
 type MemberDialogState = { kind: "deactivate" | "reactivate"; member: TeamMember } | null;
@@ -46,7 +47,9 @@ export function TeamSettingsPage() {
   async function handleConfirmMemberAction() {
     if (!memberDialog) return;
     const result =
-      memberDialog.kind === "deactivate" ? await runDeactivate(memberDialog.member.id) : await runReactivate(memberDialog.member.id);
+      memberDialog.kind === "deactivate"
+        ? await runDeactivate(resourceUrlId(memberDialog.member))
+        : await runReactivate(resourceUrlId(memberDialog.member));
     if (result) {
       setMemberDialog(null);
       refetchMembers();
@@ -55,7 +58,7 @@ export function TeamSettingsPage() {
 
   async function handleConfirmRevoke() {
     if (!revokeTarget) return;
-    const result = await runRevoke(revokeTarget.id);
+    const result = await runRevoke(resourceUrlId(revokeTarget));
     if (result) {
       setRevokeTarget(null);
       refetchInvitations();
@@ -63,7 +66,7 @@ export function TeamSettingsPage() {
   }
 
   async function handleResend(invitation: TeamInvitation) {
-    const result = await runResend(invitation.id);
+    const result = await runResend(resourceUrlId(invitation));
     if (result) refetchInvitations();
   }
 

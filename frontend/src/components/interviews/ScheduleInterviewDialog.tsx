@@ -11,6 +11,7 @@ import { InterviewerMultiSelect } from "@/components/interviews/InterviewerMulti
 import { useGoogleCalendarEventActions } from "@/hooks/useGoogleCalendarEventActions";
 import { useGoogleCalendarStatus } from "@/hooks/useGoogleCalendarStatus";
 import { useScheduleInterview } from "@/hooks/useScheduleInterview";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import { getBrowserTimeZone, zonedDateTimeToUtcIso } from "@/lib/timezone";
 import type { Interview, ScheduleInterviewInput } from "@/types/interview";
 
@@ -240,7 +241,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, applicationId, def
       return;
     }
 
-    const updated = await createEvent(interview.id);
+    const updated = await createEvent(resourceUrlId(interview));
     if (updated) {
       onOpenChange(false);
       onScheduled(updated);

@@ -1,15 +1,30 @@
 import { z } from "zod";
-import { Types } from "mongoose";
+import { publicIdPattern } from "../../utils/publicId";
 
-const objectIdString = (label: string) =>
-  z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
+// Public-id only (Phase 2 cutover — see this ticket's report): a raw Mongo
+// ObjectId no longer resolves as either of these URL ids — matching
+// job.validation.ts's jobIdentifierString exactly. Never applies to any
+// secure token (invitation accept tokens are handled entirely through
+// companyInvitationResponse.validation.ts's own token field, not this
+// file).
+const USER_PUBLIC_ID_PATTERN = publicIdPattern("user");
+const userIdentifierString = (label: string) =>
+  z.string().refine((val) => USER_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
+
+const INVITATION_PUBLIC_ID_PATTERN = publicIdPattern("invite");
+const invitationIdentifierString = (label: string) =>
+  z.string().refine((val) => INVITATION_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
 
 export const userIdParamsSchema = z.object({
-  userId: objectIdString("user id"),
+  userId: userIdentifierString("user id"),
 });
 
 export const invitationIdParamsSchema = z.object({
-  invitationId: objectIdString("invitation id"),
+  invitationId: invitationIdentifierString("invitation id"),
 });
 
 // `.strict()` — role/company_id/status/etc are never accepted from the

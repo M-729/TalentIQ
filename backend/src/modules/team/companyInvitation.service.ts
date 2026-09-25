@@ -1,4 +1,8 @@
-import { CompanyInvitation, type CompanyInvitationDoc } from "../../models/CompanyInvitation.model";
+import {
+  CompanyInvitation,
+  companyInvitationIdentifierFilter,
+  type CompanyInvitationDoc,
+} from "../../models/CompanyInvitation.model";
 import { User } from "../../models/User.model";
 import { Company } from "../../models/Company.model";
 import { ConflictError, NotFoundError } from "../../security/AppError";
@@ -118,9 +122,11 @@ export async function inviteTeamMember(companyId: string, invitedByUserId: strin
  * failed) — both just mean "issue a new usable link and try again."
  */
 export async function resendTeamInvitation(companyId: string, invitationId: string): Promise<CompanyInvitationDoc> {
-  await assertOwnedByCompany(CompanyInvitation, { _id: invitationId }, companyId, { notFoundMessage: NOT_FOUND_MESSAGE });
+  await assertOwnedByCompany(CompanyInvitation, companyInvitationIdentifierFilter(invitationId), companyId, {
+    notFoundMessage: NOT_FOUND_MESSAGE,
+  });
 
-  const invitation = await CompanyInvitation.findById(invitationId);
+  const invitation = await CompanyInvitation.findOne(companyInvitationIdentifierFilter(invitationId));
   if (!invitation) throw new NotFoundError(NOT_FOUND_MESSAGE);
   if (invitation.status !== "pending") throw new ConflictError(NOT_RESENDABLE_MESSAGE);
 
@@ -140,10 +146,12 @@ export async function resendTeamInvitation(companyId: string, invitationId: stri
  * inconsistent state.
  */
 export async function revokeTeamInvitation(companyId: string, invitationId: string): Promise<CompanyInvitationDoc> {
-  await assertOwnedByCompany(CompanyInvitation, { _id: invitationId }, companyId, { notFoundMessage: NOT_FOUND_MESSAGE });
+  await assertOwnedByCompany(CompanyInvitation, companyInvitationIdentifierFilter(invitationId), companyId, {
+    notFoundMessage: NOT_FOUND_MESSAGE,
+  });
 
   const revoked = await CompanyInvitation.findOneAndUpdate(
-    { _id: invitationId, company_id: companyId, status: "pending" },
+    { ...companyInvitationIdentifierFilter(invitationId), company_id: companyId, status: "pending" },
     { $set: { status: "revoked", revoked_at: new Date() } },
     { new: true }
   );

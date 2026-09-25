@@ -122,7 +122,7 @@ export async function moveApplicationStage(
 
     await session.withTransaction(async () => {
       const updatedApplication = await Application.findOneAndUpdate(
-        { _id: applicationId, current_step_id: application.current_step_id, status: fromStatus },
+        { _id: application._id, current_step_id: application.current_step_id, status: fromStatus },
         { $set: { current_step_id: targetStep._id, status: toStatus } },
         { new: true, session }
       );
@@ -175,9 +175,9 @@ export async function getStageHistory(
   applicationId: string,
   companyId: string
 ): Promise<{ transitions: ApplicationStageTransitionDoc[]; movedByNames: Map<string, string> }> {
-  await getAccessibleApplication(applicationId, companyId);
+  const application = await getAccessibleApplication(applicationId, companyId);
 
-  const transitions = await ApplicationStageTransition.find({ application_id: applicationId }).sort({
+  const transitions = await ApplicationStageTransition.find({ application_id: application.id }).sort({
     created_at: -1,
     _id: -1,
   });

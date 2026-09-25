@@ -1,5 +1,5 @@
 import type { FilterQuery } from "mongoose";
-import { Job, NOT_DELETED_JOB_FILTER, type JobDoc } from "../../models/Job.model";
+import { Job, NOT_DELETED_JOB_FILTER, jobIdentifierFilter, type JobDoc } from "../../models/Job.model";
 import { Company } from "../../models/Company.model";
 import { NotFoundError } from "../../security/AppError";
 import { escapeRegExp } from "../../utils/regex";
@@ -12,7 +12,11 @@ import type { ListPublicJobsQuery } from "./publicJob.validation";
 // tenant field — only company_name (a display value, not the id) is
 // resolved in, for both the list and detail shapes below.
 export interface PublicJob {
-  _id: string;
+  // The only URL-facing identifier this response exposes (Phase 2 cutover)
+  // — every Job is backfilled and auto-assigned public_id on creation, so
+  // the internal Mongo _id is no longer included here at all: a public,
+  // unauthenticated endpoint has no reason to expose a raw database id.
+  public_id: string;
   title: string;
   department?: string;
   description?: string;
@@ -33,7 +37,7 @@ export interface PublicJob {
  */
 function toPublicJob(job: JobDoc, companyName: string | undefined): PublicJob {
   return {
-    _id: job._id.toString(),
+    public_id: job.public_id!,
     title: job.title,
     department: job.department ?? undefined,
     description: job.description ?? undefined,
@@ -66,7 +70,7 @@ export async function getPublicJob(jobId: string): Promise<PublicJob> {
   // fetching by id and checking after) means a draft/closed/soft-deleted
   // job's existence is never distinguishable from a nonexistent one — none
   // of them match, so all resolve as the same 404 below.
-  const job = await Job.findOne({ _id: jobId, ...publicJobFilter() });
+  const job = await Job.findOne({ ...jobIdentifierFilter(jobId), ...publicJobFilter() });
   if (!job) {
     throw new NotFoundError("Job not found");
   }

@@ -157,33 +157,37 @@ describe("Interview <-> Google Calendar sync API", () => {
   async function scheduleInterview(interviewerIds: string[] = [interviewerA.id]) {
     const application = await createApplicationInInterviewStage();
     const res = await request(app)
-      .post(scheduleUrl(application.id))
+      .post(scheduleUrl(application.public_id!))
       .set("Authorization", authHeaderFor(hrA, companyA.id))
       .send(validBody({ interviewer_user_ids: interviewerIds }));
-    return { application, interviewId: res.body.interview.id as string };
+    return {
+      application,
+      interviewId: res.body.interview.id as string,
+      interviewPublicId: res.body.interview.public_id as string,
+    };
   }
 
   // ===== CREATE EVENT: AUTH / TENANCY =====
   describe("create event: auth and tenancy", () => {
     it("rejects an unauthenticated request with 401", async () => {
-      const { interviewId } = await scheduleInterview();
-      const res = await request(app).post(createEventUrl(interviewId)).send({});
+      const { interviewId, interviewPublicId } = await scheduleInterview();
+      const res = await request(app).post(createEventUrl(interviewPublicId)).send({});
       expect(res.status).toBe(401);
     });
 
     it("returns 404 for a cross-company Interview", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrB, companyB.id);
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
       expect(res.status).toBe(404);
       expect(mockCreateEvent).not.toHaveBeenCalled();
     });
 
     it("rejects an unexpected field in the request body", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       const res = await request(app)
-        .post(createEventUrl(interviewId))
+        .post(createEventUrl(interviewPublicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ attendees: ["attacker@evil.test"] });
       expect(res.status).toBe(400);
@@ -194,17 +198,17 @@ describe("Interview <-> Google Calendar sync API", () => {
   // ===== CREATE EVENT: BUSINESS GATES =====
   describe("create event: business rules", () => {
     it("requires an active Google connection for the caller", async () => {
-      const { interviewId } = await scheduleInterview();
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { interviewId, interviewPublicId } = await scheduleInterview();
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockCreateEvent).not.toHaveBeenCalled();
     });
 
     it("blocks event creation when the connection is missing the required Calendar permission, without calling the provider", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id, "owner@gmail.com", { calendar_permission_granted: false });
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockCreateEvent).not.toHaveBeenCalled();
 
@@ -213,11 +217,11 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("creates the event for a connected HR user on a scheduled Interview", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(201);
       expect(res.body.interview.calendar.provider).toBe("google");
       expect(res.body.interview.calendar.meeting_url).toBe("https://meet.google.com/abc-defg-hij");
@@ -227,7 +231,7 @@ describe("Interview <-> Google Calendar sync API", () => {
     it("passes the Interview's title/start/end/timezone to the provider", async () => {
       const application = await createApplicationInInterviewStage();
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(
           validBody({
@@ -242,7 +246,7 @@ describe("Interview <-> Google Calendar sync API", () => {
       mockCreateEvent.mockResolvedValue(successResult());
 
       await request(app)
-        .post(createEventUrl(scheduleRes.body.interview.id))
+        .post(createEventUrl(scheduleRes.body.interview.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -254,11 +258,11 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("never leaks AI/screening/internal detail in the event description", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
 
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const input = mockCreateEvent.mock.calls[0]![1];
       expect(input.description).toMatch(/^TalentIQ interview for:/);
@@ -270,14 +274,14 @@ describe("Interview <-> Google Calendar sync API", () => {
       const application = await createApplicationInInterviewStage();
       const candidate = await Candidate.findById(application.candidate_id);
       const scheduleRes = await request(app)
-        .post(scheduleUrl(application.id))
+        .post(scheduleUrl(application.public_id!))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(validBody({ interviewer_user_ids: [interviewerA.id, secondInterviewer.id] }));
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
 
       await request(app)
-        .post(createEventUrl(scheduleRes.body.interview.id))
+        .post(createEventUrl(scheduleRes.body.interview.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -289,20 +293,20 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("ignores/rejects arbitrary attendee emails sent in the request", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
 
       const res = await request(app)
-        .post(createEventUrl(interviewId))
+        .post(createEventUrl(interviewPublicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ attendee_emails: ["injected@evil.test"] });
       expect(res.status).toBe(400);
     });
 
     it("generates a fresh conferenceRequestId per create call", async () => {
-      const { interviewId: id1 } = await scheduleInterview();
-      const { interviewId: id2 } = await scheduleInterview();
+      const { interviewPublicId: id1 } = await scheduleInterview();
+      const { interviewPublicId: id2 } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult({ eventId: "evt-a" }));
       await request(app).post(createEventUrl(id1)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
@@ -317,11 +321,11 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("persists the returned event id and meeting URL, and stamps calendar_owner_user_id to the caller", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult({ eventId: "google-evt-77" }));
 
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       const stored = await Interview.findById(interviewId);
       expect(stored!.calendar_event_id).toBe("google-evt-77");
@@ -330,32 +334,32 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("never trusts provider-shaped fields sent in the request body", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       const res = await request(app)
-        .post(createEventUrl(interviewId))
+        .post(createEventUrl(interviewPublicId))
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ calendar_event_id: "fake-evt", meeting_url: "https://meet.google.com/fake" });
       expect(res.status).toBe(400);
     });
 
     it("does not create a second event for an Interview that already has one", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockCreateEvent).toHaveBeenCalledTimes(1);
     });
 
     it("returns a safe error (never a raw Google error) when the provider is unavailable", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockRejectedValue(new GoogleCalendarProviderError("provider_unavailable", "raw upstream detail should never leak"));
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(503);
       expect(JSON.stringify(res.body)).not.toMatch(/raw upstream detail/);
 
@@ -365,21 +369,21 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("cannot create an event for a cancelled Interview", async () => {
-      const { interviewId } = await scheduleInterview();
-      await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { interviewId, interviewPublicId } = await scheduleInterview();
+      await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       await connectGoogle(hrA, companyA.id);
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockCreateEvent).not.toHaveBeenCalled();
     });
 
     it("cannot create a NEW event once the Job is soft-deleted", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(404);
       expect(mockCreateEvent).not.toHaveBeenCalled();
     });
@@ -388,11 +392,11 @@ describe("Interview <-> Google Calendar sync API", () => {
   // ===== MEET PENDING =====
   describe("Meet conference pending", () => {
     it("stores the event id with a null meeting URL and pending status when the conference is pending", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue({ eventId: "evt-pending", meetingUrl: null, conferencePending: true });
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(201);
       expect(res.body.interview.calendar.meeting_url).toBeNull();
       expect(res.body.interview.calendar.sync_status).toBe("pending");
@@ -402,13 +406,13 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("retrieves the Meet URL on a later sync/refresh without creating a duplicate event", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue({ eventId: "evt-pending", meetingUrl: null, conferencePending: true });
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockGetEvent.mockResolvedValue({ eventId: "evt-pending", meetingUrl: "https://meet.google.com/now-ready", conferencePending: false });
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(res.status).toBe(200);
       expect(res.body.interview.calendar.meeting_url).toBe("https://meet.google.com/now-ready");
@@ -421,9 +425,9 @@ describe("Interview <-> Google Calendar sync API", () => {
   // ===== RESCHEDULE SYNC =====
   describe("reschedule sync", () => {
     it("keeps current behavior when there is no linked Google event", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Europe/Berlin" });
       expect(res.status).toBe(200);
@@ -432,10 +436,10 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("6. an identical reschedule retry causes no second Google Calendar sync call", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockUpdateEvent.mockResolvedValue(successResult());
       const newStart = hoursFromNow(48);
@@ -443,14 +447,14 @@ describe("Interview <-> Google Calendar sync API", () => {
       const body = { starts_at: newStart, ends_at: newEnd, timezone: "Asia/Beirut", interviewer_user_ids: [interviewerA.id] };
 
       const first = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(body);
       expect(first.status).toBe(200);
       expect(mockUpdateEvent).toHaveBeenCalledTimes(1);
 
       const second = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send(body);
       expect(second.status).toBe(200);
@@ -458,15 +462,15 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("patches the linked provider event with the new time/timezone on reschedule", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockUpdateEvent.mockResolvedValue(successResult());
       const newStart = hoursFromNow(48);
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: hoursFromNow(49), timezone: "Europe/Berlin" });
 
@@ -481,15 +485,15 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("synchronizes changed interviewers as attendees, keeping the candidate attached", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const secondInterviewer = await createUser({ companyId: companyA.id, email: "newinterviewer@a.test", role: "HR" });
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockUpdateEvent.mockResolvedValue(successResult());
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut", interviewer_user_ids: [secondInterviewer.id] });
 
@@ -499,15 +503,15 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("keeps the local reschedule committed even when the provider sync fails", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockUpdateEvent.mockRejectedValue(new GoogleCalendarProviderError("provider_unavailable", "boom"));
       const newStart = hoursFromNow(48);
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: newStart, ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
@@ -521,35 +525,35 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("allows retrying a failed reschedule sync via the sync endpoint", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockUpdateEvent.mockRejectedValueOnce(new GoogleCalendarProviderError("provider_unavailable", "boom"));
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
       mockUpdateEvent.mockResolvedValueOnce(successResult());
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.interview.calendar.sync_status).toBe("synced");
     });
 
     it("uses the ORIGINAL calendar owner's connection, even when a different HR/Admin performs the reschedule", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id, "alice@gmail.com");
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       // Bob also has his own Google connection — a DIFFERENT one.
       await connectGoogle(bobA, companyA.id, "bob@gmail.com");
 
       mockUpdateEvent.mockResolvedValue(successResult());
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(bobA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
@@ -564,15 +568,15 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("produces a safe, retryable failed state when the calendar owner has disconnected", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const connection = await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { revoked_at: new Date() } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(bobA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
@@ -583,15 +587,15 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("produces a safe, retryable failed state when the owner's connection is missing the required Calendar permission", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const connection = await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { calendar_permission_granted: false } });
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/reschedule`)
+        .patch(`${interviewUrl(interviewPublicId)}/reschedule`)
         .set("Authorization", authHeaderFor(bobA, companyA.id))
         .send({ starts_at: hoursFromNow(48), ends_at: hoursFromNow(49), timezone: "Asia/Beirut" });
 
@@ -604,21 +608,21 @@ describe("Interview <-> Google Calendar sync API", () => {
   // ===== CANCEL SYNC =====
   describe("cancel sync", () => {
     it("keeps current behavior when there is no linked Google event", async () => {
-      const { interviewId } = await scheduleInterview();
-      const res = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { interviewId, interviewPublicId } = await scheduleInterview();
+      const res = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(mockCancelEvent).not.toHaveBeenCalled();
     });
 
     it("cancels the provider event using sendUpdates semantics on local cancellation", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockCancelEvent.mockResolvedValue(undefined);
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/cancel`)
+        .patch(`${interviewUrl(interviewPublicId)}/cancel`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ reason: "Candidate withdrew" });
 
@@ -629,34 +633,34 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("keeps the local cancellation even when provider cancellation fails, and allows retry", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockCancelEvent.mockRejectedValueOnce(new GoogleCalendarProviderError("provider_unavailable", "boom"));
-      const cancelRes = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const cancelRes = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(cancelRes.status).toBe(200);
       expect(cancelRes.body.interview.status).toBe("cancelled");
       expect(cancelRes.body.interview.calendar.sync_status).toBe("failed");
 
       mockCancelEvent.mockResolvedValueOnce(undefined);
-      const retryRes = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const retryRes = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(retryRes.status).toBe(200);
       expect(retryRes.body.interview.calendar.sync_status).toBe("synced");
     });
 
     it("remains possible after the Job has been soft-deleted", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
       mockCancelEvent.mockResolvedValue(undefined);
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/cancel`)
+        .patch(`${interviewUrl(interviewPublicId)}/cancel`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ reason: "Job closed administratively" });
       expect(res.status).toBe(200);
@@ -664,14 +668,14 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("produces a safe failed state (not a crash) when the calendar owner is disconnected", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const connection = await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { revoked_at: new Date() } });
 
-      const res = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(bobA, companyA.id)).send({});
+      const res = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(bobA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.interview.status).toBe("cancelled");
       expect(res.body.interview.calendar.sync_status).toBe("failed");
@@ -679,14 +683,14 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("produces a safe failed state (not a crash) when the owner's connection is missing the required Calendar permission", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const connection = await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { calendar_permission_granted: false } });
 
-      const res = await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(bobA, companyA.id)).send({});
+      const res = await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(bobA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.interview.status).toBe("cancelled");
       expect(res.body.interview.calendar.sync_status).toBe("failed");
@@ -700,14 +704,14 @@ describe("Interview <-> Google Calendar sync API", () => {
   // change; the Calendar event is historical and untouched.
   describe("complete: no calendar mutation", () => {
     it("does not call the Google Calendar provider at all when completing an Interview with a linked event", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       mockCreateEvent.mockClear();
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/complete`)
+        .patch(`${interviewUrl(interviewPublicId)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -720,14 +724,14 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("preserves the existing meeting_url/calendar fields unchanged after completion", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       const before = await Interview.findById(interviewId);
 
       await request(app)
-        .patch(`${interviewUrl(interviewId)}/complete`)
+        .patch(`${interviewUrl(interviewPublicId)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -738,10 +742,10 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("does not call the Google Calendar provider when completing an Interview with no linked event at all", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
 
       const res = await request(app)
-        .patch(`${interviewUrl(interviewId)}/complete`)
+        .patch(`${interviewUrl(interviewPublicId)}/complete`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -756,26 +760,26 @@ describe("Interview <-> Google Calendar sync API", () => {
   // ===== RETRY / SYNC ENDPOINT =====
   describe("sync/retry endpoint", () => {
     it("returns 404 for a cross-company Interview", async () => {
-      const { interviewId } = await scheduleInterview();
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
+      const { interviewId, interviewPublicId } = await scheduleInterview();
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrB, companyB.id)).send({});
       expect(res.status).toBe(404);
     });
 
     it("returns a safe conflict when the Interview has no Google integration at all", async () => {
-      const { interviewId } = await scheduleInterview();
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const { interviewId, interviewPublicId } = await scheduleInterview();
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
     });
 
     it("blocks retry when the owner's connection is missing the required Calendar permission, without calling the provider", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       const connection = await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       await GoogleCalendarConnection.updateOne({ _id: connection._id }, { $set: { calendar_permission_granted: false } });
 
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(409);
       expect(mockGetEvent).not.toHaveBeenCalled();
       expect(mockUpdateEvent).not.toHaveBeenCalled();
@@ -785,28 +789,28 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("retries a failed create as an initial create (idempotent, no duplicate)", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockRejectedValueOnce(new GoogleCalendarProviderError("provider_unavailable", "boom"));
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockCreateEvent.mockResolvedValueOnce(successResult());
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.interview.calendar.sync_status).toBe("synced");
       expect(mockCreateEvent).toHaveBeenCalledTimes(2);
     });
 
     it("re-syncs a cancelled Interview whose provider event still exists", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       mockCancelEvent.mockRejectedValueOnce(new GoogleCalendarProviderError("provider_unavailable", "boom"));
-      await request(app).patch(`${interviewUrl(interviewId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).patch(`${interviewUrl(interviewPublicId)}/cancel`).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       mockCancelEvent.mockResolvedValueOnce(undefined);
-      const res = await request(app).post(syncUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(syncUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.status).toBe(200);
       expect(res.body.interview.calendar.sync_status).toBe("synced");
     });
@@ -815,11 +819,11 @@ describe("Interview <-> Google Calendar sync API", () => {
   // ===== SECURITY =====
   describe("security", () => {
     it("never returns the encrypted refresh token or provider tokens in any Interview response", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(JSON.stringify(res.body)).not.toMatch(/ciphertext|encrypted_refresh_token|auth_tag|calendar_owner_user_id/i);
     });
 
@@ -830,11 +834,11 @@ describe("Interview <-> Google Calendar sync API", () => {
     });
 
     it("never exposes a raw Google error message to the client", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockRejectedValue(new Error("raw googleapis internal stack trace, should never appear"));
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(JSON.stringify(res.body)).not.toMatch(/raw googleapis internal stack trace/);
     });
   });
@@ -844,23 +848,23 @@ describe("Interview <-> Google Calendar sync API", () => {
     it("moving an Application into an interview stage does not touch calendar sync", async () => {
       const application = await createApplicationInInterviewStage();
       await request(app)
-        .patch(`/api/v1/applications/${application.id}/hiring-step`)
+        .patch(`/api/v1/applications/${application.public_id}/hiring-step`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ step_id: interviewStage.id });
       expect(mockCreateEvent).not.toHaveBeenCalled();
     });
 
     it("never constructs a fake meet.google.com URL locally", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue({ eventId: "evt-1", meetingUrl: null, conferencePending: true });
 
-      const res = await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      const res = await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
       expect(res.body.interview.calendar.meeting_url).toBeNull();
     });
 
     it("does not send a duplicate Nodemailer email for calendar events (only the schedule notification email is sent)", async () => {
-      const { interviewId } = await scheduleInterview();
+      const { interviewId, interviewPublicId } = await scheduleInterview();
       // Scheduling itself legitimately sends exactly one candidate
       // notification email (see interviewNotification.service.ts) —
       // this test's actual point is that the SEPARATE "Add to Google
@@ -871,7 +875,7 @@ describe("Interview <-> Google Calendar sync API", () => {
 
       await connectGoogle(hrA, companyA.id);
       mockCreateEvent.mockResolvedValue(successResult());
-      await request(app).post(createEventUrl(interviewId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
+      await request(app).post(createEventUrl(interviewPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
       expect(emailService.send).toHaveBeenCalledTimes(1);
     });

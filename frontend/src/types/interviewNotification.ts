@@ -12,6 +12,7 @@ export type InterviewNotificationStatus = (typeof INTERVIEW_NOTIFICATION_STATUSE
 
 export interface InterviewNotification {
   id: string;
+  public_id?: string;
   category: InterviewNotificationCategory;
   status: InterviewNotificationStatus;
   subject: string;

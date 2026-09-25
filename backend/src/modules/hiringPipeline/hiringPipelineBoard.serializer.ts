@@ -58,6 +58,10 @@ export interface AssessmentSummaryDTO {
 
 export interface BoardApplicationCardDTO {
   id: string;
+  // Opaque, URL-facing identifier — see applicationHr.serializer.ts's
+  // ApplicationListRowDTO.public_id doc comment. Absent only for an
+  // Application not yet covered by the backfill script.
+  public_id?: string;
   candidate: BoardCandidateDTO;
   status: string;
   applied_at: string;
@@ -112,6 +116,7 @@ export function serializeBoardApplicationCard(
 ): BoardApplicationCardDTO {
   return {
     id: application.id,
+    public_id: application.public_id ?? undefined,
     candidate: {
       id: candidate.id,
       full_name: candidate.full_name,

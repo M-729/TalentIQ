@@ -51,6 +51,9 @@ export interface LatestNotificationDTO {
 
 export interface InterviewDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for an Interview created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   title: string;
   stage: { id: string; name: string; type: string };
   starts_at: string;
@@ -131,6 +134,7 @@ export function serializeInterview(
 ): InterviewDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     title: doc.title,
     stage: {
       id: doc.hiring_step_id.toString(),
@@ -229,6 +233,8 @@ export interface JobRef {
 
 export interface InterviewListRowDTO {
   id: string;
+  // Opaque, URL-facing identifier — see InterviewDTO.public_id.
+  public_id?: string;
   title: string;
   /** null only if the owning Application/Candidate could not be resolved (defensive — should not happen in practice). */
   candidate: CandidateRef | null;
@@ -269,6 +275,7 @@ export interface InterviewListRowContext {
 export function serializeInterviewListRow(doc: InterviewDoc, ctx: InterviewListRowContext): InterviewListRowDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     title: doc.title,
     candidate: ctx.candidateByApplicationId.get(doc.application_id.toString()) ?? null,
     job: ctx.jobById.get(doc.job_id.toString()) ?? null,

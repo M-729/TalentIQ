@@ -5,6 +5,11 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 
 export interface Job {
   _id: string;
+  // Opaque, URL-safe identifier — prefer this over `_id` for any
+  // URL/navigation use. Optional only because a Job created before this
+  // field existed may not have one until the backend backfill runs; once
+  // that's complete for an environment, it's present on every Job.
+  public_id?: string;
   company_id: string;
   created_by: string;
   title: string;

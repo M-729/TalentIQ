@@ -18,7 +18,7 @@ interface PublicHeaderProps {
 export function PublicHeader({ backTo, backLabel }: PublicHeaderProps) {
   return (
     <header className="border-b border-border bg-card">
-      <div className="mx-auto flex min-h-16 max-w-3xl flex-wrap items-center justify-between gap-x-2 gap-y-2 px-4 py-3 sm:px-6">
+      <div className="flex min-h-16 flex-wrap items-center justify-between gap-x-2 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
         <BrandMark to="/careers" />
 
         <div className="flex items-center gap-3 sm:gap-4">

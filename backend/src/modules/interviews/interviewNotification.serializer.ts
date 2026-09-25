@@ -2,6 +2,9 @@ import type { EmailNotificationDoc } from "../../models/EmailNotification.model"
 
 export interface InterviewNotificationDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for a notification created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   category: string;
   status: string;
   subject: string;
@@ -24,6 +27,7 @@ export interface InterviewNotificationDTO {
 export function serializeInterviewNotification(doc: EmailNotificationDoc): InterviewNotificationDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     category: doc.category,
     status: doc.status,
     subject: doc.subject,

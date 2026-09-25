@@ -97,6 +97,50 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Opt-in only (font-heading/font-mono-accent utility classes) — the
+     brand mark and the Login/Signup/Careers/Job Detail pages use these;
+     the rest of the app keeps Tailwind's default font-sans stack. */
+  --font-heading: "Manrope", sans-serif;
+  --font-mono-accent: "JetBrains Mono", monospace;
+}
+
+/*
+ * Scoped theme for the Login, Signup, Careers, and Job Detail pages only
+ * (per this redesign's explicit "match these mockups, don't re-theme the
+ * rest of the already-hardened app" scope). Shared UI primitives
+ * (Button/Card/Input/Badge/etc.) all read these same variable names via
+ * the @theme block above, so overriding them here — instead of touching
+ * :root — makes every shared component pick up the mockups' exact
+ * palette automatically within this subtree, with zero effect outside it.
+ */
+.public-brand-theme {
+  --background: #fafafb;
+  --foreground: #14161f;
+
+  --card: #ffffff;
+  --card-foreground: #14161f;
+
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+
+  --secondary: #eef0ff;
+  --secondary-foreground: #14161f;
+
+  --muted: #eef0ff;
+  --muted-foreground: #5b5e74;
+
+  --accent: #eef0ff;
+  --accent-foreground: #3730a3;
+
+  --border: #e5e5ee;
+  --input: #e5e5ee;
+  --ring: #4f46e5;
+
+  --success: #15803d;
+  --success-foreground: #ffffff;
+
+  font-family: "Source Sans 3", sans-serif;
 }
 
 @layer base {

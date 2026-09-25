@@ -1,11 +1,16 @@
 import { z } from "zod";
-import { Types } from "mongoose";
+import { publicIdPattern } from "../../utils/publicId";
 
-const objectIdString = (label: string) =>
-  z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
+// Public-id only (Phase 2 cutover — see this ticket's report): a raw Mongo
+// ObjectId no longer resolves as an EmailNotification URL id.
+const NOTIFICATION_PUBLIC_ID_PATTERN = publicIdPattern("notif");
+const notificationIdentifierString = (label: string) =>
+  z.string().refine((val) => NOTIFICATION_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
 
 export const notificationIdParamsSchema = z.object({
-  notificationId: objectIdString("notification id"),
+  notificationId: notificationIdentifierString("notification id"),
 });
 
 // Retry accepts no business input at all — recipient/subject/body are

@@ -1,5 +1,4 @@
 import request from "supertest";
-import { Types } from "mongoose";
 import { createApp } from "../src/app";
 import { Job } from "../src/models/Job.model";
 import { createCompany, createUser } from "./helpers/factories";
@@ -25,7 +24,7 @@ describe("Public Job API", () => {
       status: "active",
     });
 
-    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
 
     expect(res.status).toBe(200);
     expect(res.body.job.title).toBe("Public Backend Role");
@@ -39,7 +38,7 @@ describe("Public Job API", () => {
       status: "active",
     });
 
-    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
 
     expect(res.status).toBe(200);
     expect(res.body.job.company_name).toBe("Acme Recruiting Co");
@@ -53,7 +52,7 @@ describe("Public Job API", () => {
       status: "active",
     });
 
-    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
 
     expect(res.status).toBe(200);
     expect(res.body.job.created_by).toBeUndefined();
@@ -69,7 +68,7 @@ describe("Public Job API", () => {
       status: "draft",
     });
 
-    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
     expect(res.status).toBe(404);
   });
 
@@ -81,12 +80,12 @@ describe("Public Job API", () => {
       status: "closed",
     });
 
-    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
     expect(res.status).toBe(404);
   });
 
   it("returns 404 for a nonexistent job, indistinguishable from draft/closed", async () => {
-    const res = await request(app).get(`/api/v1/public/jobs/${new Types.ObjectId().toString()}`);
+    const res = await request(app).get(`/api/v1/public/jobs/job_${"a".repeat(24)}`);
     expect(res.status).toBe(404);
     expect(res.body.error.message).toBe("Job not found");
   });
@@ -94,6 +93,49 @@ describe("Public Job API", () => {
   it("returns 400 for a malformed id", async () => {
     const res = await request(app).get("/api/v1/public/jobs/not-an-object-id");
     expect(res.status).toBe(400);
+  });
+
+  it("returns an active job looked up by its public_id", async () => {
+    const job = await Job.create({
+      company_id: company.id,
+      created_by: hr.id,
+      title: "Public Id Lookup",
+      status: "active",
+    });
+
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.job.title).toBe("Public Id Lookup");
+    expect(res.body.job.public_id).toBe(job.public_id);
+  });
+
+  // Phase 2 cutover: legacy dual-accept lookup is gone — a raw Mongo
+  // ObjectId is now just an invalid id format, not an alternate valid id,
+  // and must never resolve to the job even though it is active/published.
+  it("rejects a job looked up by its legacy Mongo ObjectId", async () => {
+    const job = await Job.create({
+      company_id: company.id,
+      created_by: hr.id,
+      title: "Legacy ObjectId Lookup",
+      status: "active",
+    });
+
+    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 for a draft job looked up by its public_id (publication rule still enforced)", async () => {
+    const job = await Job.create({
+      company_id: company.id,
+      created_by: hr.id,
+      title: "Draft By Public Id",
+      status: "draft",
+    });
+
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
+    expect(res.status).toBe(404);
   });
 
   it("does not require authentication even when no token is present at all", async () => {
@@ -104,7 +146,7 @@ describe("Public Job API", () => {
       status: "active",
     });
 
-    const res = await request(app).get(`/api/v1/public/jobs/${job.id}`).unset("Authorization");
+    const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`).unset("Authorization");
     expect(res.status).toBe(200);
   });
 
@@ -214,7 +256,7 @@ describe("Public Job API", () => {
 
       expect(res.status).toBe(200);
       expect(Object.keys(res.body.jobs[0]).sort()).toEqual(
-        ["_id", "title", "required_skills", "company_name"].sort()
+        ["_id", "public_id", "title", "required_skills", "company_name"].sort()
       );
       expect(JSON.stringify(res.body)).not.toMatch(/created_by|__v/i);
     });

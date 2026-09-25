@@ -7,6 +7,10 @@ export type ApplicationAssessmentStatus = (typeof APPLICATION_ASSESSMENT_STATUSE
 
 export interface ApplicationAssessment {
   id: string;
+  // Opaque, URL-safe identifier — prefer via lib/resourceUrlId.ts over `id`
+  // for any URL/navigation use. Assessment itself has no dedicated detail
+  // route yet, but this is kept in sync with every other migrated resource.
+  public_id?: string;
   application_id: string;
   job_id: string;
   hiring_step_id: string;
@@ -52,6 +56,7 @@ export type AssessmentEmailStatus = (typeof ASSESSMENT_EMAIL_STATUSES)[number];
 
 export interface AssessmentNotification {
   id: string;
+  public_id?: string;
   status: AssessmentEmailStatus;
   subject: string;
   recipient_email: string;
@@ -66,7 +71,11 @@ export interface AssessmentNotification {
 // ===== /assessments company-wide list =====
 export interface AssessmentListRow {
   id: string;
+  public_id?: string;
   application_id: string;
+  // Opaque, URL-safe identifier for the owning Application — see
+  // types/application.ts's ApplicationListRow.public_id.
+  application_public_id?: string;
   candidate: { id: string; full_name: string; email: string };
   job: { id: string; title: string };
   name: string;

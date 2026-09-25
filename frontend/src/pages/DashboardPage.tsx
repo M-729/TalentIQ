@@ -16,6 +16,7 @@ import { InterviewStatusBadge } from "@/components/interviews/InterviewStatusBad
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
 import { formatDateTime } from "@/lib/formatDate";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import { INTERVIEW_STATUSES, type InterviewStatus } from "@/types/interview";
 import type { Dashboard, DashboardApplicationRow, DashboardInterviewRow } from "@/types/dashboard";
 
@@ -106,7 +107,7 @@ function RecentApplicationsCard({ rows }: { rows: DashboardApplicationRow[] }) {
                     <td className="px-4 py-2.5 text-muted-foreground">{formatDate(row.applied_at)}</td>
                     <td className="px-4 py-2.5 pr-6 text-right">
                       <Button variant="outline" size="sm" asChild>
-                        <Link to={`/applications/${row.id}`}>View</Link>
+                        <Link to={`/applications/${resourceUrlId(row)}`}>View</Link>
                       </Button>
                     </td>
                   </tr>
@@ -166,7 +167,7 @@ function UpcomingInterviewsCard({ rows }: { rows: DashboardInterviewRow[] }) {
                     </td>
                     <td className="px-4 py-2.5 pr-6 text-right">
                       <Button variant="outline" size="sm" asChild>
-                        <Link to={`/applications/${row.application_id}`}>View</Link>
+                        <Link to={`/applications/${row.application_public_id}`}>View</Link>
                       </Button>
                     </td>
                   </tr>

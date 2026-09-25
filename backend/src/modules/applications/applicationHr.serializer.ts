@@ -35,6 +35,12 @@ export function serializeScreeningSummary(summary: ScreeningSummary | undefined)
 
 export interface ApplicationListRowDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for an Application created
+  // before this field existed and not yet covered by the backfill script.
+  // Prefer this over `id` for any URL/navigation use; `id` (the internal
+  // Mongo _id) is kept for now per this ticket's "don't remove _id until
+  // verified" rule.
+  public_id?: string;
   status: string;
   /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). See Application.model.ts's FINAL_DECISION_VALUES doc comment. */
   final_decision: string | null;
@@ -84,6 +90,7 @@ export function serializeApplicationListRow(
 ): ApplicationListRowDTO {
   return {
     id: application.id,
+    public_id: application.public_id ?? undefined,
     status: application.status,
     final_decision: application.final_decision ?? null,
     source: application.source ?? undefined,
@@ -108,6 +115,8 @@ export function serializeApplicationListRow(
 
 export interface ApplicationDetailDTO {
   id: string;
+  // Opaque, URL-facing identifier — see ApplicationListRowDTO.public_id.
+  public_id?: string;
   status: string;
   /** Set only once a truly final outcome exists (hired/rejected/declined) — null while merely "offered" (awaiting a response). See Application.model.ts's FINAL_DECISION_VALUES doc comment. */
   final_decision: string | null;
@@ -169,6 +178,7 @@ export function serializeApplicationDetail(
 ): ApplicationDetailDTO {
   return {
     id: application.id,
+    public_id: application.public_id ?? undefined,
     status: application.status,
     final_decision: application.final_decision ?? null,
     source: application.source ?? undefined,

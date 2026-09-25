@@ -1,5 +1,6 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { HIRING_STEP_TYPES } from "./HiringStep.model";
+import { generatePublicId } from "../utils/publicId";
 
 // Deliberately just three lifecycle states, mirroring HiringStep's own
 // small fixed-enum convention — the external exam platform owns whatever
@@ -52,6 +53,9 @@ const stageSnapshotSchema = new Schema(
  */
 const applicationAssessmentSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale.
+    public_id: { type: String, unique: true, sparse: true },
     company_id: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     application_id: { type: Schema.Types.ObjectId, ref: "Application", required: true },
     // Denormalized from the Application at creation time — same rationale
@@ -107,6 +111,15 @@ const applicationAssessmentSchema = new Schema(
   }
 );
 
+// Assigns public_id exactly once, only for a brand-new document — same
+// pattern/rationale as Job.model.ts's own pre("validate") hook.
+applicationAssessmentSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("assess");
+  }
+  next();
+});
+
 // At most one assessment per (Application, HiringStep) — see this
 // ticket's explicit Part 4. A double-click/retry on "Add Assessment"
 // collides here rather than creating a duplicate record.
@@ -120,6 +133,12 @@ applicationAssessmentSchema.index({ company_id: 1, job_id: 1 });
 applicationAssessmentSchema.index({ company_id: 1, status: 1 });
 
 export type ApplicationAssessmentDoc = HydratedDocument<InferSchemaType<typeof applicationAssessmentSchema>>;
+type ApplicationAssessmentShape = InferSchemaType<typeof applicationAssessmentSchema>;
+
+/** URL/route id resolution for ApplicationAssessment — see Job.model.ts's jobIdentifierFilter for the full rationale. Public-id only (Phase 2 cutover). */
+export function applicationAssessmentIdentifierFilter(idParam: string): FilterQuery<ApplicationAssessmentShape> {
+  return { public_id: idParam };
+}
 
 // The plain (non-Mongoose-subdocument) shape callers build to persist a
 // new stage_snapshot — same rationale as EmailNotification.model.ts's own

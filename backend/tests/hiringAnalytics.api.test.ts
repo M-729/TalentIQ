@@ -221,7 +221,7 @@ describe("GET /api/v1/hiring-analytics", () => {
     await createApplicationFor(jobC, { applied_at: daysAgo(3) });
 
     const res = await request(app)
-      .get(`${analyticsUrl}?range=30d&jobId=${jobA.id}`)
+      .get(`${analyticsUrl}?range=30d&jobId=${jobA.public_id}`)
       .set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(res.body.kpis.total_applications).toBe(1);
     expect(res.body.job_id).toBe(jobA.id);
@@ -230,9 +230,24 @@ describe("GET /api/v1/hiring-analytics", () => {
   it("returns 404 for a jobId belonging to another company", async () => {
     const jobB = await Job.create({ company_id: companyB.id, created_by: hrB.id, title: "Other Job", status: "active" });
     const res = await request(app)
-      .get(`${analyticsUrl}?jobId=${jobB.id}`)
+      .get(`${analyticsUrl}?jobId=${jobB.public_id}`)
       .set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(res.status).toBe(404);
+  });
+
+  // Phase 1 dual-accept migration: the jobId filter is a "special
+  // attention" case — resolved to Job's real internal id (echoed back as
+  // job_id in the response) before being used against Application.job_id/
+  // Offer.job_id.
+  it("filters by jobId given as the Job's public_id, echoing back the real internal id", async () => {
+    await createApplicationFor(jobA, { applied_at: daysAgo(3) });
+
+    const res = await request(app)
+      .get(`${analyticsUrl}?range=30d&jobId=${jobA.public_id}`)
+      .set("Authorization", authHeaderFor(hrA, companyA.id));
+    expect(res.status).toBe(200);
+    expect(res.body.kpis.total_applications).toBe(1);
+    expect(res.body.job_id).toBe(jobA.id);
   });
 
   // 52. tenant isolation
@@ -318,7 +333,7 @@ describe("GET /api/v1/hiring-analytics", () => {
       await createApplicationFor(jobC, { applied_at: daysAgo(2) });
 
       const res = await request(app)
-        .get(`${analyticsUrl}?range=30d&jobId=${jobA.id}`)
+        .get(`${analyticsUrl}?range=30d&jobId=${jobA.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       const points = res.body.applications_over_time as { period: string; count: number }[];
       expect(points.reduce((total, point) => total + point.count, 0)).toBe(1);

@@ -116,7 +116,7 @@ describe("HR Applications Management API", () => {
 
     it("rejects an unauthenticated detail request with 401", async () => {
       const { application } = await createApplication(companyA, hrA);
-      const res = await request(app).get(`/api/v1/applications/${application.id}`);
+      const res = await request(app).get(`/api/v1/applications/${application.public_id}`);
       expect(res.status).toBe(401);
     });
 
@@ -149,7 +149,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -160,17 +160,51 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyB, hrB);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
     });
 
-    it("returns 404 for a nonexistent application", async () => {
-      const missingId = new Types.ObjectId().toString();
+    it("returns 404 for a well-formed public_id that doesn't exist", async () => {
+      const missingId = `app_${"a".repeat(24)}`;
 
       const res = await request(app)
         .get(`/api/v1/applications/${missingId}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(404);
+    });
+
+    it("returns a same-company application looked up by its public_id", async () => {
+      const { application } = await createApplication(companyA, hrA);
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.public_id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(200);
+      expect(res.body.application.id).toBe(application.id);
+      expect(res.body.application.public_id).toBe(application.public_id);
+    });
+
+    // Phase 2 cutover: legacy dual-accept lookup is gone — a raw Mongo
+    // ObjectId is now just an invalid id format, not an alternate valid id.
+    it("rejects an application looked up by its legacy Mongo ObjectId", async () => {
+      const { application } = await createApplication(companyA, hrA);
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for another company's application looked up by public_id (tenant scoping preserved)", async () => {
+      const { application } = await createApplication(companyB, hrB);
+
+      const res = await request(app)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -251,12 +285,16 @@ describe("HR Applications Management API", () => {
       expect(res.body.applications[0].id).toBe(hired.id);
     });
 
+    // The jobId filter is a "special attention" case (Job used as an
+    // external filter parameter on another resource's list, not Job's own
+    // URL) — resolved to Job's real internal id before being used against
+    // Application.job_id. Only the Job's public_id resolves (Phase 2).
     it("filters by jobId, restricted to the caller's own company", async () => {
       const { job: jobA1, application: appA1 } = await createApplication(companyA, hrA);
       await createApplication(companyA, hrA); // a second, different job in the same company
 
       const res = await request(app)
-        .get(`/api/v1/applications?jobId=${jobA1.id}`)
+        .get(`/api/v1/applications?jobId=${jobA1.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.applications).toHaveLength(1);
@@ -267,10 +305,22 @@ describe("HR Applications Management API", () => {
       const { job: jobB } = await createApplication(companyB, hrB);
 
       const res = await request(app)
-        .get(`/api/v1/applications?jobId=${jobB.id}`)
+        .get(`/api/v1/applications?jobId=${jobB.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
+    });
+
+    // Phase 2 cutover: legacy dual-accept lookup is gone for the jobId
+    // filter too — a raw Mongo ObjectId is now just an invalid id format.
+    it("rejects a jobId filter given as the Job's legacy Mongo ObjectId", async () => {
+      const { job: jobA1 } = await createApplication(companyA, hrA);
+
+      const res = await request(app)
+        .get(`/api/v1/applications?jobId=${jobA1.id}`)
+        .set("Authorization", authHeaderFor(hrA, companyA.id));
+
+      expect(res.status).toBe(400);
     });
 
     it("searches by candidate full name", async () => {
@@ -450,7 +500,7 @@ describe("HR Applications Management API", () => {
       });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.candidate).toEqual({
@@ -468,7 +518,7 @@ describe("HR Applications Management API", () => {
       });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.job.id).toBe(job.id);
@@ -482,7 +532,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.cv).toEqual({
@@ -496,7 +546,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.current_step).toBeNull();
@@ -509,7 +559,7 @@ describe("HR Applications Management API", () => {
       await Application.updateOne({ _id: application.id }, { $set: { status: "in_process", current_step_id: step._id } });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.current_step).toEqual({ id: step.id, name: "Technical Interview", type: "interview" });
@@ -523,7 +573,7 @@ describe("HR Applications Management API", () => {
       await HiringStep.updateOne({ _id: step._id }, { $set: { name: "Engineering Interview" } });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.current_step.name).toBe("Engineering Interview");
@@ -533,7 +583,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(JSON.stringify(res.body)).not.toContain("storage_key");
@@ -544,7 +594,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(JSON.stringify(res.body)).not.toContain("company_id");
@@ -558,7 +608,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.screening).toEqual({ has_screening: false, status: "not_started" });
@@ -570,7 +620,7 @@ describe("HR Applications Management API", () => {
 
       const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
       const detailRes = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(listRes.body.applications[0].screening).toEqual({ status: "processing", has_screening: false });
@@ -590,7 +640,7 @@ describe("HR Applications Management API", () => {
 
       const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
       const detailRes = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       // Both GETs succeed and report the derived status purely from
@@ -617,7 +667,7 @@ describe("HR Applications Management API", () => {
       await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 77 } });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.screening.status).toBe("completed");
@@ -637,7 +687,7 @@ describe("HR Applications Management API", () => {
 
       const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
       const detailRes = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(listRes.body.applications[0].screening).toEqual({ status: "failed", has_screening: false });
@@ -655,7 +705,7 @@ describe("HR Applications Management API", () => {
       expect(await AIScreeningRun.countDocuments({ application_id: application.id })).toBe(0);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.screening.status).toBe("completed");
@@ -668,7 +718,7 @@ describe("HR Applications Management API", () => {
 
       const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
       const detailRes = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(listRes.body.applications[0].screening.has_screening).toBe(true);
@@ -681,7 +731,7 @@ describe("HR Applications Management API", () => {
       const screening = await insertScreening(application.id, job.id);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(new Date(res.body.application.screening.latest_screened_at).toISOString()).toBe(
@@ -696,7 +746,7 @@ describe("HR Applications Management API", () => {
       await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 90 } });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.application.screening.latest_score).toBe(90);
@@ -723,7 +773,7 @@ describe("HR Applications Management API", () => {
       await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 63 } });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -735,10 +785,10 @@ describe("HR Applications Management API", () => {
       await insertScreening(application.id, job.id, { match: { ...VALID_MATCH_SNAPSHOT, score: 63 } });
 
       const first = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       const second = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(first.body.application.screening.latest_score).toBe(63);
@@ -793,7 +843,7 @@ describe("HR Applications Management API", () => {
 
       const listRes = await request(app).get("/api/v1/applications").set("Authorization", authHeaderFor(hrA, companyA.id));
       const detailRes = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       for (const body of [listRes.body, detailRes.body]) {
@@ -808,7 +858,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       // The detail DTO only ever includes cv metadata (name/type/size) —
@@ -822,7 +872,7 @@ describe("HR Applications Management API", () => {
       await insertScreening(application.id, job.id);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const serialized = JSON.stringify(res.body);
@@ -838,7 +888,7 @@ describe("HR Applications Management API", () => {
       const { application } = await createApplication(companyA, hrA);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const serialized = JSON.stringify(res.body).toLowerCase();

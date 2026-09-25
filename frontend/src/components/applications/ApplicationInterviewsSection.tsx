@@ -10,6 +10,7 @@ import { CopyMeetLinkButton, JoinMeetLink, canJoinMeet } from "@/components/inte
 import { ScheduleInterviewDialog } from "@/components/interviews/ScheduleInterviewDialog";
 import { useApplicationInterviews } from "@/hooks/useApplicationInterviews";
 import { formatDateTime } from "@/lib/formatDate";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationDetail } from "@/types/application";
 import type { Interview } from "@/types/interview";
 import type { LatestNotificationSummary } from "@/types/interviewNotification";
@@ -49,7 +50,7 @@ function feedbackProgressLabel(interview: Interview): string | null {
 // — entering an interview-type stage never opens this dialog on its own
 // (that transition happens entirely through the separate Move action).
 export function ApplicationInterviewsSection({ application }: ApplicationInterviewsSectionProps) {
-  const { interviews, isLoading, error, refetch } = useApplicationInterviews(application.id);
+  const { interviews, isLoading, error, refetch } = useApplicationInterviews(resourceUrlId(application));
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
 
   const isInterviewStage = application.status === "in_process" && application.current_step?.type === "interview";
@@ -96,7 +97,7 @@ export function ApplicationInterviewsSection({ application }: ApplicationIntervi
               <li key={interview.id} className="rounded-md border border-border p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <Link to={`/interviews/${interview.id}`} className="font-medium text-foreground hover:underline">
+                    <Link to={`/interviews/${resourceUrlId(interview)}`} className="font-medium text-foreground hover:underline">
                       {interview.title}
                     </Link>
                     <p className="text-xs text-muted-foreground">{interview.stage.name}</p>
@@ -139,7 +140,7 @@ export function ApplicationInterviewsSection({ application }: ApplicationIntervi
         <ScheduleInterviewDialog
           open={isScheduleOpen}
           onOpenChange={setIsScheduleOpen}
-          applicationId={application.id}
+          applicationId={resourceUrlId(application)}
           defaultTitle={application.current_step.name}
           onScheduled={() => {
             setIsScheduleOpen(false);

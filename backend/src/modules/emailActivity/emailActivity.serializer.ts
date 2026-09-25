@@ -24,6 +24,13 @@ export function emailActivityTypeLabel(type: EmailActivityType): string {
  */
 export interface EmailActivityRowDTO {
   id: string;
+  // Opaque, URL-facing identifier for THIS row's own underlying document
+  // (the EmailNotification when source is "email_notification", or the
+  // CompanyInvitation when source is "company_invitation") — used for
+  // retry/resend actions (notif_.../retry, invite_.../resend). See
+  // EmailNotification.model.ts's/CompanyInvitation.model.ts's own
+  // public_id doc comment.
+  public_id?: string;
   source: "email_notification" | "company_invitation";
   type: EmailActivityType;
   type_label: string;
@@ -33,10 +40,20 @@ export interface EmailActivityRowDTO {
   updated_at: string;
   related_label: string;
   related_application_id?: string;
+  /** Opaque, URL-facing identifier for the related Application — see ApplicationListRowDTO.public_id. */
+  related_application_public_id?: string;
   related_interview_id?: string;
+  /** Opaque, URL-facing identifier for the related Interview — see InterviewDTO.public_id. */
+  related_interview_public_id?: string;
   related_offer_id?: string;
+  /** Opaque, URL-facing identifier for the related Offer — see OfferDTO.public_id. */
+  related_offer_public_id?: string;
   related_assessment_id?: string;
+  /** Opaque, URL-facing identifier for the related ApplicationAssessment — see ApplicationAssessmentDTO.public_id. */
+  related_assessment_public_id?: string;
   related_invitation_id?: string;
+  /** Opaque, URL-facing identifier for the related CompanyInvitation — same value as this row's own public_id when source is "company_invitation". */
+  related_invitation_public_id?: string;
 }
 
 export interface EmailActivityListDTO {

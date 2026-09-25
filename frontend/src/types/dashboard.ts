@@ -8,6 +8,9 @@ export interface DashboardMetrics {
 
 export interface DashboardApplicationRow {
   id: string;
+  // Opaque, URL-safe identifier — see types/application.ts's
+  // ApplicationListRow.public_id.
+  public_id?: string;
   candidate: { id: string; name: string };
   job: { id: string; title: string };
   status: string;
@@ -17,7 +20,10 @@ export interface DashboardApplicationRow {
 
 export interface DashboardInterviewRow {
   id: string;
-  application_id: string;
+  // Opaque, URL-safe identifier for the parent Application — the raw Mongo
+  // application_id is deliberately not sent by the backend (Phase 2
+  // cutover); navigation must use this field.
+  application_public_id: string;
   candidate: { id: string; name: string };
   job: { id: string; title: string };
   starts_at: string;

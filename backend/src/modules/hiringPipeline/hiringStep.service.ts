@@ -1,9 +1,9 @@
 import { Types } from "mongoose";
 import { Application } from "../../models/Application.model";
-import { HiringStep, type HiringStepDoc } from "../../models/HiringStep.model";
-import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
+import { HiringStep, hiringStepIdentifierFilter, type HiringStepDoc } from "../../models/HiringStep.model";
+import { Job, NOT_DELETED_JOB_FILTER, jobIdentifierFilter } from "../../models/Job.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
-import { assertOwnedByCompany } from "../../security/companyScope";
+import { companyFilter } from "../../security/companyScope";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
 import type { CreateHiringStepInput, UpdateHiringStepInput } from "./hiringStep.validation";
 
@@ -13,6 +13,30 @@ const DUPLICATE_NAME_MESSAGE = "A hiring stage with this name already exists for
 // HiringStep.model.ts) — reusing it here means this pre-check and the
 // database constraint it backs up always agree on what "duplicate" means.
 const CASE_INSENSITIVE_COLLATION = { locale: "en", strength: 2 } as const;
+
+/**
+ * Resolves a dual-accept Job URL path segment (public_id or legacy
+ * ObjectId — see job.validation.ts's jobIdentifierString) to the Job's
+ * real internal _id, scoped to the caller's company AND requiring the Job
+ * not be soft-deleted — the exact same ownership+liveness gate every
+ * function in this file already enforced via assertOwnedByCompany, just
+ * also returning the real id every HiringStep.job_id query below actually
+ * needs (HiringStep never itself stores a public_id reference — job_id
+ * remains a plain ObjectId FK). Throws the same "Job not found" 404 the
+ * old assertOwnedByCompany call did for a nonexistent/cross-company/soft-
+ * deleted Job.
+ */
+async function resolveActiveJobId(companyId: string, jobId: string): Promise<string> {
+  const job = await Job.findOne({
+    ...jobIdentifierFilter(jobId),
+    ...companyFilter(companyId),
+    ...NOT_DELETED_JOB_FILTER,
+  }).select("_id");
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
+  return job.id;
+}
 
 async function assertNoDuplicateName(jobId: string, name: string, excludeStepId?: string): Promise<void> {
   const exists = await HiringStep.exists({
@@ -38,8 +62,8 @@ async function assertNoDuplicateName(jobId: string, name: string, excludeStepId?
  * state.
  */
 export async function listHiringSteps(companyId: string, jobId: string): Promise<HiringStepDoc[]> {
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
-  return HiringStep.find({ job_id: jobId }).sort({ position: 1 });
+  const resolvedJobId = await resolveActiveJobId(companyId, jobId);
+  return HiringStep.find({ job_id: resolvedJobId }).sort({ position: 1 });
 }
 
 /**
@@ -54,14 +78,14 @@ export async function createHiringStep(
   jobId: string,
   input: CreateHiringStepInput
 ): Promise<HiringStepDoc> {
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
-  await assertNoDuplicateName(jobId, input.name);
+  const resolvedJobId = await resolveActiveJobId(companyId, jobId);
+  await assertNoDuplicateName(resolvedJobId, input.name);
 
-  const position = await HiringStep.countDocuments({ job_id: jobId });
+  const position = await HiringStep.countDocuments({ job_id: resolvedJobId });
 
   try {
     return await HiringStep.create({
-      job_id: jobId,
+      job_id: resolvedJobId,
       name: input.name,
       type: input.type,
       description: input.description,
@@ -90,15 +114,15 @@ export async function updateHiringStep(
   stepId: string,
   input: UpdateHiringStepInput
 ): Promise<HiringStepDoc> {
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
+  const resolvedJobId = await resolveActiveJobId(companyId, jobId);
 
-  const step = await HiringStep.findOne({ _id: stepId, job_id: jobId });
+  const step = await HiringStep.findOne({ ...hiringStepIdentifierFilter(stepId), job_id: resolvedJobId });
   if (!step) {
     throw new NotFoundError("Hiring stage not found");
   }
 
   if (input.name !== undefined) {
-    await assertNoDuplicateName(jobId, input.name, stepId);
+    await assertNoDuplicateName(resolvedJobId, input.name, step.id);
     step.name = input.name;
   }
   if (input.type !== undefined) {
@@ -143,9 +167,9 @@ export async function reorderHiringSteps(
   jobId: string,
   orderedStepIds: string[]
 ): Promise<HiringStepDoc[]> {
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
+  const resolvedJobId = await resolveActiveJobId(companyId, jobId);
 
-  const existingSteps = await HiringStep.find({ job_id: jobId }).select("_id");
+  const existingSteps = await HiringStep.find({ job_id: resolvedJobId }).select("_id");
   const existingIds = new Set(existingSteps.map((step) => step.id));
 
   const submittedIds = new Set(orderedStepIds);
@@ -179,14 +203,14 @@ export async function reorderHiringSteps(
     await HiringStep.collection.bulkWrite(
       orderedStepIds.map((stepId, index) => ({
         updateOne: {
-          filter: { _id: new Types.ObjectId(stepId), job_id: new Types.ObjectId(jobId) },
+          filter: { _id: new Types.ObjectId(stepId), job_id: new Types.ObjectId(resolvedJobId) },
           update: { $set: { position: index } },
         },
       }))
     );
   }
 
-  return HiringStep.find({ job_id: jobId }).sort({ position: 1 });
+  return HiringStep.find({ job_id: resolvedJobId }).sort({ position: 1 });
 }
 
 /**
@@ -200,9 +224,9 @@ export async function reorderHiringSteps(
  * the pipeline stays contiguous (0..N-1) — see HiringStep.model.ts.
  */
 export async function deleteHiringStep(companyId: string, jobId: string, stepId: string): Promise<void> {
-  await assertOwnedByCompany(Job, { _id: jobId, ...NOT_DELETED_JOB_FILTER }, companyId, { notFoundMessage: "Job not found" });
+  const resolvedJobId = await resolveActiveJobId(companyId, jobId);
 
-  const step = await HiringStep.findOne({ _id: stepId, job_id: jobId });
+  const step = await HiringStep.findOne({ ...hiringStepIdentifierFilter(stepId), job_id: resolvedJobId });
   if (!step) {
     throw new NotFoundError("Hiring stage not found");
   }
@@ -213,5 +237,5 @@ export async function deleteHiringStep(companyId: string, jobId: string, stepId:
   }
 
   await HiringStep.deleteOne({ _id: step._id });
-  await HiringStep.updateMany({ job_id: jobId, position: { $gt: step.position } }, { $inc: { position: -1 } });
+  await HiringStep.updateMany({ job_id: resolvedJobId, position: { $gt: step.position } }, { $inc: { position: -1 } });
 }

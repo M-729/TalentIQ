@@ -1,14 +1,15 @@
 import mongoose, { Types, type FilterQuery } from "mongoose";
-import { Offer, type OfferDoc, type OfferResponseSource, type OfferStatus } from "../../models/Offer.model";
+import { Offer, offerIdentifierFilter, type OfferDoc, type OfferResponseSource, type OfferStatus } from "../../models/Offer.model";
 import { Application, type ApplicationDoc } from "../../models/Application.model";
 import { Candidate } from "../../models/Candidate.model";
 import { Job } from "../../models/Job.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
 import { getAccessibleApplication, getAccessibleApplicationForActiveJob } from "../applications/applicationAccess.service";
-import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
+import { companyFilter } from "../../security/companyScope";
 import { escapeRegExp } from "../../utils/regex";
 import { TERMINAL_STATUSES, TERMINAL_STATE_MESSAGE } from "../stageTransitions/stageTransition.service";
+import { resolveJobId } from "../jobs/job.service";
 import type { CreateOfferInput, UpdateOfferInput } from "./offer.validation";
 import { serializeOfferListRow, type OfferListRowDTO } from "./offer.serializer";
 
@@ -79,7 +80,7 @@ export async function createOffer(
 }
 
 async function getOwnedOffer(companyId: string, offerId: string): Promise<OfferDoc> {
-  const offer = await Offer.findOne({ _id: offerId, company_id: companyId });
+  const offer = await Offer.findOne({ ...offerIdentifierFilter(offerId), company_id: companyId });
   if (!offer) {
     throw new NotFoundError("Offer not found");
   }
@@ -98,8 +99,8 @@ async function getOwnedOffer(companyId: string, offerId: string): Promise<OfferD
  * fully visible, company-wide.
  */
 export async function getCurrentOfferForApplication(companyId: string, applicationId: string): Promise<OfferDoc | null> {
-  await getAccessibleApplication(applicationId, companyId);
-  return Offer.findOne({ application_id: applicationId, status: { $ne: "withdrawn" } });
+  const application = await getAccessibleApplication(applicationId, companyId);
+  return Offer.findOne({ application_id: application.id, status: { $ne: "withdrawn" } });
 }
 
 /**
@@ -174,7 +175,7 @@ export async function withdrawOffer(companyId: string, userId: string, offerId: 
 
     await session.withTransaction(async () => {
       const updatedOffer = await Offer.findOneAndUpdate(
-        { _id: offerId, status: observedStatus },
+        { _id: offer._id, status: observedStatus },
         { $set: { status: "withdrawn", is_live: false, withdrawn_at: new Date(), updated_by_user_id: userId } },
         { new: true, session }
       );
@@ -239,6 +240,15 @@ export interface OfferResponder {
  * resolve to exactly one winner: whichever commits first wins, and the
  * loser's guard matches nothing, regardless of which source or which
  * token/session triggered each request.
+ *
+ * `offerId` here must always be the Offer's real Mongo _id, never a raw
+ * URL/route param — the offerResponse.service.ts candidate path already
+ * only ever resolves a real _id via its own token lookup, and the
+ * markOfferAccepted/markOfferDeclined HR callers below must pass the
+ * `.id` from an already-resolved Offer document (see getOwnedOffer,
+ * which is the one place a dual-accept public_id-or-ObjectId URL param
+ * gets translated into that real id) rather than their own raw offerId
+ * parameter.
  */
 export async function applyOfferResponse(
   offerId: string,
@@ -285,16 +295,16 @@ export async function applyOfferResponse(
  * public candidate response flow.
  */
 export async function markOfferAccepted(companyId: string, userId: string, offerId: string): Promise<OfferDoc> {
-  await getOwnedOffer(companyId, offerId);
-  return applyOfferResponse(offerId, "accepted", { source: "hr", userId }, companyId);
+  const offer = await getOwnedOffer(companyId, offerId);
+  return applyOfferResponse(offer.id, "accepted", { source: "hr", userId }, companyId);
 }
 
 /**
  * "Mark Declined" — same HR manual-fallback model as markOfferAccepted.
  */
 export async function markOfferDeclined(companyId: string, userId: string, offerId: string): Promise<OfferDoc> {
-  await getOwnedOffer(companyId, offerId);
-  return applyOfferResponse(offerId, "declined", { source: "hr", userId }, companyId);
+  const offer = await getOwnedOffer(companyId, offerId);
+  return applyOfferResponse(offer.id, "declined", { source: "hr", userId }, companyId);
 }
 
 export interface MarkHiredResult {
@@ -365,8 +375,16 @@ export interface ListOffersResult {
  * number of queries regardless of page size, never one lookup per row.
  */
 export async function listOffers(companyId: string, filters: ListOffersFilters): Promise<ListOffersResult> {
+  // filters.jobId is a dual-accept public_id-or-ObjectId (see
+  // job.service.ts's resolveJobId) — resolved to the real internal id
+  // here before being used against Offer.job_id, which is always a plain
+  // ObjectId reference and was never itself migrated.
+  let resolvedJobId: string | null = null;
   if (filters.jobId) {
-    await assertOwnedByCompany(Job, { _id: filters.jobId }, companyId, { notFoundMessage: "Job not found" });
+    resolvedJobId = await resolveJobId(companyId, filters.jobId);
+    if (!resolvedJobId) {
+      throw new NotFoundError("Job not found");
+    }
   }
 
   let searchFilter: FilterQuery<OfferDoc> = {};
@@ -379,7 +397,7 @@ export async function listOffers(companyId: string, filters: ListOffersFilters):
 
   const filter: FilterQuery<OfferDoc> = {
     ...companyFilter(companyId),
-    ...(filters.jobId ? { job_id: filters.jobId } : {}),
+    ...(resolvedJobId ? { job_id: resolvedJobId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...searchFilter,
   };
@@ -394,20 +412,26 @@ export async function listOffers(companyId: string, filters: ListOffersFilters):
 
   const candidateIds = [...new Set(offers.map((o) => o.candidate_id.toString()))];
   const jobIds = [...new Set(offers.map((o) => o.job_id.toString()))];
+  const applicationIds = [...new Set(offers.map((o) => o.application_id.toString()))];
 
-  const [candidates, jobs] = await Promise.all([
+  const [candidates, jobs, applications] = await Promise.all([
     Candidate.find({ _id: { $in: candidateIds } }),
     Job.find({ _id: { $in: jobIds } }),
+    // Only ever needed for its public_id (see
+    // OfferListRowDTO.application_public_id) — never re-serialized itself.
+    Application.find({ _id: { $in: applicationIds } }).select("public_id"),
   ]);
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
   const jobById = new Map(jobs.map((j) => [j.id, j]));
+  const applicationById = new Map(applications.map((a) => [a.id, a]));
 
   const rows: OfferListRowDTO[] = [];
   for (const offer of offers) {
     const candidate = candidateById.get(offer.candidate_id.toString());
     const job = jobById.get(offer.job_id.toString());
     if (!candidate || !job) continue;
-    rows.push(serializeOfferListRow(offer, candidate, job));
+    const applicationPublicId = applicationById.get(offer.application_id.toString())?.public_id ?? undefined;
+    rows.push(serializeOfferListRow(offer, candidate, job, applicationPublicId));
   }
 
   return { offers: rows, total };

@@ -80,4 +80,37 @@ describe("HiringStep model", () => {
       HiringStep.create({ job_id: new Types.ObjectId(), name: "Technical Interview", type: "interview", position: 0 })
     ).resolves.toBeTruthy();
   });
+
+  describe("public_id", () => {
+    it("is assigned automatically on creation with the step_ prefix and 24-char hex suffix", async () => {
+      const step = await HiringStep.create({ job_id: new Types.ObjectId(), name: "Review", type: "review", position: 0 });
+      expect(step.public_id).toMatch(/^step_[a-f0-9]{24}$/);
+    });
+
+    it("assigns a different public_id to every new step", async () => {
+      const jobId = new Types.ObjectId();
+      const steps = await Promise.all([
+        HiringStep.create({ job_id: jobId, name: "Review", type: "review", position: 0 }),
+        HiringStep.create({ job_id: jobId, name: "Technical Interview", type: "interview", position: 1 }),
+      ]);
+      expect(new Set(steps.map((s) => s.public_id)).size).toBe(2);
+    });
+
+    it("has a unique, sparse index on public_id", () => {
+      const indexes = HiringStep.schema.indexes();
+      const publicIdIndex = indexes.find(([spec]) => spec.public_id === 1);
+      expect(publicIdIndex).toBeDefined();
+      expect(publicIdIndex?.[1]).toMatchObject({ unique: true, sparse: true });
+    });
+
+    it("leaves public_id untouched when an existing step is re-saved", async () => {
+      const step = await HiringStep.create({ job_id: new Types.ObjectId(), name: "Review", type: "review", position: 0 });
+      const originalPublicId = step.public_id;
+
+      step.name = "Application Review";
+      await step.save();
+
+      expect(step.public_id).toBe(originalPublicId);
+    });
+  });
 });

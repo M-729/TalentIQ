@@ -46,7 +46,7 @@ export async function getFeedbackForInterview(interviewId: string, companyId: st
   const interview = await getAccessibleInterview(interviewId, companyId);
   const interviewerIds = interview.interviewer_user_ids.map((id) => id.toString());
 
-  const records = interviewerIds.length > 0 ? await InterviewFeedback.find({ interview_id: interviewId }) : [];
+  const records = interviewerIds.length > 0 ? await InterviewFeedback.find({ interview_id: interview.id }) : [];
   const recordByInterviewerId = new Map(records.map((record) => [record.interviewer_user_id.toString(), record]));
 
   const missingIds = interviewerIds.filter((id) => !recordByInterviewerId.has(id));
@@ -101,7 +101,7 @@ export async function saveFeedbackDraft(
   if (input.concerns !== undefined) setFields.concerns = input.concerns;
   if (input.private_notes !== undefined) setFields.private_notes = input.private_notes;
 
-  const existing = await InterviewFeedback.findOne({ interview_id: interviewId, interviewer_user_id: userId });
+  const existing = await InterviewFeedback.findOne({ interview_id: interview.id, interviewer_user_id: userId });
   if (existing) {
     if (existing.status === "submitted") {
       throw new ConflictError(ALREADY_SUBMITTED_MESSAGE);
@@ -120,7 +120,7 @@ export async function saveFeedbackDraft(
   try {
     return await InterviewFeedback.create({
       company_id: companyId,
-      interview_id: interviewId,
+      interview_id: interview.id,
       application_id: interview.application_id,
       interviewer_user_id: userId,
       interviewer_snapshot: { name: user!.name, email: user!.email },
@@ -136,7 +136,7 @@ export async function saveFeedbackDraft(
       // Another concurrent draft-save request for this same interviewer
       // already created the record first — apply this save on top of it
       // rather than losing the caller's input.
-      const created = await InterviewFeedback.findOne({ interview_id: interviewId, interviewer_user_id: userId });
+      const created = await InterviewFeedback.findOne({ interview_id: interview.id, interviewer_user_id: userId });
       if (created && created.status === "draft" && Object.keys(setFields).length > 0) {
         const merged = await InterviewFeedback.findOneAndUpdate({ _id: created._id, status: "draft" }, { $set: setFields }, { new: true });
         return merged ?? created;
@@ -180,7 +180,7 @@ export async function submitFeedback(
     private_notes: input.private_notes ?? "",
   };
 
-  const existing = await InterviewFeedback.findOne({ interview_id: interviewId, interviewer_user_id: userId });
+  const existing = await InterviewFeedback.findOne({ interview_id: interview.id, interviewer_user_id: userId });
   if (existing) {
     if (existing.status === "submitted") {
       throw new ConflictError(ALREADY_SUBMITTED_MESSAGE);
@@ -201,7 +201,7 @@ export async function submitFeedback(
   try {
     return await InterviewFeedback.create({
       company_id: companyId,
-      interview_id: interviewId,
+      interview_id: interview.id,
       application_id: interview.application_id,
       interviewer_user_id: userId,
       interviewer_snapshot: { name: user!.name, email: user!.email },

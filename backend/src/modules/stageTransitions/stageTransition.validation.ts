@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { Types } from "mongoose";
+import { applicationIdentifierString } from "../applications/applicationHr.validation";
 
 const objectIdString = (label: string) =>
   z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
 
 export const applicationIdParamsSchema = z.object({
-  applicationId: objectIdString("application id"),
+  applicationId: applicationIdentifierString("application id"),
 });
 
 // `.strict()` — every field this action needs beyond step_id/note is

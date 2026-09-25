@@ -1,5 +1,6 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, type FilterQuery, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { HIRING_STEP_TYPES } from "./HiringStep.model";
+import { generatePublicId } from "../utils/publicId";
 
 export const INTERVIEW_STATUSES = ["scheduled", "cancelled", "completed"] as const;
 export type InterviewStatus = (typeof INTERVIEW_STATUSES)[number];
@@ -70,6 +71,9 @@ const interviewStageSnapshotSchema = new Schema(
  */
 const interviewSchema = new Schema(
   {
+    // Opaque, URL-facing identifier — see utils/publicId.ts and
+    // Job.model.ts's public_id field for the full rationale.
+    public_id: { type: String, unique: true, sparse: true },
     application_id: { type: Schema.Types.ObjectId, ref: "Application", required: true },
     job_id: { type: Schema.Types.ObjectId, ref: "Job", required: true },
     hiring_step_id: { type: Schema.Types.ObjectId, ref: "HiringStep", required: true },
@@ -145,6 +149,15 @@ const interviewSchema = new Schema(
   }
 );
 
+// Assigns public_id exactly once, only for a brand-new document — same
+// pattern/rationale as Job.model.ts's own pre("validate") hook.
+interviewSchema.pre("validate", function assignPublicId(next) {
+  if (this.isNew && !this.public_id) {
+    this.public_id = generatePublicId("int");
+  }
+  next();
+});
+
 // Serves both "this Application's interviews" and "...ordered starts_at
 // DESC" (the list endpoint's exact query) directly from the index, with
 // no in-memory sort — see interview.service.ts's listInterviewsForApplication.
@@ -169,5 +182,11 @@ interviewSchema.index(
 );
 
 export type InterviewDoc = HydratedDocument<InferSchemaType<typeof interviewSchema>>;
+type InterviewShape = InferSchemaType<typeof interviewSchema>;
+
+/** URL/route id resolution for Interview — see Job.model.ts's jobIdentifierFilter for the full rationale. Public-id only (Phase 2 cutover). */
+export function interviewIdentifierFilter(idParam: string): FilterQuery<InterviewShape> {
+  return { public_id: idParam };
+}
 
 export const Interview = model("Interview", interviewSchema);

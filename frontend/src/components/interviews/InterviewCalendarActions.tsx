@@ -5,6 +5,7 @@ import { InterviewCalendarBadge } from "@/components/interviews/InterviewCalenda
 import { CopyMeetLinkButton, JoinMeetLink, canJoinMeet } from "@/components/interviews/JoinMeetLink";
 import { useGoogleCalendarEventActions } from "@/hooks/useGoogleCalendarEventActions";
 import { useGoogleCalendarStatus } from "@/hooks/useGoogleCalendarStatus";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { Interview } from "@/types/interview";
 
 export interface InterviewCalendarActionsProps {
@@ -25,13 +26,13 @@ export function InterviewCalendarActions({ interview, onUpdated }: InterviewCale
 
   async function handleCreate() {
     clearError();
-    const updated = await createEvent(interview.id);
+    const updated = await createEvent(resourceUrlId(interview));
     if (updated) onUpdated(updated);
   }
 
   async function handleSync() {
     clearError();
-    const updated = await syncEvent(interview.id);
+    const updated = await syncEvent(resourceUrlId(interview));
     if (updated) onUpdated(updated);
   }
 

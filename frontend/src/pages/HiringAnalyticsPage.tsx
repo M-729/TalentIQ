@@ -14,6 +14,7 @@ import { OfferOutcomesChart } from "@/components/analytics/OfferOutcomesChart";
 import { PipelineDistributionChart } from "@/components/analytics/PipelineDistributionChart";
 import { useHiringAnalytics } from "@/hooks/useHiringAnalytics";
 import { useJobs } from "@/hooks/useJobs";
+import { jobUrlId } from "@/lib/jobUrlId";
 import { ANALYTICS_RANGES, type AnalyticsRange } from "@/types/hiringAnalytics";
 
 const RANGE_LABELS: Record<AnalyticsRange, string> = {
@@ -94,11 +95,13 @@ export function HiringAnalyticsPage() {
           </label>
           <Select id="analytics-job-filter" value={jobId} onChange={(e) => setJobId(e.target.value)}>
             <option value="">All Jobs</option>
-            {(jobsQuery.jobs ?? []).map((job) => (
-              <option key={job._id} value={job._id}>
-                {job.title}
-              </option>
-            ))}
+            {(jobsQuery.jobs ?? [])
+              .filter((job) => job.public_id)
+              .map((job) => (
+                <option key={job._id} value={jobUrlId(job)}>
+                  {job.title}
+                </option>
+              ))}
           </Select>
         </div>
       </FilterBar>

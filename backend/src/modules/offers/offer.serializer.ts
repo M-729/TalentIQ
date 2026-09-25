@@ -5,6 +5,9 @@ import type { EmailNotificationDoc, EmailNotificationStatus } from "../../models
 
 export interface OfferNotificationDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for a notification created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   status: EmailNotificationStatus;
   subject: string;
   recipient_email: string;
@@ -20,6 +23,7 @@ export interface OfferNotificationDTO {
 export function serializeOfferNotification(doc: EmailNotificationDoc): OfferNotificationDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     status: doc.status,
     subject: doc.subject,
     recipient_email: doc.recipient_email,
@@ -33,6 +37,9 @@ export function serializeOfferNotification(doc: EmailNotificationDoc): OfferNoti
 
 export interface OfferDTO {
   id: string;
+  // Opaque, URL-facing identifier — absent only for an Offer created
+  // before this field existed and not yet covered by the backfill script.
+  public_id?: string;
   application_id: string;
   candidate_id: string;
   job_id: string;
@@ -73,6 +80,7 @@ export interface OfferDTO {
 export function serializeOffer(doc: OfferDoc, respondedByName: string | null = null): OfferDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     application_id: doc.application_id.toString(),
     candidate_id: doc.candidate_id.toString(),
     job_id: doc.job_id.toString(),
@@ -99,7 +107,10 @@ export function serializeOffer(doc: OfferDoc, respondedByName: string | null = n
 
 export interface OfferListRowDTO {
   id: string;
+  public_id?: string;
   application_id: string;
+  /** Opaque, URL-facing identifier for the owning Application — see ApplicationListRowDTO.public_id. */
+  application_public_id?: string;
   candidate: { id: string; full_name: string; email: string };
   job: { id: string; title: string };
   title: string;
@@ -118,10 +129,17 @@ export interface OfferListRowDTO {
  * excludes internal_notes/candidate_message (not needed by the list view;
  * available on the full Offer via the Application Detail page instead).
  */
-export function serializeOfferListRow(doc: OfferDoc, candidate: CandidateDoc, job: JobDoc): OfferListRowDTO {
+export function serializeOfferListRow(
+  doc: OfferDoc,
+  candidate: CandidateDoc,
+  job: JobDoc,
+  applicationPublicId?: string
+): OfferListRowDTO {
   return {
     id: doc.id,
+    public_id: doc.public_id ?? undefined,
     application_id: doc.application_id.toString(),
+    application_public_id: applicationPublicId,
     candidate: { id: candidate.id, full_name: candidate.full_name, email: candidate.email },
     job: { id: job.id, title: job.title },
     title: doc.title,

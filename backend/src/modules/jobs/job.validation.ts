@@ -1,12 +1,21 @@
 import { z } from "zod";
-import { Types } from "mongoose";
 import { JOB_STATUSES } from "../../models/Job.model";
+import { publicIdPattern } from "../../utils/publicId";
 
-const objectIdString = (label: string) =>
-  z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
+// Public-id only (Phase 2 cutover — see this ticket's report): a raw Mongo
+// ObjectId no longer resolves as a Job URL id, matching every migrated
+// resource. Exported so every module whose routes/filters take a Job id
+// (hiringStep, hiringPipelineBoard, applicationHr, offer, interview,
+// applicationAssessment, hiringAnalytics) reuses this single definition.
+const JOB_PUBLIC_ID_PATTERN = publicIdPattern("job");
+
+export const jobIdentifierString = (label: string) =>
+  z.string().refine((val) => JOB_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
 
 export const jobIdParamsSchema = z.object({
-  id: objectIdString("job id"),
+  id: jobIdentifierString("job id"),
 });
 
 const title = z.string().trim().min(1, "Title is required");

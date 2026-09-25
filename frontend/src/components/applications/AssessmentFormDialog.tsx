@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateApplicationAssessment } from "@/hooks/useCreateApplicationAssessment";
 import { useUpdateApplicationAssessmentLink } from "@/hooks/useUpdateApplicationAssessmentLink";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationAssessment } from "@/types/applicationAssessment";
 
 export interface AssessmentFormDialogProps {
@@ -61,7 +62,7 @@ export function AssessmentFormDialog({ open, onOpenChange, applicationId, existi
     setUrlError(null);
 
     const saved = isEditing
-      ? await runUpdate(existingAssessment!.id, { name: trimmedName, external_url: trimmedUrl })
+      ? await runUpdate(resourceUrlId(existingAssessment!), { name: trimmedName, external_url: trimmedUrl })
       : await runCreate(applicationId, { name: trimmedName, external_url: trimmedUrl });
 
     if (saved) {

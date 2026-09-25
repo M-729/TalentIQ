@@ -1,21 +1,34 @@
 import { z } from "zod";
-import { Types } from "mongoose";
 import { OFFER_CURRENCIES, OFFER_STATUSES } from "../../models/Offer.model";
+import { applicationIdentifierString } from "../applications/applicationHr.validation";
+import { jobIdentifierString } from "../jobs/job.validation";
+import { publicIdPattern } from "../../utils/publicId";
 
-const objectIdString = (label: string) =>
-  z.string().refine((val) => Types.ObjectId.isValid(val), { message: `Invalid ${label}` });
+// Public-id only (Phase 2 cutover — see this ticket's report): a raw Mongo
+// ObjectId no longer resolves as an Offer/EmailNotification URL id.
+const OFFER_PUBLIC_ID_PATTERN = publicIdPattern("offer");
+const offerIdentifierString = (label: string) =>
+  z.string().refine((val) => OFFER_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
+
+const NOTIFICATION_PUBLIC_ID_PATTERN = publicIdPattern("notif");
+const notificationIdentifierString = (label: string) =>
+  z.string().refine((val) => NOTIFICATION_PUBLIC_ID_PATTERN.test(val), {
+    message: `Invalid ${label}`,
+  });
 
 export const applicationIdParamsSchema = z.object({
-  applicationId: objectIdString("application id"),
+  applicationId: applicationIdentifierString("application id"),
 });
 
 export const offerIdParamsSchema = z.object({
-  offerId: objectIdString("offer id"),
+  offerId: offerIdentifierString("offer id"),
 });
 
 export const notificationIdParamsSchema = z.object({
-  offerId: objectIdString("offer id"),
-  notificationId: objectIdString("notification id"),
+  offerId: offerIdentifierString("offer id"),
+  notificationId: notificationIdentifierString("notification id"),
 });
 
 const titleSchema = z.string().trim().min(1, "Offer title is required").max(150, "Offer title is too long");
@@ -106,7 +119,7 @@ const optionalSearch = z.preprocess(
 // query schemas in this codebase never are (applicationHr.validation.ts's
 // listApplicationsQuerySchema is the precedent).
 export const listOffersQuerySchema = z.object({
-  jobId: objectIdString("job id").optional(),
+  jobId: jobIdentifierString("job id").optional(),
   status: z.enum(OFFER_STATUSES).optional(),
   search: optionalSearch,
   page: z.coerce.number().int().positive().default(1),

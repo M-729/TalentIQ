@@ -7,7 +7,8 @@ import { Candidate } from "../../models/Candidate.model";
 import { Job } from "../../models/Job.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
-import { assertOwnedByCompany, companyFilter } from "../../security/companyScope";
+import { companyFilter } from "../../security/companyScope";
+import { resolveJobId } from "../jobs/job.service";
 import {
   getAccessibleApplication,
   getAccessibleApplicationForActiveJob,
@@ -107,7 +108,7 @@ export async function scheduleInterview(
   }
 
   const alreadyScheduled = await Interview.exists({
-    application_id: applicationId,
+    application_id: application.id,
     hiring_step_id: currentStep._id,
     status: "scheduled",
   });
@@ -159,9 +160,9 @@ export async function listInterviewsForApplication(
   applicationId: string,
   companyId: string
 ): Promise<{ interviews: InterviewDoc[]; userMap: Map<string, UserRef> }> {
-  await getAccessibleApplication(applicationId, companyId);
+  const application = await getAccessibleApplication(applicationId, companyId);
 
-  const interviews = await Interview.find({ application_id: applicationId }).sort({ starts_at: -1, _id: -1 });
+  const interviews = await Interview.find({ application_id: application.id }).sort({ starts_at: -1, _id: -1 });
   const userMap = await batchUserLookup(interviews);
 
   return { interviews, userMap };
@@ -201,8 +202,15 @@ export interface ListInterviewsResult {
 export async function listInterviewsForCompany(companyId: string, filters: ListInterviewsFilters): Promise<ListInterviewsResult> {
   let jobFilter: FilterQuery<InterviewDoc>;
   if (filters.jobId) {
-    await assertOwnedByCompany(Job, { _id: filters.jobId }, companyId, { notFoundMessage: "Job not found" });
-    jobFilter = { job_id: filters.jobId };
+    // filters.jobId is a dual-accept public_id-or-ObjectId (see
+    // job.service.ts's resolveJobId) — resolved to the real internal id
+    // here before being used against Interview.job_id, which is always a
+    // plain ObjectId reference and was never itself migrated.
+    const resolvedJobId = await resolveJobId(companyId, filters.jobId);
+    if (!resolvedJobId) {
+      throw new NotFoundError("Job not found");
+    }
+    jobFilter = { job_id: resolvedJobId };
   } else {
     const companyJobs = await Job.find(companyFilter(companyId)).select("_id").lean();
     jobFilter = { job_id: { $in: companyJobs.map((job) => job._id) } };
@@ -365,7 +373,7 @@ export async function rescheduleInterview(
   }
 
   const updated = await Interview.findOneAndUpdate(
-    { _id: interviewId, status: "scheduled" },
+    { _id: interview._id, status: "scheduled" },
     { $set: update },
     { new: true }
   );
@@ -401,7 +409,7 @@ export async function cancelInterview(
   }
 
   const updated = await Interview.findOneAndUpdate(
-    { _id: interviewId, status: "scheduled" },
+    { _id: interview._id, status: "scheduled" },
     {
       $set: {
         status: "cancelled",
@@ -455,7 +463,7 @@ export async function completeInterview(companyId: string, userId: string, inter
   }
 
   const updated = await Interview.findOneAndUpdate(
-    { _id: interviewId, status: "scheduled" },
+    { _id: interview._id, status: "scheduled" },
     { $set: { status: "completed", completed_at: new Date(), completed_by: userId } },
     { new: true }
   );
@@ -466,7 +474,7 @@ export async function completeInterview(companyId: string, userId: string, inter
   // Lost the race to a concurrent request. If it completed the Interview,
   // this is a successful idempotent no-op from this caller's perspective;
   // any other current status is a genuine conflict (e.g. concurrently cancelled).
-  const current = await Interview.findById(interviewId);
+  const current = await Interview.findById(interview._id);
   if (current?.status === "completed") {
     return current;
   }

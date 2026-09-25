@@ -11,48 +11,41 @@ const NAV_LINKS = [
   { label: "For Hiring Teams", href: "#for-teams" },
 ];
 
-// Sticky, restrained marketing navbar for the public landing page only —
-// PublicHeader.tsx (Careers/Offer Response/Accept Invitation) is
-// deliberately untouched and unused here; see this ticket's own
-// architecture note on why a dedicated navbar is safer than extending
-// PublicHeader's minimal candidate-facing design with marketing nav links.
-// Shares the same BrandMark component PublicHeader uses, so the brand
-// mark itself never drifts between the two.
 export function LandingNavbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <BrandMark to="/" />
+      <div className="flex h-[4.5rem] items-center justify-between px-5 sm:px-8 lg:px-12 xl:px-16">
+        <BrandMark to="/" className="w-fit [&_svg]:size-8 [&_span]:text-xl" />
 
-        <nav aria-label="Main" className="hidden items-center gap-8 md:flex">
+        <nav aria-label="Main" className="hidden items-center gap-8 lg:flex">
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="rounded-md text-sm font-semibold text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {link.label}
             </a>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-4 lg:flex">
           <Link
             to="/login"
-            className="rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="rounded-md text-sm font-semibold text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Recruiter login
           </Link>
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="rounded-lg px-4 shadow-sm">
             <Link to="/signup">Start Free</Link>
           </Button>
         </div>
 
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-md p-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:hidden"
+          className="inline-flex items-center justify-center rounded-lg p-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:hidden"
           aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           aria-expanded={isMobileMenuOpen}
           aria-controls="landing-mobile-menu"
@@ -63,14 +56,14 @@ export function LandingNavbar() {
       </div>
 
       {isMobileMenuOpen && (
-        <nav id="landing-mobile-menu" aria-label="Main" className="border-t border-border bg-card px-4 py-3 md:hidden">
+        <nav id="landing-mobile-menu" aria-label="Main" className="border-t border-border bg-card px-5 py-4 sm:px-8 lg:hidden">
           <ul className="space-y-1">
             {NAV_LINKS.map((link) => (
               <li key={link.href}>
                 <a
                   href={link.href}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="block rounded-md px-2 py-2 text-sm font-medium text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {link.label}
                 </a>
@@ -81,11 +74,11 @@ export function LandingNavbar() {
             <Link
               to="/login"
               onClick={() => setIsMobileMenuOpen(false)}
-              className="rounded-md px-2 py-2 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               Recruiter login
             </Link>
-            <Button asChild size="sm" onClick={() => setIsMobileMenuOpen(false)}>
+            <Button asChild size="sm" className="rounded-lg" onClick={() => setIsMobileMenuOpen(false)}>
               <Link to="/signup">Start Free</Link>
             </Button>
           </div>

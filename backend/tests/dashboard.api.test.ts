@@ -124,6 +124,12 @@ describe("GET /api/v1/dashboard", () => {
     const res = await request(app).get(dashboardUrl).set("Authorization", authHeaderFor(hrA, companyA.id));
     expect(res.body.metrics.upcoming_interviews).toBe(1);
     expect(res.body.upcoming_interviews).toHaveLength(1);
+
+    // Phase 2 cutover: the interview row must expose the Application's
+    // public_id for frontend navigation, never the raw Mongo application_id.
+    const row = res.body.upcoming_interviews[0];
+    expect(row.application_public_id).toBe(application.public_id);
+    expect(row.application_id).toBeUndefined();
   });
 
   it("5. excludes cancelled and completed interviews from upcoming", async () => {

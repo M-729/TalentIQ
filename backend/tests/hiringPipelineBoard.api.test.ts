@@ -77,29 +77,29 @@ describe("Hiring Pipeline Board API", () => {
   // ===== AUTH / TENANCY =====
   describe("auth and tenancy", () => {
     it("rejects an unauthenticated request with 401", async () => {
-      const res = await request(app).get(boardUrl(jobA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!));
       expect(res.status).toBe(401);
     });
 
     it("allows an authenticated HR user in the same company", async () => {
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
     });
 
     it("allows an authenticated ADMIN user in the same company", async () => {
       const admin = await createUser({ companyId: companyA.id, email: "admin@a.test", role: "ADMIN" });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(admin, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(admin, companyA.id));
       expect(res.status).toBe(200);
     });
 
     it("returns 404 for a cross-company Job", async () => {
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrB, companyB.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
 
     it("returns 404 for a nonexistent Job", async () => {
       const res = await request(app)
-        .get(boardUrl(new Types.ObjectId().toString()))
+        .get(boardUrl(`job_${"a".repeat(24)}`))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(404);
     });
@@ -113,7 +113,29 @@ describe("Hiring Pipeline Board API", () => {
 
     it("returns 404 for a soft-deleted Job", async () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { deleted_at: new Date() } });
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(404);
+    });
+
+    // Phase 2 cutover: legacy dual-accept lookup is gone — a raw Mongo
+    // ObjectId in the Job parent-scoping path segment is now just an
+    // invalid id format, not an alternate valid id.
+    it("rejects a board fetch addressed by the Job's legacy Mongo ObjectId", async () => {
       const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(400);
+    });
+
+    // The Job parent-scoping path segment ("special attention" case) is
+    // resolved to Job's real internal id before being used against
+    // HiringStep.job_id/Application.job_id.
+    it("returns the board for a job addressed by its public_id", async () => {
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      expect(res.status).toBe(200);
+      expect(res.body.job.id).toBe(jobA.id);
+    });
+
+    it("returns 404 for a cross-company Job addressed by its public_id", async () => {
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrB, companyB.id));
       expect(res.status).toBe(404);
     });
   });
@@ -121,17 +143,17 @@ describe("Hiring Pipeline Board API", () => {
   // ===== JOB / STAGES =====
   describe("job summary and stages", () => {
     it("returns a safe Job summary", async () => {
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.job).toEqual({ id: jobA.id, title: "Software Engineer", status: "active" });
     });
 
     it("returns stages ordered by position ascending", async () => {
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.stages.map((s: { name: string }) => s.name)).toEqual(["Application Review", "Technical Interview"]);
     });
 
     it("stage DTO contains only safe fields", async () => {
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(Object.keys(res.body.stages[0]).sort()).toEqual(
         ["id", "name", "type", "description", "position", "count", "applications"].sort()
       );
@@ -139,14 +161,14 @@ describe("Hiring Pipeline Board API", () => {
 
     it("returns an empty stages array for a Job with zero configured HiringSteps", async () => {
       const bareJob = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Bare Job", status: "active" });
-      const res = await request(app).get(boardUrl(bareJob.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(bareJob.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.stages).toEqual([]);
     });
 
     it("allows board retrieval for a closed (but not deleted) Job", async () => {
       await Job.updateOne({ _id: jobA.id }, { $set: { status: "closed" } });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.job.status).toBe("closed");
     });
@@ -156,7 +178,7 @@ describe("Hiring Pipeline Board API", () => {
   describe("unassigned (New Applicants)", () => {
     it("includes an applied application with a null current_step in unassigned", async () => {
       const application = await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.applications.map((a: { id: string }) => a.id)).toContain(application.id);
     });
@@ -164,7 +186,7 @@ describe("Hiring Pipeline Board API", () => {
     it("reports the correct unassigned count", async () => {
       await createApplication();
       await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.count).toBe(2);
       expect(res.body.unassigned.applications).toHaveLength(2);
@@ -173,7 +195,7 @@ describe("Hiring Pipeline Board API", () => {
     it("returns multiple unassigned applications", async () => {
       const a = await createApplication();
       const b = await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const ids = res.body.unassigned.applications.map((x: { id: string }) => x.id);
       expect(ids).toEqual(expect.arrayContaining([a.id, b.id]));
@@ -182,7 +204,7 @@ describe("Hiring Pipeline Board API", () => {
     it("orders unassigned applications deterministically (applied_at ascending, oldest first)", async () => {
       const older = await createApplication({ applied_at: new Date("2024-01-01T00:00:00.000Z") });
       const newer = await createApplication({ applied_at: new Date("2024-02-01T00:00:00.000Z") });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.applications.map((a: { id: string }) => a.id)).toEqual([older.id, newer.id]);
     });
@@ -194,7 +216,7 @@ describe("Hiring Pipeline Board API", () => {
         candidate_id: candidate._id,
         cv_file: { storage_key: "x", original_name: "r.pdf", mime_type: "application/pdf", size_bytes: 10 },
       });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.applications[0].candidate).toEqual({
         id: candidate.id,
@@ -208,7 +230,7 @@ describe("Hiring Pipeline Board API", () => {
   describe("stage columns", () => {
     it("places an in_process application only in its matching stage", async () => {
       const inReview = await createApplication({ status: "in_process", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
@@ -218,7 +240,7 @@ describe("Hiring Pipeline Board API", () => {
 
     it("places an in_process application only in stage B when assigned to stage B", async () => {
       const inInterview = await createApplication({ status: "in_process", current_step_id: interview._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
       expect(interviewStage.applications.map((a: { id: string }) => a.id)).toEqual([inInterview.id]);
@@ -227,7 +249,7 @@ describe("Hiring Pipeline Board API", () => {
     it("reports correct per-stage counts", async () => {
       await createApplication({ status: "in_process", current_step_id: review._id });
       await createApplication({ status: "in_process", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
       expect(reviewStage.count).toBe(2);
@@ -235,7 +257,7 @@ describe("Hiring Pipeline Board API", () => {
 
     it("never duplicates an application across columns", async () => {
       const application = await createApplication({ status: "in_process", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const allIds = [
         ...res.body.unassigned.applications.map((a: { id: string }) => a.id),
@@ -250,7 +272,7 @@ describe("Hiring Pipeline Board API", () => {
       const foreignStep = await HiringStep.create({ job_id: otherJob.id, name: "Foreign Stage", type: "review", position: 0 });
       const application = await createApplication({ status: "in_process", current_step_id: foreignStep._id });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       for (const stage of res.body.stages) {
         expect(stage.applications.map((a: { id: string }) => a.id)).not.toContain(application.id);
@@ -269,7 +291,7 @@ describe("Hiring Pipeline Board API", () => {
         current_step_id: review._id,
         applied_at: new Date("2024-02-01T00:00:00.000Z"),
       });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
       expect(reviewStage.applications.map((a: { id: string }) => a.id)).toEqual([older.id, newer.id]);
@@ -280,7 +302,7 @@ describe("Hiring Pipeline Board API", () => {
   describe("terminal/outcome statuses", () => {
     it("excludes rejected applications from the active board", async () => {
       const rejected = await createApplication({ status: "rejected", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const allIds = [
         ...res.body.unassigned.applications.map((a: { id: string }) => a.id),
@@ -292,7 +314,7 @@ describe("Hiring Pipeline Board API", () => {
 
     it("excludes offered applications from the active board", async () => {
       const offered = await createApplication({ status: "offered", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const allIds = [
         ...res.body.unassigned.applications.map((a: { id: string }) => a.id),
         ...res.body.stages.flatMap((s: { applications: { id: string }[] }) => s.applications.map((a) => a.id)),
@@ -302,7 +324,7 @@ describe("Hiring Pipeline Board API", () => {
 
     it("excludes hired applications from the active board", async () => {
       const hired = await createApplication({ status: "hired", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const allIds = [
         ...res.body.unassigned.applications.map((a: { id: string }) => a.id),
         ...res.body.stages.flatMap((s: { applications: { id: string }[] }) => s.applications.map((a) => a.id)),
@@ -315,7 +337,7 @@ describe("Hiring Pipeline Board API", () => {
   describe("screening summary", () => {
     it("shows has_screening=false and no fake score for an unscreened application", async () => {
       await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening.has_screening).toBe(false);
@@ -325,7 +347,7 @@ describe("Hiring Pipeline Board API", () => {
     it("returns the latest screening summary for a screened application", async () => {
       const application = await createApplication();
       await AIScreening.create(screeningFixtureFor(application.id, jobA.id, 75));
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening).toEqual({
@@ -340,7 +362,7 @@ describe("Hiring Pipeline Board API", () => {
       const application = await createApplication();
       await AIScreening.create({ ...screeningFixtureFor(application.id, jobA.id, 40), created_at: new Date("2024-01-01") });
       await AIScreening.create({ ...screeningFixtureFor(application.id, jobA.id, 90), created_at: new Date("2024-02-01") });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.applications[0].screening.latest_score).toBe(90);
     });
@@ -354,7 +376,7 @@ describe("Hiring Pipeline Board API", () => {
       const application = await createApplication();
       await AIScreeningRun.create({ application_id: application.id, job_id: jobA.id, status: "processing", attempt_count: 1 });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening).toEqual({ status: "processing", has_screening: false });
@@ -370,7 +392,7 @@ describe("Hiring Pipeline Board API", () => {
         attempt_count: 1,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening).toEqual({ status: "failed", has_screening: false });
@@ -389,7 +411,7 @@ describe("Hiring Pipeline Board API", () => {
         attempt_count: 1,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       const card = res.body.unassigned.applications[0];
@@ -407,7 +429,7 @@ describe("Hiring Pipeline Board API", () => {
       });
       await AIScreening.create(screeningFixtureFor(application.id, jobA.id, 82));
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const card = res.body.unassigned.applications[0];
       expect(card.screening).toEqual({ status: "completed", has_screening: true, latest_score: 82, latest_screened_at: expect.any(String) });
@@ -435,7 +457,7 @@ describe("Hiring Pipeline Board API", () => {
 
     it("returns null interview_summary for a card in a non-interview stage", async () => {
       await createApplication({ status: "in_process", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
       expect(reviewStage.applications[0].interview_summary).toBeNull();
@@ -443,13 +465,13 @@ describe("Hiring Pipeline Board API", () => {
 
     it("returns null interview_summary for New Applicants", async () => {
       await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.unassigned.applications[0].interview_summary).toBeNull();
     });
 
     it('shows status "not_scheduled" for a candidate in an interview stage with no Interview record', async () => {
       await createApplication({ status: "in_process", current_step_id: interview._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
       expect(interviewStage.applications[0].interview_summary).toEqual({ status: "not_scheduled" });
@@ -459,7 +481,7 @@ describe("Hiring Pipeline Board API", () => {
       const application = await createApplication({ status: "in_process", current_step_id: interview._id });
       await scheduleInterview(application);
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
 
       expect(interviewStage.applications[0].interview_summary).toEqual({
@@ -477,7 +499,7 @@ describe("Hiring Pipeline Board API", () => {
         cancelled_at: new Date(),
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
       expect(interviewStage.applications[0].interview_summary).toEqual({ status: "cancelled" });
     });
@@ -502,7 +524,7 @@ describe("Hiring Pipeline Board API", () => {
         submitted_at: new Date(),
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
 
       expect(interviewStage.applications[0].interview_summary).toEqual({
@@ -520,7 +542,7 @@ describe("Hiring Pipeline Board API", () => {
         status: "scheduled",
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
       expect(interviewStage.applications[0].interview_summary.status).toBe("scheduled");
     });
@@ -542,7 +564,7 @@ describe("Hiring Pipeline Board API", () => {
         ends_at: new Date("2025-02-01T11:00:00.000Z"),
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const interviewStage = res.body.stages.find((s: { id: string }) => s.id === interview.id);
       expect(interviewStage.applications[0].interview_summary).toEqual({
         status: "scheduled",
@@ -558,7 +580,7 @@ describe("Hiring Pipeline Board API", () => {
       await scheduleInterview(b, { starts_at: new Date("2025-03-01T10:00:00.000Z"), ends_at: new Date("2025-03-01T11:00:00.000Z") });
 
       const findSpy = jest.spyOn(Interview, "find");
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(findSpy).toHaveBeenCalledTimes(1);
@@ -570,7 +592,7 @@ describe("Hiring Pipeline Board API", () => {
       await scheduleInterview(application);
 
       const countBefore = await Interview.countDocuments();
-      await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const countAfter = await Interview.countDocuments();
       expect(countAfter).toBe(countBefore);
     });
@@ -587,7 +609,7 @@ describe("Hiring Pipeline Board API", () => {
       const stage = await assessmentStage();
       await createApplication({ status: "in_process", current_step_id: stage._id });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "not_configured", grade: null, email_status: null });
@@ -596,7 +618,7 @@ describe("Hiring Pipeline Board API", () => {
     it("returns null assessment_summary for a card in a non-assessment stage", async () => {
       const application = await createApplication({ status: "in_process", current_step_id: review._id });
       void application;
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
       expect(reviewStage.applications[0].assessment_summary).toBeNull();
@@ -618,7 +640,7 @@ describe("Hiring Pipeline Board API", () => {
         updated_by_user_id: hrA.id,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "pending", grade: null, email_status: null });
     });
@@ -639,7 +661,7 @@ describe("Hiring Pipeline Board API", () => {
         updated_by_user_id: hrA.id,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "passed", grade: null, email_status: null });
     });
@@ -661,7 +683,7 @@ describe("Hiring Pipeline Board API", () => {
         updated_by_user_id: hrA.id,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "passed", grade: 84, email_status: null });
     });
@@ -682,7 +704,7 @@ describe("Hiring Pipeline Board API", () => {
         updated_by_user_id: hrA.id,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "failed", grade: null, email_status: null });
     });
@@ -704,7 +726,7 @@ describe("Hiring Pipeline Board API", () => {
         updated_by_user_id: hrA.id,
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "failed", grade: 48, email_status: null });
     });
@@ -744,7 +766,7 @@ describe("Hiring Pipeline Board API", () => {
         mutation_version_at: new Date(),
       });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const stageCard = res.body.stages.find((s: { id: string }) => s.id === stage.id);
       expect(stageCard.applications[0].assessment_summary).toEqual({ status: "pending", grade: null, email_status: "failed" });
     });
@@ -776,7 +798,7 @@ describe("Hiring Pipeline Board API", () => {
       });
 
       const findSpy = jest.spyOn(ApplicationAssessment, "find");
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
       expect(findSpy).toHaveBeenCalledTimes(1);
@@ -800,7 +822,7 @@ describe("Hiring Pipeline Board API", () => {
 
       const countBefore = await ApplicationAssessment.countDocuments();
       const emailCountBefore = await EmailNotification.countDocuments();
-      await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(await ApplicationAssessment.countDocuments()).toBe(countBefore);
       expect(await EmailNotification.countDocuments()).toBe(emailCountBefore);
     });
@@ -810,26 +832,26 @@ describe("Hiring Pipeline Board API", () => {
   describe("security and safe serialization", () => {
     it("never exposes CV storage_key or raw CV data", async () => {
       await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(JSON.stringify(res.body)).not.toMatch(/storage_key|cv_file|original_name|mime_type/i);
     });
 
     it("never exposes company_id or other Mongo internals", async () => {
       await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(JSON.stringify(res.body)).not.toMatch(/company_id|created_by|__v/i);
     });
 
     it("never exposes AI prompt/provider raw response or analysis body", async () => {
       const application = await createApplication();
       await AIScreening.create(screeningFixtureFor(application.id, jobA.id, 60));
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(JSON.stringify(res.body)).not.toMatch(/analysis|ai_metadata|prompt|provider/i);
     });
 
     it("only exposes safe candidate fields", async () => {
       await createApplication();
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(Object.keys(res.body.unassigned.applications[0].candidate).sort()).toEqual(["id", "full_name", "email"].sort());
     });
   });
@@ -837,7 +859,7 @@ describe("Hiring Pipeline Board API", () => {
   // ===== EMPTY =====
   describe("empty board", () => {
     it("returns empty unassigned/stage lists when there are zero applications", async () => {
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.unassigned).toEqual({ count: 0, applications: [] });
       for (const stage of res.body.stages) {
         expect(stage.count).toBe(0);
@@ -854,7 +876,7 @@ describe("Hiring Pipeline Board API", () => {
         cv_file: { storage_key: "x", original_name: "r.pdf", mime_type: "application/pdf", size_bytes: 10 },
       });
 
-      const res = await request(app).get(boardUrl(bareJob.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(bareJob.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.body.stages).toEqual([]);
       expect(res.body.unassigned.count).toBe(1);
     });
@@ -864,7 +886,7 @@ describe("Hiring Pipeline Board API", () => {
   describe("inconsistent/legacy data", () => {
     it("routes in_process + null current_step to needs_attention", async () => {
       const application = await createApplication({ status: "in_process", current_step_id: null });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.body.unassigned.applications.map((a: { id: string }) => a.id)).not.toContain(application.id);
       expect(res.body.needs_attention.map((a: { id: string }) => a.id)).toContain(application.id);
@@ -872,7 +894,7 @@ describe("Hiring Pipeline Board API", () => {
 
     it("routes applied + non-null current_step to needs_attention", async () => {
       const application = await createApplication({ status: "applied", current_step_id: review._id });
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reviewStage = res.body.stages.find((s: { id: string }) => s.id === review.id);
       expect(reviewStage.applications.map((a: { id: string }) => a.id)).not.toContain(application.id);
@@ -884,7 +906,7 @@ describe("Hiring Pipeline Board API", () => {
       const foreignStep = await HiringStep.create({ job_id: otherJob.id, name: "Foreign Stage", type: "review", position: 0 });
       const application = await createApplication({ status: "in_process", current_step_id: foreignStep._id });
 
-      const res = await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const entry = res.body.needs_attention.find((a: { id: string }) => a.id === application.id);
       expect(entry.current_step_id).toBe(foreignStep.id);
@@ -899,7 +921,7 @@ describe("Hiring Pipeline Board API", () => {
       await createApplication();
 
       const findSpy = jest.spyOn(Candidate, "find");
-      await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(findSpy).toHaveBeenCalledTimes(1);
       findSpy.mockRestore();
@@ -912,7 +934,7 @@ describe("Hiring Pipeline Board API", () => {
       await AIScreening.create(screeningFixtureFor(b.id, jobA.id, 70));
 
       const aggregateSpy = jest.spyOn(AIScreening, "aggregate");
-      await request(app).get(boardUrl(jobA.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).get(boardUrl(jobA.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(aggregateSpy).toHaveBeenCalledTimes(1);
       aggregateSpy.mockRestore();

@@ -1,6 +1,6 @@
 import { Candidate, type CandidateDoc } from "../../models/Candidate.model";
 import { Application } from "../../models/Application.model";
-import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
+import { Job, NOT_DELETED_JOB_FILTER, jobIdentifierFilter } from "../../models/Job.model";
 import { Company } from "../../models/Company.model";
 import { BadRequestError, ConflictError, NotFoundError } from "../../security/AppError";
 import { isDuplicateKeyError } from "../../middleware/error.middleware";
@@ -98,7 +98,7 @@ export async function submitPublicApplication(
   // directly, not fetched then checked, so a non-public job's existence
   // (including a soft-deleted one whose status somehow remains "active")
   // is never revealed here either.
-  const job = await Job.findOne({ _id: jobId, status: "active", ...NOT_DELETED_JOB_FILTER }).select(
+  const job = await Job.findOne({ ...jobIdentifierFilter(jobId), status: "active", ...NOT_DELETED_JOB_FILTER }).select(
     "_id title company_id"
   );
   if (!job) {

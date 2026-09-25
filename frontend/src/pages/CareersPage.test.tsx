@@ -12,6 +12,7 @@ vi.mock("@/services/api/publicJobs");
 function buildJob(overrides: Partial<PublicJob> = {}): PublicJob {
   return {
     _id: "job-1",
+    public_id: "job-1-public",
     title: "Backend Engineer",
     department: "Engineering",
     description: "Build and scale our backend services.",
@@ -50,7 +51,10 @@ describe("CareersPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Open Positions" })).toBeInTheDocument();
     expect(screen.getByText("Explore current opportunities and apply online.")).toBeInTheDocument();
-    expect(screen.getByText("TalentIQ")).toBeInTheDocument();
+    // The brand mark's wordmark is two colored spans ("Talent" + "IQ"), not
+    // one text node — asserted via its accessible link name, same pattern
+    // already used by the "brand link targets /careers" test below.
+    expect(screen.getByRole("link", { name: /TalentIQ/ })).toBeInTheDocument();
   });
 
   // Careers navigation polish: 3. TalentIQ brand/logo targets /careers
@@ -145,6 +149,23 @@ describe("CareersPage", () => {
     await userEvent.click(await screen.findByRole("link", { name: "View Job" }));
 
     expect(await screen.findByText("Job Detail Page")).toBeInTheDocument();
+  });
+
+  // Phase 1 opaque public ID migration: Careers links must prefer public_id
+  // over the raw Mongo _id once the backend provides one.
+  it("links to the Job detail page using public_id when present, not _id", async () => {
+    vi.mocked(publicJobsApi.listPublicJobs).mockResolvedValue({
+      jobs: [buildJob({ _id: "internal-object-id", public_id: "job_a8f13c92e51b4f638dde79bf" })],
+      pagination: buildPagination(),
+    });
+    renderPage();
+
+    const jobLink = await screen.findByRole("link", { name: "Backend Engineer" });
+    expect(jobLink).toHaveAttribute("href", "/careers/jobs/job_a8f13c92e51b4f638dde79bf");
+    expect(screen.getByRole("link", { name: "View Job" })).toHaveAttribute(
+      "href",
+      "/careers/jobs/job_a8f13c92e51b4f638dde79bf"
+    );
   });
 
   // 18. empty state

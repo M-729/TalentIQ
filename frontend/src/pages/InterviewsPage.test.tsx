@@ -185,12 +185,25 @@ describe("InterviewsPage", () => {
 
   it("links each row to its interview detail page", async () => {
     vi.mocked(interviewsApi.listInterviews).mockResolvedValue({
-      interviews: [buildInterviewListRow({ id: "interview-42" })],
+      interviews: [buildInterviewListRow({ id: "interview-42", public_id: "interview-42-public" })],
       pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
     });
     renderPage();
 
     const link = await screen.findByRole("link", { name: "View" });
-    expect(link).toHaveAttribute("href", "/interviews/interview-42");
+    expect(link).toHaveAttribute("href", "/interviews/interview-42-public");
+  });
+
+  // Phase 1 opaque public ID migration: prefers public_id over the raw
+  // Mongo _id (exposed here as `id`) once the backend provides one.
+  it("links each row using public_id when present, not id", async () => {
+    vi.mocked(interviewsApi.listInterviews).mockResolvedValue({
+      interviews: [buildInterviewListRow({ id: "internal-object-id", public_id: "int_a8f13c92e51b4f638dde79bf" })],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: "View" });
+    expect(link).toHaveAttribute("href", "/interviews/int_a8f13c92e51b4f638dde79bf");
   });
 });

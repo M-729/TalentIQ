@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRecordAssessmentResult } from "@/hooks/useRecordAssessmentResult";
+import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationAssessment, ApplicationAssessmentStatus } from "@/types/applicationAssessment";
 
 export interface RecordAssessmentResultDialogProps {
@@ -55,7 +56,7 @@ export function RecordAssessmentResultDialog({ open, onOpenChange, assessment, o
     }
     setGradeError(null);
 
-    const saved = await run(assessment.id, { status, grade: parsedGrade, notes: notes.trim() || null });
+    const saved = await run(resourceUrlId(assessment), { status, grade: parsedGrade, notes: notes.trim() || null });
     if (saved) {
       onSaved(saved);
       onOpenChange(false);

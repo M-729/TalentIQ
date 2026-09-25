@@ -133,7 +133,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Backend Role" });
       const application = await createApplicationFor(job);
 
-      await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(await Application.findById(application.id)).not.toBeNull();
     });
@@ -142,14 +142,14 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Backend Role" });
       const step = await HiringStep.create({ job_id: job.id, name: "Application Review", type: "review", position: 0 });
 
-      await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(await HiringStep.findById(step.id)).not.toBeNull();
     });
 
-    it("returns 404 deleting a nonexistent Job", async () => {
+    it("returns 404 deleting a well-formed but nonexistent Job public_id", async () => {
       const res = await request(app)
-        .delete(`/api/v1/jobs/${new Types.ObjectId().toString()}`)
+        .delete(`/api/v1/jobs/job_${"a".repeat(24)}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -158,10 +158,10 @@ describe("Job Lifecycle (soft delete)", () => {
     it("returns 404 on a second DELETE of an already-deleted Job", async () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Delete Twice" });
 
-      const first = await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const first = await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(first.status).toBe(204);
 
-      const second = await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const second = await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(second.status).toBe(404);
     });
 
@@ -176,7 +176,7 @@ describe("Job Lifecycle (soft delete)", () => {
       expect(created?.deleted_at).toBeNull();
 
       const patchRes = await request(app)
-        .patch(`/api/v1/jobs/${created!.id}`)
+        .patch(`/api/v1/jobs/${created!.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Still Not Deleted", deleted_at: new Date().toISOString() });
 
@@ -203,7 +203,7 @@ describe("Job Lifecycle (soft delete)", () => {
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .get(`/api/v1/jobs/${job.id}`)
+        .get(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -241,7 +241,7 @@ describe("Job Lifecycle (soft delete)", () => {
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Trying To Undelete" });
 
@@ -259,7 +259,7 @@ describe("Job Lifecycle (soft delete)", () => {
       // covered by job.api.test.ts's "rejects an empty update body").
       // This test specifically exercises the deleted-Job 404 path.
       const res = await request(app)
-        .patch(`/api/v1/jobs/${job.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Attempted Undelete", deleted_at: null });
 
@@ -275,7 +275,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Deleted Public", status: "active" });
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
-      const res = await request(app).get(`/api/v1/public/jobs/${job.id}`);
+      const res = await request(app).get(`/api/v1/public/jobs/${job.public_id}`);
       expect(res.status).toBe(404);
     });
 
@@ -284,7 +284,7 @@ describe("Job Lifecycle (soft delete)", () => {
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .post(`/api/v1/public/jobs/${job.id}/applications`)
+        .post(`/api/v1/public/jobs/${job.public_id}/applications`)
         .field("full_name", "Sarah Ahmed")
         .field("email", "sarah-deleted-job@candidate.test")
         .attach("cv", PDF_BUFFER, { filename: "resume.pdf", contentType: "application/pdf" });
@@ -303,7 +303,7 @@ describe("Job Lifecycle (soft delete)", () => {
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .get(`/api/v1/jobs/${job.id}/hiring-steps`)
+        .get(`/api/v1/jobs/${job.public_id}/hiring-steps`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(404);
@@ -316,19 +316,19 @@ describe("Job Lifecycle (soft delete)", () => {
 
       const auth = authHeaderFor(hrA, companyA.id);
       const postRes = await request(app)
-        .post(`/api/v1/jobs/${job.id}/hiring-steps`)
+        .post(`/api/v1/jobs/${job.public_id}/hiring-steps`)
         .set("Authorization", auth)
         .send({ name: "Interview", type: "interview" });
       const patchRes = await request(app)
-        .patch(`/api/v1/jobs/${job.id}/hiring-steps/${step.id}`)
+        .patch(`/api/v1/jobs/${job.public_id}/hiring-steps/${step.public_id}`)
         .set("Authorization", auth)
         .send({ name: "Renamed" });
       const reorderRes = await request(app)
-        .patch(`/api/v1/jobs/${job.id}/hiring-steps/reorder`)
+        .patch(`/api/v1/jobs/${job.public_id}/hiring-steps/reorder`)
         .set("Authorization", auth)
         .send({ orderedStepIds: [step.id] });
       const deleteRes = await request(app)
-        .delete(`/api/v1/jobs/${job.id}/hiring-steps/${step.id}`)
+        .delete(`/api/v1/jobs/${job.public_id}/hiring-steps/${step.public_id}`)
         .set("Authorization", auth);
 
       expect(postRes.status).toBe(404);
@@ -341,7 +341,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Pipeline Job" });
       const step = await HiringStep.create({ job_id: job.id, name: "Review", type: "review", position: 0 });
 
-      await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(await HiringStep.findById(step.id)).not.toBeNull();
     });
@@ -353,7 +353,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Backend Developer" });
       const application = await createApplicationFor(job);
 
-      await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(await Application.findById(application.id)).not.toBeNull();
     });
@@ -362,7 +362,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Backend Developer" });
       const application = await createApplicationFor(job);
 
-      await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const reread = await Application.findById(application.id);
       expect(reread?.job_id.toString()).toBe(job.id);
@@ -380,7 +380,7 @@ describe("Job Lifecycle (soft delete)", () => {
       expect(row.job.title).toBe("Backend Developer");
 
       const detailRes = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(detailRes.status).toBe(200);
       expect(detailRes.body.application.job.title).toBe("Backend Developer");
@@ -392,7 +392,7 @@ describe("Job Lifecycle (soft delete)", () => {
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}`)
+        .get(`/api/v1/applications/${application.public_id}`)
         .set("Authorization", authHeaderFor(hrB, companyB.id));
 
       expect(res.status).toBe(404);
@@ -406,7 +406,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const application = await createApplicationFor(job);
       const screening = await AIScreening.create(screeningFixtureFor(application.id, job.id));
 
-      await request(app).delete(`/api/v1/jobs/${job.id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).delete(`/api/v1/jobs/${job.public_id}`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(await AIScreening.findById(screening.id)).not.toBeNull();
     });
@@ -423,7 +423,7 @@ describe("Job Lifecycle (soft delete)", () => {
       getApplicationScreeningHistory.mockResolvedValueOnce([screening]);
 
       const res = await request(app)
-        .get(`/api/v1/applications/${application.id}/screenings`)
+        .get(`/api/v1/applications/${application.public_id}/screenings`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(res.status).toBe(200);
@@ -442,10 +442,10 @@ describe("Job Lifecycle (soft delete)", () => {
       getLatestApplicationScreening.mockResolvedValueOnce(null);
 
       await request(app)
-        .get(`/api/v1/applications/${application.id}/screenings`)
+        .get(`/api/v1/applications/${application.public_id}/screenings`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       await request(app)
-        .get(`/api/v1/applications/${application.id}/screenings/latest`)
+        .get(`/api/v1/applications/${application.public_id}/screenings/latest`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
 
       expect(mockCreateScreening).not.toHaveBeenCalled();
@@ -457,7 +457,7 @@ describe("Job Lifecycle (soft delete)", () => {
       await Job.updateOne({ _id: job.id }, { $set: { deleted_at: new Date() } });
 
       const res = await request(app)
-        .post(`/api/v1/applications/${application.id}/screenings`)
+        .post(`/api/v1/applications/${application.public_id}/screenings`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({});
 
@@ -474,7 +474,7 @@ describe("Job Lifecycle (soft delete)", () => {
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ title: "Regression Job" });
       expect(createRes.status).toBe(201);
-      const jobId = createRes.body.job._id;
+      const jobId = createRes.body.job.public_id;
 
       const getRes = await request(app).get(`/api/v1/jobs/${jobId}`).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(getRes.status).toBe(200);
@@ -497,7 +497,7 @@ describe("Job Lifecycle (soft delete)", () => {
       expect(listRes.body.jobs.map((j: { _id: string }) => j._id)).toContain(closed.id);
 
       const detailRes = await request(app)
-        .get(`/api/v1/jobs/${closed.id}`)
+        .get(`/api/v1/jobs/${closed.public_id}`)
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(detailRes.status).toBe(200);
       expect(detailRes.body.job.status).toBe("closed");
@@ -507,7 +507,7 @@ describe("Job Lifecycle (soft delete)", () => {
       const job = await Job.create({ company_id: companyA.id, created_by: hrA.id, title: "Open Role", status: "active" });
 
       const res = await request(app)
-        .post(`/api/v1/public/jobs/${job.id}/applications`)
+        .post(`/api/v1/public/jobs/${job.public_id}/applications`)
         .field("full_name", "Sarah Ahmed")
         .field("email", "sarah-still-open@candidate.test")
         .attach("cv", PDF_BUFFER, { filename: "resume.pdf", contentType: "application/pdf" });

@@ -99,14 +99,17 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
     mockSend.mockReset();
   });
 
-  async function createDraft(overrides: Record<string, unknown> = {}, applicationId = application.id) {
-    const res = await request(app).post(createUrl(applicationId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody(overrides));
-    return res.body.offer.id as string;
+  // Returns both `.id` (raw Mongo ObjectId, for internal DB assertions like
+  // findById/relation-field queries) and `.publicId` (for building admin
+  // URLs) — Phase 2 cutover means only the latter resolves against the API.
+  async function createDraft(overrides: Record<string, unknown> = {}, applicationPublicId = application.public_id!) {
+    const res = await request(app).post(createUrl(applicationPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send(validBody(overrides));
+    return { id: res.body.offer.id as string, publicId: res.body.offer.public_id as string };
   }
 
-  async function sendAndCaptureAcceptToken(offerId: string) {
+  async function sendAndCaptureAcceptToken(offerPublicId: string) {
     mockSend.mockResolvedValueOnce(undefined);
-    await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+    await request(app).post(sendUrl(offerPublicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
     return extractTokenFromLastEmail("Accept");
   }
 
@@ -118,50 +121,50 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
       cv_file: { storage_key: "x", original_name: "r.pdf", mime_type: "application/pdf", size_bytes: 10 },
       status: "in_process",
     });
-    const offerId = await createDraft(overrides, secondApplication.id);
-    return { offerId, applicationId: secondApplication.id };
+    const offer = await createDraft(overrides, secondApplication.public_id!);
+    return { offerId: offer.id, offerPublicId: offer.publicId, applicationId: secondApplication.id };
   }
 
   // ===== TOKEN =====
   describe("token generation and storage", () => {
     // 1. sending Offer generates secure response token
     it("1. generates a response token when the offer is sent", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
-      expect(await OfferResponseToken.countDocuments({ offer_id: offerId })).toBe(1);
+      const { id, publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
+      expect(await OfferResponseToken.countDocuments({ offer_id: id })).toBe(1);
     });
 
     // 2. plaintext token never stored
     it("2. never stores the plaintext token anywhere", async () => {
-      const offerId = await createDraft();
-      const rawToken = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const rawToken = await sendAndCaptureAcceptToken(publicId);
 
-      const stored = await OfferResponseToken.findOne({ offer_id: offerId });
+      const stored = await OfferResponseToken.findOne({ offer_id: id });
       expect(JSON.stringify(stored)).not.toContain(rawToken);
 
-      const offer = await Offer.findById(offerId);
+      const offer = await Offer.findById(id);
       expect(JSON.stringify(offer)).not.toContain(rawToken);
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       expect(JSON.stringify(notification)).not.toContain(rawToken);
     });
 
     // 3. hash stored
     it("3. stores a SHA-256 hash of the token, distinct from the raw value", async () => {
-      const offerId = await createDraft();
-      const rawToken = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const rawToken = await sendAndCaptureAcceptToken(publicId);
 
-      const stored = await OfferResponseToken.findOne({ offer_id: offerId });
+      const stored = await OfferResponseToken.findOne({ offer_id: id });
       expect(stored!.token_hash).not.toBe(rawToken);
       expect(stored!.token_hash).toMatch(/^[a-f0-9]{64}$/);
     });
 
     // 4. token expiry stored
     it("4. stores a future expires_at roughly matching the configured TTL", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
 
-      const stored = await OfferResponseToken.findOne({ offer_id: offerId });
+      const stored = await OfferResponseToken.findOne({ offer_id: id });
       const expectedMs = 14 * 24 * 60 * 60 * 1000;
       const actualMs = stored!.expires_at.getTime() - Date.now();
       expect(actualMs).toBeGreaterThan(expectedMs - 60_000);
@@ -171,10 +174,10 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
     // 5. token expiry respects earlier Offer.expires_at
     it("5. caps token expiry at the Offer's own expires_at when it is earlier than the TTL", async () => {
       const soon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
-      const offerId = await createDraft({ expires_at: soon });
-      await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft({ expires_at: soon });
+      await sendAndCaptureAcceptToken(publicId);
 
-      const stored = await OfferResponseToken.findOne({ offer_id: offerId });
+      const stored = await OfferResponseToken.findOne({ offer_id: id });
       expect(stored!.expires_at.toISOString()).toBe(soon);
     });
 
@@ -187,27 +190,27 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 7. cross-offer token cannot access another Offer
     it("7. one offer's token only ever affects that exact offer", async () => {
-      const offerAId = await createDraft({ title: "Offer A" });
-      const tokenA = await sendAndCaptureAcceptToken(offerAId);
-      const { offerId: offerBId } = await createSecondApplicationAndOffer({ title: "Offer B" });
-      await sendAndCaptureAcceptToken(offerBId);
+      const offerA = await createDraft({ title: "Offer A" });
+      const tokenA = await sendAndCaptureAcceptToken(offerA.publicId);
+      const { offerId: offerBId, offerPublicId: offerBPublicId } = await createSecondApplicationAndOffer({ title: "Offer B" });
+      await sendAndCaptureAcceptToken(offerBPublicId);
 
       const res = await request(app).post(respondUrl).send({ token: tokenA, decision: "accepted" });
       expect(res.status).toBe(200);
       expect(res.body.offer_title).toBe("Offer A");
 
-      expect((await Offer.findById(offerAId))!.status).toBe("accepted");
+      expect((await Offer.findById(offerA.id))!.status).toBe("accepted");
       expect((await Offer.findById(offerBId))!.status).toBe("sent");
     });
 
     // 8. public DTO contains no internal IDs/notes
     it("8. the lookup DTO never includes internal ids or notes", async () => {
-      const offerId = await createDraft({ internal_notes: "Candidate negotiated hard" });
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft({ internal_notes: "Candidate negotiated hard" });
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       const res = await request(app).post(lookupUrl).send({ token });
       const bodyText = JSON.stringify(res.body);
-      expect(bodyText).not.toContain(offerId);
+      expect(bodyText).not.toContain(id);
       expect(bodyText).not.toContain(application.id);
       expect(bodyText).not.toContain(companyA.id);
       expect(bodyText).not.toContain(candidate.id);
@@ -220,9 +223,9 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("offer email content", () => {
     // 9 & 10. Accept Offer / Decline Offer present
     it("9/10. includes Accept Offer and Decline Offer actions, never the word Reject", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const [sendCall] = mockSend.mock.calls;
       expect(sendCall[0].text).toMatch(/Accept Offer/);
@@ -235,9 +238,9 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 11. tokenized actions point to candidate response frontend
     it("11. both links point at the public /offer-response page with a token in the fragment", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const [sendCall] = mockSend.mock.calls;
       expect(sendCall[0].text).toMatch(/\/offer-response#token=\S+&decision=accept\b/);
@@ -246,9 +249,9 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 12. internal notes excluded
     it("12. never includes internal_notes in the email", async () => {
-      const offerId = await createDraft({ internal_notes: "Do not exceed 100k" });
+      const { publicId } = await createDraft({ internal_notes: "Do not exceed 100k" });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const [sendCall] = mockSend.mock.calls;
       expect(sendCall[0].text).not.toMatch(/100k/);
@@ -257,32 +260,32 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 13. Retry generates fresh token
     it("13. generates a brand-new token on Retry Email, distinct from the original", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
       const originalToken = await (async () => {
-        await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+        await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
         return extractTokenFromLastEmail("Accept");
       })();
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(offerId, notification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(retryUrl(publicId, notification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const retryToken = extractTokenFromLastEmail("Accept");
 
       expect(retryToken).not.toBe(originalToken);
-      expect(await OfferResponseToken.countDocuments({ offer_id: offerId })).toBe(2);
+      expect(await OfferResponseToken.countDocuments({ offer_id: id })).toBe(2);
     });
 
     // 14. old still-valid token remains usable while Offer sent
     it("14. the original token from a failed send remains usable after a successful retry", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const originalToken = extractTokenFromLastEmail("Accept");
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(offerId, notification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(retryUrl(publicId, notification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       // The ORIGINAL (pre-retry) token still works.
       const res = await request(app).post(respondUrl).send({ token: originalToken, decision: "accepted" });
@@ -292,10 +295,10 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 15. no plaintext token persisted in EmailNotification snapshot
     it("15. the EmailNotification's offer_snapshot never contains a token or url field", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       const snapshotKeys = Object.keys(JSON.parse(JSON.stringify(notification!.offer_snapshot)));
       expect(snapshotKeys).not.toContain("token");
       expect(snapshotKeys).not.toContain("accept_url");
@@ -309,9 +312,9 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("email scanner safety — zero mutation on lookup", () => {
     // 16 & 17. lookup/page load causes zero Offer mutation
     it("16/17. calling lookup any number of times never changes Offer state", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
-      const before = await Offer.findById(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
+      const before = await Offer.findById(id);
 
       for (let i = 0; i < 5; i++) {
         const res = await request(app).post(lookupUrl).send({ token });
@@ -319,7 +322,7 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
         expect(res.body.response_state).toBe("awaiting_response");
       }
 
-      const after = await Offer.findById(offerId);
+      const after = await Offer.findById(id);
       expect(after!.status).toBe("sent");
       expect(after!.updated_at!.getTime()).toBe(before!.updated_at!.getTime());
       expect(after!.accepted_at).toBeNull();
@@ -328,15 +331,15 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 18. only explicit POST respond mutates
     it("18. only the respond call actually mutates the Offer", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       await request(app).post(lookupUrl).send({ token });
       await request(app).post(lookupUrl).send({ token });
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
+      expect((await Offer.findById(id))!.status).toBe("sent");
 
       await request(app).post(respondUrl).send({ token, decision: "accepted" });
-      expect((await Offer.findById(offerId))!.status).toBe("accepted");
+      expect((await Offer.findById(id))!.status).toBe("accepted");
     });
   });
 
@@ -344,54 +347,54 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("candidate response", () => {
     // 19. valid sent Offer can accept
     it("19. accepts a valid sent offer", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       const res = await request(app).post(respondUrl).send({ token, decision: "accepted" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("accepted");
-      expect((await Offer.findById(offerId))!.status).toBe("accepted");
+      expect((await Offer.findById(id))!.status).toBe("accepted");
     });
 
     // 20. valid sent Offer can decline
     it("20. declines a valid sent offer", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       const res = await request(app).post(respondUrl).send({ token, decision: "declined" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("declined");
-      expect((await Offer.findById(offerId))!.status).toBe("declined");
+      expect((await Offer.findById(id))!.status).toBe("declined");
     });
 
     // 21. accepted cannot decline afterward
     it("21. cannot decline an already-accepted offer, and safely reports the accepted state", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       await request(app).post(respondUrl).send({ token, decision: "accepted" });
 
       const res = await request(app).post(respondUrl).send({ token, decision: "declined" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("accepted");
-      expect((await Offer.findById(offerId))!.status).toBe("accepted");
+      expect((await Offer.findById(id))!.status).toBe("accepted");
     });
 
     // 22. declined cannot accept afterward
     it("22. cannot accept an already-declined offer, and safely reports the declined state", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       await request(app).post(respondUrl).send({ token, decision: "declined" });
 
       const res = await request(app).post(respondUrl).send({ token, decision: "accepted" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("declined");
-      expect((await Offer.findById(offerId))!.status).toBe("declined");
+      expect((await Offer.findById(id))!.status).toBe("declined");
     });
 
     // 23. accept-vs-decline race has exactly one winner
     it("23. an accept-vs-decline race resolves to exactly one winner", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       const [acceptRes, declineRes] = await Promise.all([
         request(app).post(respondUrl).send({ token, decision: "accepted" }),
@@ -403,14 +406,14 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
       expect(states[0]).toBe(states[1]);
       expect(["accepted", "declined"]).toContain(states[0]);
 
-      const stored = await Offer.findById(offerId);
+      const stored = await Offer.findById(id);
       expect(stored!.status).toBe(states[0]);
     });
 
     // 24. candidate accepted leaves Application.status offered
     it("24. leaves Application.status as offered after candidate acceptance", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       await request(app).post(respondUrl).send({ token, decision: "accepted" });
 
       expect((await Application.findById(application.id))!.status).toBe("offered");
@@ -418,8 +421,8 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 25. candidate accepted does NOT hire
     it("25. never hires the application on candidate acceptance", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       await request(app).post(respondUrl).send({ token, decision: "accepted" });
 
       const stored = await Application.findById(application.id);
@@ -430,8 +433,8 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 26. candidate declined sets final_decision declined
     it("26. sets Application.final_decision to declined on candidate decline", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       await request(app).post(respondUrl).send({ token, decision: "declined" });
 
       expect((await Application.findById(application.id))!.final_decision).toBe("declined");
@@ -439,11 +442,11 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 27. candidate response_source recorded
     it("27. records response_source as candidate with no responded_by user", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       await request(app).post(respondUrl).send({ token, decision: "accepted" });
 
-      const stored = await Offer.findById(offerId);
+      const stored = await Offer.findById(id);
       expect(stored!.response_source).toBe("candidate");
       expect(stored!.responded_by_user_id).toBeNull();
       expect(stored!.responded_at).not.toBeNull();
@@ -451,40 +454,40 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 28. withdrawn Offer cannot respond
     it("28. reports a withdrawn offer as unavailable and never mutates it", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
-      await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
+      await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const res = await request(app).post(respondUrl).send({ token, decision: "accepted" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("withdrawn");
-      expect((await Offer.findById(offerId))!.status).toBe("withdrawn");
+      expect((await Offer.findById(id))!.status).toBe("withdrawn");
     });
 
     // 29. expired Offer cannot respond
     it("29. reports an offer whose expires_at has passed as expired and never mutates it", async () => {
-      const offerId = await createDraft({ expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() });
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft({ expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() });
+      const token = await sendAndCaptureAcceptToken(publicId);
       // Simulate time passing: the OFFER's own deadline has now passed,
       // while the response token (minted with a real future expiry at
       // send time) is still technically valid.
-      await Offer.updateOne({ _id: offerId }, { $set: { expires_at: new Date(Date.now() - 1000) } });
+      await Offer.updateOne({ _id: id }, { $set: { expires_at: new Date(Date.now() - 1000) } });
 
       const res = await request(app).post(respondUrl).send({ token, decision: "accepted" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("expired");
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
+      expect((await Offer.findById(id))!.status).toBe("sent");
     });
 
     // 30. invalid token cannot respond
     it("30. never mutates anything for an invalid token", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
 
       const res = await request(app).post(respondUrl).send({ token: "garbage-token", decision: "accepted" });
       expect(res.status).toBe(200);
       expect(res.body.response_state).toBe("invalid");
-      expect((await Offer.findById(offerId))!.status).toBe("sent");
+      expect((await Offer.findById(id))!.status).toBe("sent");
     });
   });
 
@@ -492,46 +495,46 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("HR manual fallback", () => {
     // 31. HR manual Accepted still works
     it("31. HR can still manually mark an offer accepted", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
+      const { publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
 
-      const res = await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer.status).toBe("accepted");
     });
 
     // 32. HR manual Declined still works
     it("32. HR can still manually mark an offer declined", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
+      const { publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
 
-      const res = await request(app).post(declineUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const res = await request(app).post(declineUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(200);
       expect(res.body.offer.status).toBe("declined");
     });
 
     // 33. HR response_source recorded as HR
     it("33. records response_source as hr with the acting user attributed", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { id, publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
-      const stored = await Offer.findById(offerId);
+      const stored = await Offer.findById(id);
       expect(stored!.response_source).toBe("hr");
       expect(stored!.responded_by_user_id!.toString()).toBe(hrA.id);
     });
 
     // 34. candidate-vs-HR race safe
     it("34. a candidate-vs-HR race resolves to exactly one winner", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       const [candidateRes, hrRes] = await Promise.all([
         request(app).post(respondUrl).send({ token, decision: "declined" }),
-        request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
+        request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)),
       ]);
 
-      const finalStatus = (await Offer.findById(offerId))!.status;
+      const finalStatus = (await Offer.findById(id))!.status;
       expect(["accepted", "declined"]).toContain(finalStatus);
       // Whichever one actually won matches the stored state; the loser
       // gets a safe conflict (HR: 409) or a safe already-responded report
@@ -550,47 +553,47 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("token invalidation by business state", () => {
     // 35. accepted state blocks all other valid tokens
     it("35. a second still-valid token cannot decline an already-accepted offer", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const token1 = extractTokenFromLastEmail("Accept");
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(offerId, notification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(retryUrl(publicId, notification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const token2 = extractTokenFromLastEmail("Accept");
 
       await request(app).post(respondUrl).send({ token: token1, decision: "accepted" });
 
       const res = await request(app).post(respondUrl).send({ token: token2, decision: "declined" });
       expect(res.body.response_state).toBe("accepted");
-      expect((await Offer.findById(offerId))!.status).toBe("accepted");
+      expect((await Offer.findById(id))!.status).toBe("accepted");
     });
 
     // 36. declined state blocks all other valid tokens
     it("36. a second still-valid token cannot accept an already-declined offer", async () => {
-      const offerId = await createDraft();
+      const { id, publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const token1 = extractTokenFromLastEmail("Accept");
 
-      const notification = await EmailNotification.findOne({ offer_id: offerId });
+      const notification = await EmailNotification.findOne({ offer_id: id });
       mockSend.mockResolvedValueOnce(undefined);
-      await request(app).post(retryUrl(offerId, notification!.id)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(retryUrl(publicId, notification!.public_id!)).set("Authorization", authHeaderFor(hrA, companyA.id));
       const token2 = extractTokenFromLastEmail("Accept");
 
       await request(app).post(respondUrl).send({ token: token1, decision: "declined" });
 
       const res = await request(app).post(respondUrl).send({ token: token2, decision: "accepted" });
       expect(res.body.response_state).toBe("declined");
-      expect((await Offer.findById(offerId))!.status).toBe("declined");
+      expect((await Offer.findById(id))!.status).toBe("declined");
     });
 
     // 37. withdrawn Offer blocks token
     it("37. a valid token cannot mutate a withdrawn offer", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
-      await request(app).post(withdrawUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
+      await request(app).post(withdrawUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const res = await request(app).post(respondUrl).send({ token, decision: "accepted" });
       expect(res.body.response_state).toBe("withdrawn");
@@ -598,10 +601,10 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
     // 38. hired state blocks token
     it("38. a valid token cannot mutate an offer whose application has since been hired", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
-      await request(app).post(acceptUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
-      await request(app).post(`/api/v1/offers/${offerId}/hire`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
+      await request(app).post(acceptUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      await request(app).post(`/api/v1/offers/${publicId}/hire`).set("Authorization", authHeaderFor(hrA, companyA.id));
 
       const res = await request(app).post(respondUrl).send({ token, decision: "declined" });
       expect(res.status).toBe(200);
@@ -614,18 +617,18 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("security", () => {
     // 40. raw token/provider/internal data never returned/logged as appropriate
     it("40. never exposes a raw SMTP error or internal data through the public endpoints", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { id, publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
 
       const res = await request(app).post(respondUrl).send({ token, decision: "accepted" });
       const bodyText = JSON.stringify(res.body);
       expect(bodyText).not.toMatch(/ECONNREFUSED|smtp|nodemailer/i);
-      expect(bodyText).not.toContain(offerId);
+      expect(bodyText).not.toContain(id);
     });
 
     it("returns 400 for a malformed respond payload (unknown decision value)", async () => {
-      const offerId = await createDraft();
-      const token = await sendAndCaptureAcceptToken(offerId);
+      const { publicId } = await createDraft();
+      const token = await sendAndCaptureAcceptToken(publicId);
       const res = await request(app).post(respondUrl).send({ token, decision: "maybe" });
       expect(res.status).toBe(400);
     });
@@ -640,38 +643,38 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
   describe("regression", () => {
     // 41. Mark as Hired still only after accepted
     it("41. still blocks Mark as Hired from a merely-sent offer", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
-      const res = await request(app).post(`/api/v1/offers/${offerId}/hire`).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const { publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
+      const res = await request(app).post(`/api/v1/offers/${publicId}/hire`).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(res.status).toBe(409);
     });
 
     // 42. Offer email retry still works
     it("42. offer email retry still recovers from a failed send", async () => {
-      const offerId = await createDraft();
+      const { publicId } = await createDraft();
       mockSend.mockRejectedValueOnce(new Error("smtp down"));
-      const sendRes = await request(app).post(sendUrl(offerId)).set("Authorization", authHeaderFor(hrA, companyA.id));
+      const sendRes = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(sendRes.body.notification.status).toBe("failed");
 
       mockSend.mockResolvedValueOnce(undefined);
       const retryRes = await request(app)
-        .post(retryUrl(offerId, sendRes.body.notification.id))
+        .post(retryUrl(publicId, sendRes.body.notification.public_id))
         .set("Authorization", authHeaderFor(hrA, companyA.id));
       expect(retryRes.body.notification.status).toBe("sent");
     });
 
     // 43. Offer notification durability invariant unchanged
     it("43. still persists exactly one notification the moment Send Offer succeeds", async () => {
-      const offerId = await createDraft();
-      await sendAndCaptureAcceptToken(offerId);
-      expect(await EmailNotification.countDocuments({ offer_id: offerId, category: "offer_sent" })).toBe(1);
+      const { id, publicId } = await createDraft();
+      await sendAndCaptureAcceptToken(publicId);
+      expect(await EmailNotification.countDocuments({ offer_id: id, category: "offer_sent" })).toBe(1);
     });
 
     // 44. Rejection email unaffected
     it("44. rejection email flow is unaffected by the response-token infrastructure", async () => {
       mockSend.mockResolvedValueOnce(undefined);
       const res = await request(app)
-        .post(`/api/v1/applications/${application.id}/reject`)
+        .post(`/api/v1/applications/${application.public_id}/reject`)
         .set("Authorization", authHeaderFor(hrA, companyA.id))
         .send({ send_email: true });
       expect(res.status).toBe(200);
@@ -682,8 +685,8 @@ describe("Offer Response API (candidate accept/decline via email)", () => {
 
   // ===== Cross-company isolation for the public endpoint's underlying data =====
   it("a token generated for Company A's offer never leaks Company B context (structural — public endpoint has no auth to test cross-company against directly)", async () => {
-    const offerId = await createDraft();
-    const token = await sendAndCaptureAcceptToken(offerId);
+    const { publicId } = await createDraft();
+    const token = await sendAndCaptureAcceptToken(publicId);
     const res = await request(app).post(lookupUrl).send({ token });
     expect(JSON.stringify(res.body)).not.toContain(companyB.id);
     void hrB;

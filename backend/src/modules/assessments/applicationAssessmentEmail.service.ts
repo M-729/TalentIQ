@@ -1,11 +1,16 @@
 import { Types } from "mongoose";
 import {
   EmailNotification,
+  emailNotificationIdentifierFilter,
   type AssessmentSnapshot,
   type EmailNotificationDoc,
   type EmailNotificationStatus,
 } from "../../models/EmailNotification.model";
-import { ApplicationAssessment, type ApplicationAssessmentDoc } from "../../models/ApplicationAssessment.model";
+import {
+  ApplicationAssessment,
+  applicationAssessmentIdentifierFilter,
+  type ApplicationAssessmentDoc,
+} from "../../models/ApplicationAssessment.model";
 import { Application } from "../../models/Application.model";
 import { Candidate } from "../../models/Candidate.model";
 import { Job, NOT_DELETED_JOB_FILTER } from "../../models/Job.model";
@@ -110,7 +115,10 @@ export async function sendAssessmentInvitation(
   userId: string,
   assessmentId: string
 ): Promise<EmailNotificationDoc> {
-  const assessment = await ApplicationAssessment.findOne({ _id: assessmentId, company_id: companyId });
+  const assessment = await ApplicationAssessment.findOne({
+    ...applicationAssessmentIdentifierFilter(assessmentId),
+    company_id: companyId,
+  });
   if (!assessment) {
     throw new NotFoundError("Assessment not found");
   }
@@ -186,10 +194,18 @@ export async function retryAssessmentNotification(
   assessmentId: string,
   notificationId: string
 ): Promise<EmailNotificationDoc> {
-  const notification = await EmailNotification.findOne({
-    _id: notificationId,
+  const assessment = await ApplicationAssessment.findOne({
+    ...applicationAssessmentIdentifierFilter(assessmentId),
     company_id: companyId,
-    application_assessment_id: assessmentId,
+  });
+  if (!assessment) {
+    throw new NotFoundError("Assessment not found");
+  }
+
+  const notification = await EmailNotification.findOne({
+    ...emailNotificationIdentifierFilter(notificationId),
+    company_id: companyId,
+    application_assessment_id: assessment.id,
     category: "assessment_invitation",
   });
   if (!notification) {
@@ -213,11 +229,14 @@ export async function retryAssessmentNotification(
  * listNotificationsForInterview.
  */
 export async function listNotificationsForAssessment(companyId: string, assessmentId: string): Promise<EmailNotificationDoc[]> {
-  const assessment = await ApplicationAssessment.findOne({ _id: assessmentId, company_id: companyId });
+  const assessment = await ApplicationAssessment.findOne({
+    ...applicationAssessmentIdentifierFilter(assessmentId),
+    company_id: companyId,
+  });
   if (!assessment) {
     throw new NotFoundError("Assessment not found");
   }
-  return EmailNotification.find({ application_assessment_id: assessmentId }).sort({ created_at: -1 });
+  return EmailNotification.find({ application_assessment_id: assessment.id }).sort({ created_at: -1 });
 }
 
 export interface LatestAssessmentNotificationSummary {

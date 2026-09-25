@@ -20,6 +20,7 @@ vi.mock("@/services/api/jobs");
 
 const JOB_A: Job = {
   _id: "job-a",
+  public_id: "job-a",
   company_id: "c1",
   created_by: "u1",
   title: "Backend Developer",
@@ -31,6 +32,7 @@ const JOB_A: Job = {
 
 const JOB_B: Job = {
   _id: "job-b",
+  public_id: "job-b",
   company_id: "c1",
   created_by: "u1",
   title: "Frontend Developer",
@@ -138,6 +140,29 @@ describe("HiringPipelinePage (workspace shell)", () => {
       await selectJob("Backend Developer");
 
       expect(screen.getByTestId("location-display")).toHaveTextContent("/hiring-pipeline?jobId=job-a");
+    });
+
+    // Phase 1 opaque public ID migration: prefers public_id over the raw
+    // Mongo _id once the backend provides one — this URL is genuinely
+    // browser-visible (unlike the other list pages' job filters, which
+    // never reach the address bar), so this is the one Job-filter case
+    // this migration's "special attention" pass actually changes.
+    it("writes the Job's public_id to the URL when present, not _id", async () => {
+      vi.mocked(jobsApi.listJobs).mockReset().mockResolvedValue({
+        jobs: [{ ...JOB_A, public_id: "job_a8f13c92e51b4f638dde79bf" }, JOB_B],
+      });
+      renderPage();
+      await selectJob("Backend Developer");
+
+      expect(screen.getByTestId("location-display")).toHaveTextContent(
+        "/hiring-pipeline?jobId=job_a8f13c92e51b4f638dde79bf"
+      );
+      await waitFor(() =>
+        expect(hiringPipelineBoardApi.getHiringPipelineBoard).toHaveBeenCalledWith(
+          "job_a8f13c92e51b4f638dde79bf",
+          expect.anything()
+        )
+      );
     });
 
     it("restores the selected Job from a valid initial ?jobId=", async () => {

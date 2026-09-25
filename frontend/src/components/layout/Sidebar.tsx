@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { BrandMark } from "@/components/layout/BrandMark";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/auth";
 
@@ -116,9 +117,8 @@ export function Sidebar({ className, role }: { className?: string; role?: UserRo
       aria-label="Main navigation"
       className={cn("flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground", className)}
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 px-6 text-lg font-semibold tracking-tight text-white">
-        <span className="inline-block size-5 rotate-45 rounded-[6px] bg-primary" aria-hidden="true" />
-        TalentIQ
+      <div className="flex h-14 shrink-0 items-center px-6">
+        <BrandMark to="/dashboard" variant="dark" />
       </div>
 
       <ul className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">

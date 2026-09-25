@@ -27,6 +27,7 @@ function buildDashboard(overrides: Partial<Dashboard> = {}): Dashboard {
     recent_applications: [
       {
         id: "app-1",
+        public_id: "app-1-public",
         candidate: { id: "cand-1", name: "Sarah Ahmed" },
         job: { id: "job-1", title: "Backend Developer" },
         status: "applied",
@@ -37,7 +38,7 @@ function buildDashboard(overrides: Partial<Dashboard> = {}): Dashboard {
     upcoming_interviews: [
       {
         id: "iv-1",
-        application_id: "app-1",
+        application_public_id: "app-1",
         candidate: { id: "cand-1", name: "Sarah Ahmed" },
         job: { id: "job-1", title: "Backend Developer" },
         starts_at: "2026-10-01T10:00:00.000Z",
@@ -123,7 +124,7 @@ describe("DashboardPage", () => {
         upcoming_interviews: [
           {
             id: "iv-1",
-            application_id: "app-1",
+            application_public_id: "app-1",
             candidate: { id: "cand-1", name: "Sarah Ahmed" },
             job: { id: "job-1", title: "Backend Developer" },
             starts_at: "2026-10-01T10:00:00.000Z",
@@ -204,6 +205,30 @@ describe("DashboardPage", () => {
     renderPage();
 
     const links = screen.getAllByRole("link", { name: "View" });
-    expect(links.some((link) => link.getAttribute("href") === "/applications/app-1")).toBe(true);
+    expect(links.some((link) => link.getAttribute("href") === "/applications/app-1-public")).toBe(true);
+  });
+
+  // Phase 1 opaque public ID migration: prefers public_id over the raw
+  // Mongo _id (exposed here as `id`) once the backend provides one.
+  it("the recent application row links using public_id when present, not id", () => {
+    mockDashboard({
+      dashboard: buildDashboard({
+        recent_applications: [
+          {
+            id: "internal-object-id",
+            public_id: "app_a8f13c92e51b4f638dde79bf",
+            candidate: { id: "cand-1", name: "Sarah Ahmed" },
+            job: { id: "job-1", title: "Backend Developer" },
+            status: "applied",
+            current_step: null,
+            applied_at: "2026-09-20T00:00:00.000Z",
+          },
+        ],
+      }),
+    });
+    renderPage();
+
+    const links = screen.getAllByRole("link", { name: "View" });
+    expect(links.some((link) => link.getAttribute("href") === "/applications/app_a8f13c92e51b4f638dde79bf")).toBe(true);
   });
 });

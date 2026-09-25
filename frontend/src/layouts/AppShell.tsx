@@ -27,11 +27,12 @@ export function AppShell() {
   useEffect(() => {
     if (!mobileNavOpen) return;
 
-    // Query scoped to "nav a" so focus lands on the first real nav link
+    // Query scoped to "nav ul a" so focus lands on the first real nav link
     // (e.g. Dashboard) rather than the invisible full-screen backdrop
-    // button, which is a DOM sibling that comes first but isn't inside the
-    // <nav> the Sidebar renders.
-    mobileNavRef.current?.querySelector<HTMLElement>("nav a")?.focus();
+    // button (a DOM sibling that comes first but isn't inside the <nav>
+    // the Sidebar renders) or the Sidebar's own brand link, which sits in
+    // the <nav> ahead of the <ul> but isn't a nav item.
+    mobileNavRef.current?.querySelector<HTMLElement>("nav ul a")?.focus();
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") closeMobileNav();
