@@ -1,12 +1,17 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 // Never surface a raw backend message here — same convention as interviewErrors.ts.
 
-export function getInterviewFeedbackListErrorMessage(_err: unknown): string {
+export function getInterviewFeedbackListErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   return "Feedback could not be loaded. Please try again.";
 }
 
 export function getSaveFeedbackDraftErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 403:
@@ -21,6 +26,8 @@ export function getSaveFeedbackDraftErrorMessage(err: unknown): string {
 }
 
 export function getSubmitFeedbackErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:

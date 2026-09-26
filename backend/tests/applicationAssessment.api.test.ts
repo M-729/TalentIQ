@@ -1018,7 +1018,14 @@ describe("External Assessment API", () => {
       const { publicId } = await createOne();
       const res = await request(app).post(sendUrl(publicId)).set("Authorization", authHeaderFor(hrA, companyA.id)).send({});
 
-      expect(JSON.stringify(res.body)).not.toMatch(/534|raw SMTP auth failure/);
+      // The raw Error's own message text — never a bare "534", which a
+      // randomly generated public_id (e.g. "notif_8bfd379711c35344f925f8db")
+      // can legitimately contain as a harmless substring.
+      expect(JSON.stringify(res.body)).not.toMatch(/raw SMTP auth failure|5\.7\.9/);
+      // The response only ever carries the safe, provider-neutral code —
+      // confirms the leak-check above isn't passing merely because the
+      // field was absent/undefined.
+      expect(res.body.notification.failure_code).toBe("delivery_failed");
     });
 
     it("blocks sending a NEW invitation once the Job is soft-deleted", async () => {

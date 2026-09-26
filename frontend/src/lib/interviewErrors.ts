@@ -1,20 +1,31 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 // Never surface a raw backend message here — same convention as
-// hiringPipelineBoardErrors.ts / applicationErrors.ts.
+// hiringPipelineBoardErrors.ts / applicationErrors.ts. A completely
+// unreachable backend (stopped/no network) is checked FIRST in every
+// function below, before any status-based fallback, so it always shows
+// NETWORK_UNREACHABLE_MESSAGE rather than a page-specific "X could not be
+// loaded" — see apiErrorMessage.ts's own doc comment for why.
 
 export function getInterviewsListErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError && err.status === 400) {
     return "Invalid filter values. Please adjust and try again.";
   }
   return "Interviews could not be loaded. Please try again.";
 }
 
-export function getInterviewDetailErrorMessage(_err: unknown): string {
+export function getInterviewDetailErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   return "This interview could not be loaded. Please try again.";
 }
 
 export function getScheduleInterviewErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -31,6 +42,8 @@ export function getScheduleInterviewErrorMessage(err: unknown): string {
 }
 
 export function getRescheduleInterviewErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -47,6 +60,8 @@ export function getRescheduleInterviewErrorMessage(err: unknown): string {
 }
 
 export function getCancelInterviewErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:
@@ -67,6 +82,8 @@ export function getCancelInterviewErrorMessage(err: unknown): string {
 // provider-neutral error code (which the API doesn't expose to the
 // client — see this ticket's Part 11).
 export function getCalendarActionErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 409:
@@ -84,11 +101,15 @@ export function getCalendarActionErrorMessage(err: unknown): string {
   return "This Google Calendar action could not be completed. Please try again.";
 }
 
-export function getInterviewerDirectoryErrorMessage(_err: unknown): string {
+export function getInterviewerDirectoryErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   return "Interviewers could not be loaded. Please try again.";
 }
 
 export function getCompleteInterviewErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:

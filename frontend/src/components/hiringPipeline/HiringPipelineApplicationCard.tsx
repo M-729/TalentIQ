@@ -111,6 +111,13 @@ export interface HiringPipelineApplicationCardProps {
   onToggleSelected?: () => void;
 }
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (first + last).toUpperCase();
+}
+
 // The candidate's name is deliberately plain text, not a link — "View
 // Application" is the one explicit navigation affordance (matching
 // ApplicationsTable.tsx's own pattern), since a card also has an
@@ -125,7 +132,11 @@ export function HiringPipelineApplicationCard({
 }: HiringPipelineApplicationCardProps) {
   const selectable = onToggleSelected !== undefined;
   return (
-    <Card className={selected ? "border-primary ring-1 ring-primary" : undefined}>
+    <Card
+      className={
+        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "transition-colors hover:border-primary/40 hover:shadow-md"
+      }
+    >
       <CardContent className="space-y-2 p-3">
         <div className="flex items-start gap-2">
           {selectable && (
@@ -136,9 +147,12 @@ export function HiringPipelineApplicationCard({
               className="mt-0.5"
             />
           )}
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+            {getInitials(application.candidate.full_name)}
+          </span>
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-foreground">{application.candidate.full_name}</p>
-            <p className="text-xs text-muted-foreground">{application.candidate.email}</p>
+            <p className="truncate font-medium text-foreground">{application.candidate.full_name}</p>
+            <p className="truncate text-xs text-muted-foreground">{application.candidate.email}</p>
           </div>
         </div>
 
@@ -148,7 +162,7 @@ export function HiringPipelineApplicationCard({
         {application.interview_summary && <InterviewStatusLine summary={application.interview_summary} />}
         {application.assessment_summary && <AssessmentStatusLine summary={application.assessment_summary} />}
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 border-t border-border pt-2">
           <Button variant="outline" size="sm" asChild>
             <Link to={`/applications/${resourceUrlId(application)}`}>View Application</Link>
           </Button>

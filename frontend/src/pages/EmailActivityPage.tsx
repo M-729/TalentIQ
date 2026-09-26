@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { EmailActivityFilterBar } from "@/components/emailActivity/EmailActivityFilterBar";
 import { EmailActivityTable } from "@/components/emailActivity/EmailActivityTable";
 import { useEmailActivityList } from "@/hooks/useEmailActivityList";
@@ -80,27 +79,36 @@ export function EmailActivityPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Email Activity"
-        description="Transactional email history for applications, interviews, assessments, offers, and invitations."
-      />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <EmailActivityFilterBar
-          searchInput={searchInput}
-          onSearchInputChange={setSearchInput}
-          type={type}
-          onTypeChange={setType}
-          status={status}
-          onStatusChange={setStatus}
-        />
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Mail className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Email Activity</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Transactional email history for applications, interviews, assessments, offers, and invitations.
+          </p>
+        </div>
       </div>
+
+      <Card className="border-border bg-muted/20">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <EmailActivityFilterBar
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            type={type}
+            onTypeChange={setType}
+            status={status}
+            onStatusChange={setStatus}
+          />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {retryError && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">

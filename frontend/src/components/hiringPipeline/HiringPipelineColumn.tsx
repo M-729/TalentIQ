@@ -23,7 +23,9 @@ export interface HiringPipelineColumnProps {
 // A fixed, sensible min width per column (not compressed to fit many
 // stages) inside a horizontally scrolling board wrapper — see
 // HiringPipelineBoard.tsx for the overflow-x-auto wrapper this column
-// relies on.
+// relies on. Each column is now its own bordered card (distinct header
+// band + body) rather than a bare div, so a dense multi-stage board still
+// reads as clearly separated Kanban lanes.
 export function HiringPipelineColumn({
   title,
   helperText,
@@ -41,10 +43,11 @@ export function HiringPipelineColumn({
   const selectedCount = applicationIds.filter((id) => selectedIds.has(id)).length;
   const allSelected = applicationIds.length > 0 && selectedCount === applicationIds.length;
   const someSelected = selectedCount > 0 && !allSelected;
+  const isUnassigned = stageType === undefined;
 
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-3">
-      <div className="space-y-1.5 border-b border-border pb-2">
+    <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className={`space-y-1.5 border-b border-border px-3.5 py-3 ${isUnassigned ? "bg-muted/50" : "bg-muted/30"}`}>
         <div className="flex items-center gap-2">
           {applicationIds.length > 0 && (
             <Checkbox
@@ -54,16 +57,18 @@ export function HiringPipelineColumn({
               aria-label={`Select all in ${title}`}
             />
           )}
-          <h3 className="flex-1 text-sm font-semibold text-foreground">{title}</h3>
-          <span className="text-xs font-medium text-muted-foreground">{count}</span>
+          <h3 className="flex-1 truncate text-sm font-bold text-foreground">{title}</h3>
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">
+            {count}
+          </span>
         </div>
         {typeBadge}
         {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5 p-2.5">
         {applications.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-center text-xs text-muted-foreground">
             No applicants in this stage.
           </p>
         ) : (

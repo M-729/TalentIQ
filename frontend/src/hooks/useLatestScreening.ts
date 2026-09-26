@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as screeningsApi from "@/services/api/screenings";
 import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { Screening, ScreeningStatus } from "@/types/screening";
 
 interface UseLatestScreeningResult {
@@ -49,7 +50,7 @@ export function useLatestScreening(applicationId: string | undefined): UseLatest
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
         } else {
-          setError(err instanceof ApiError ? err.message : "Failed to load the latest screening. Please try again.");
+          setError(getGenericApiErrorMessage(err, "Failed to load the latest screening. Please try again."));
         }
       })
       .finally(() => {

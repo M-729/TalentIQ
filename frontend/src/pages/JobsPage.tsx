@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Briefcase, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { JobsEmptyState } from "@/components/jobs/JobsEmptyState";
 import { JobsStats } from "@/components/jobs/JobsStats";
 import { JobsTable } from "@/components/jobs/JobsTable";
@@ -32,19 +31,24 @@ export function JobsPage() {
   const table = useJobs(statusFilter === "all" ? undefined : statusFilter);
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Jobs"
-        description="Manage and monitor your company's open positions."
-        action={
-          <Button asChild>
-            <Link to="/jobs/new">
-              <Plus className="size-4" aria-hidden="true" />
-              Create Job
-            </Link>
-          </Button>
-        }
-      />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Briefcase className="size-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Jobs</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Manage and monitor your company's open positions.</p>
+          </div>
+        </div>
+        <Button asChild>
+          <Link to="/jobs/new">
+            <Plus className="size-4" aria-hidden="true" />
+            Create Job
+          </Link>
+        </Button>
+      </div>
 
       {stats.isLoading ? (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -61,7 +65,11 @@ export function JobsPage() {
       {/* Counts always reflect the full (unfiltered) set fetched above, same
           reasoning as the stat cards — the numbers next to each tab must
           not change just because a different tab is currently selected. */}
-      <div role="group" aria-label="Filter jobs by status" className="flex flex-wrap gap-5 border-b border-border">
+      <div
+        role="group"
+        aria-label="Filter jobs by status"
+        className="flex w-fit flex-wrap gap-1 rounded-lg border border-border bg-muted/30 p-1"
+      >
         {STATUS_FILTERS.map(({ value, label }) => {
           const count = stats.jobs
             ? value === "all"
@@ -76,11 +84,11 @@ export function JobsPage() {
               aria-pressed={isActive}
               onClick={() => setStatusFilter(value)}
               className={cn(
-                "-mb-px flex items-center gap-1.5 border-b-2 pb-3 text-sm transition-colors",
+                "flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 isActive
-                  ? "border-primary font-semibold text-primary"
-                  : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+                  ? "bg-white font-semibold text-primary shadow-sm"
+                  : "font-medium text-muted-foreground hover:text-foreground"
               )}
             >
               {label}

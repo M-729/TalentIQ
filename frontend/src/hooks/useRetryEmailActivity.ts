@@ -4,7 +4,7 @@ import { retryAssessmentNotification } from "@/services/api/applicationAssessmen
 import { retryOfferNotification } from "@/services/api/offers";
 import { retryRejectionEmail } from "@/services/api/rejection";
 import { resendTeamInvitation } from "@/services/api/team";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { EmailActivityRow } from "@/types/emailActivity";
 
 interface UseRetryEmailActivityResult {
@@ -59,7 +59,7 @@ export function useRetryEmailActivity(): UseRetryEmailActivityResult {
         }
         return true;
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "This email could not be retried. Try again.");
+        setError(getGenericApiErrorMessage(err, "This email could not be retried. Try again."));
         return false;
       } finally {
         setIsSubmitting(false);

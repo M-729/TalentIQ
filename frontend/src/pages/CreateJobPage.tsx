@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { JobForm } from "@/components/jobs/JobForm";
 import * as jobsApi from "@/services/api/jobs";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import { parseApiFieldErrors } from "@/lib/parseApiFieldErrors";
 import type { CreateJobInput } from "@/types/job";
 
@@ -26,7 +26,7 @@ export function CreateJobPage() {
       if (parsedFieldErrors) {
         setFieldErrors(parsedFieldErrors);
       } else {
-        setServerError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+        setServerError(getGenericApiErrorMessage(err, "We couldn't save the job. Please try again."));
       }
     } finally {
       setIsSubmitting(false);

@@ -29,18 +29,18 @@ export function HiringStepCard({
   onDelete,
 }: HiringStepCardProps) {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+    <Card className="border-border shadow-sm">
+      <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span
-            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"
             aria-hidden="true"
           >
             {displayPosition}
           </span>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-medium text-foreground">{step.name}</h3>
+              <h3 className="font-semibold text-foreground">{step.name}</h3>
               <HiringStepTypeBadge type={step.type} />
             </div>
             {step.description && <p className="text-sm text-muted-foreground">{step.description}</p>}
@@ -76,7 +76,7 @@ export function HiringStepCard({
             type="button"
             variant="outline"
             size="sm"
-            className="text-destructive hover:text-destructive"
+            className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
             disabled={disabled}
             onClick={onDelete}
           >

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as publicJobsApi from "@/services/api/publicJobs";
 import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { PublicJob } from "@/types/publicJob";
 
 interface UsePublicJobResult {
@@ -42,7 +43,7 @@ export function usePublicJob(id: string | undefined): UsePublicJobResult {
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
         } else {
-          setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+          setError(getGenericApiErrorMessage(err, "Something went wrong. Please try again."));
         }
       })
       .finally(() => {

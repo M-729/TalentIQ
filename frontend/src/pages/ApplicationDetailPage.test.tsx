@@ -60,22 +60,28 @@ describe("ApplicationDetailPage", () => {
   });
 
   // Phase 3 redesign — current pipeline stage was previously never shown
-  // anywhere on this page despite already being fetched data.
-  it("shows the current pipeline stage in the header when present", async () => {
+  // anywhere on this page despite already being fetched data. The header
+  // redesign now shows it as its own badge/pill (no "Stage:" text prefix)
+  // alongside the status badge, rather than a plain "Stage: X" text line.
+  it("shows the current pipeline stage as a badge in the header when present", async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
       application: buildApplicationDetail({ current_step: { id: "step-1", name: "Technical Interview", type: "interview" } }),
     });
     renderPage();
-    expect(await screen.findByText("Stage: Technical Interview")).toBeInTheDocument();
+    const stageBadge = await screen.findByText("Technical Interview");
+    expect(stageBadge.closest('[data-slot="badge"]')).toBeTruthy();
   });
 
-  it("omits the stage line when there is no current step", async () => {
+  it("omits the stage badge when there is no current step", async () => {
     vi.mocked(applicationsApi.getApplication).mockResolvedValue({
       application: buildApplicationDetail({ current_step: null }),
     });
     renderPage();
-    await screen.findByRole("heading", { name: "Sarah Ahmed" });
-    expect(screen.queryByText(/^Stage:/)).not.toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "Sarah Ahmed" });
+    // Only the status badge should render in the header — no second
+    // (stage) badge — when there's no current step to show.
+    const headerCard = heading.closest('[data-slot="card"]') as HTMLElement;
+    expect(headerCard.querySelectorAll('[data-slot="badge"]').length).toBe(1);
   });
 
   it("shows the application source when present", async () => {
@@ -179,7 +185,11 @@ describe("ApplicationDetailPage", () => {
       application: buildApplicationDetail({ screening: { status: "completed", has_screening: true, latest_score: 63, latest_screened_at: "2024-01-01T00:00:00.000Z" } }),
     });
     renderPage();
-    expect((await screen.findAllByText(/Required Skill Coverage: 63%/)).length).toBeGreaterThan(0);
+    // The redesigned AI Screening card shows the score as a circular ring
+    // (its own SVG <text>, "63%") plus this descriptive sentence — both
+    // still real renderings of the same latest_score value, not a single
+    // "Required Skill Coverage: 63%" text line anymore.
+    expect((await screen.findAllByText(/matches 63% of the required skills/)).length).toBeGreaterThan(0);
   });
 
   it('shows a Processing message, with no score, while the initial screening is running', async () => {

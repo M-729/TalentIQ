@@ -15,18 +15,20 @@ const TYPE_EXPLANATIONS: Record<(typeof HIRING_STEP_TYPES)[number], string> = {
 
 export function HiringStepTypeHelp() {
   return (
-    <Card>
-      <CardContent className="space-y-3 py-4">
-        <div className="flex items-start gap-2">
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">
+    <Card className="border-border bg-muted/20">
+      <CardContent className="space-y-4 py-4">
+        <div className="flex items-start gap-2.5">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Info className="size-4" aria-hidden="true" />
+          </span>
+          <p className="text-sm text-foreground">
             Stage type will determine the actions available for candidates in this stage. The stage name is entirely
             up to you — type just tells TalentIQ what kind of step it is.
           </p>
         </div>
-        <dl className="grid grid-cols-1 gap-3 pl-6 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {HIRING_STEP_TYPES.map((type) => (
-            <div key={type} className="flex items-start gap-2">
+            <div key={type} className="flex items-start gap-2.5 rounded-lg border border-border bg-card p-3">
               <dt>
                 <HiringStepTypeBadge type={type} />
               </dt>

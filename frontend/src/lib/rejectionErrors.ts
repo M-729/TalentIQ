@@ -1,6 +1,9 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 export function getRejectApplicationErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -17,6 +20,8 @@ export function getRejectApplicationErrorMessage(err: unknown): string {
 }
 
 export function getRetryRejectionEmailErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:

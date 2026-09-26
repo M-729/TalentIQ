@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { AssessmentsFilterBar } from "@/components/assessments/AssessmentsFilterBar";
 import { AssessmentsTable } from "@/components/assessments/AssessmentsTable";
 import { useApplicationAssessmentsList } from "@/hooks/useApplicationAssessmentsList";
@@ -70,25 +69,37 @@ export function AssessmentsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Assessments" description="External assessments sent to candidates across your hiring pipelines." />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <AssessmentsFilterBar
-          searchInput={searchInput}
-          onSearchInputChange={setSearchInput}
-          jobId={jobId}
-          onJobIdChange={setJobId}
-          status={status}
-          onStatusChange={setStatus}
-          jobs={jobsQuery.jobs ?? []}
-        />
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <ClipboardCheck className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Assessments</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            External assessments sent to candidates across your hiring pipelines.
+          </p>
+        </div>
       </div>
+
+      <Card className="border-border bg-muted/20">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <AssessmentsFilterBar
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            jobId={jobId}
+            onJobIdChange={setJobId}
+            status={status}
+            onStatusChange={setStatus}
+            jobs={jobsQuery.jobs ?? []}
+          />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="space-y-2">

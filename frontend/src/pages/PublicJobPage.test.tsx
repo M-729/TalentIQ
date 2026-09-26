@@ -80,7 +80,7 @@ describe("PublicJobPage (existing public Job detail)", () => {
     });
     renderPage();
 
-    const applyLink = await screen.findByRole("link", { name: "Apply for this position" });
+    const applyLink = await screen.findByRole("link", { name: "Apply now" });
     expect(applyLink).toHaveAttribute("href", "/careers/jobs/job-1-public/apply");
     const panel = applyLink.closest('[data-slot="card"]') as HTMLElement;
     expect(panel).toBeTruthy();
@@ -92,7 +92,7 @@ describe("PublicJobPage (existing public Job detail)", () => {
     vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
     renderPage();
 
-    await userEvent.click(await screen.findByRole("link", { name: "Apply for this position" }));
+    await userEvent.click(await screen.findByRole("link", { name: "Apply now" }));
 
     expect(await screen.findByText("Apply Page")).toBeInTheDocument();
   });
@@ -113,7 +113,7 @@ describe("PublicJobPage (existing public Job detail)", () => {
     });
     renderPage();
 
-    const applyLink = await screen.findByRole("link", { name: "Apply for this position" });
+    const applyLink = await screen.findByRole("link", { name: "Apply now" });
     expect(applyLink).toHaveAttribute("href", "/careers/jobs/job_a8f13c92e51b4f638dde79bf/apply");
   });
 

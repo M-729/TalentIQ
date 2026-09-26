@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as jobsApi from "@/services/api/jobs";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { Job, JobStatus } from "@/types/job";
 
 interface UseJobsResult {
@@ -32,7 +32,7 @@ export function useJobs(status?: JobStatus): UseJobsResult {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Failed to load jobs. Please try again.");
+        setError(getGenericApiErrorMessage(err, "Failed to load jobs. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

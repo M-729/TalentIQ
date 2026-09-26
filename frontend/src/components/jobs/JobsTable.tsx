@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { CalendarDays, MapPin, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,50 +12,77 @@ function formatDate(iso: string): string {
 
 export function JobsTable({ jobs }: { jobs: Job[] }) {
   return (
-    <Card className="overflow-hidden p-0">
+    <Card className="overflow-hidden rounded-xl border-border p-0 shadow-sm">
       {/* overflow-x-auto keeps the table usable (scrollable) on narrow
           screens instead of squeezing columns unreadably. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[820px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-              <th scope="col" className="px-4 py-2.5">
+            <tr className="border-b border-border bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <th scope="col" className="px-5 py-3.5">
                 Job title
               </th>
-              <th scope="col" className="px-4 py-2.5">
+              <th scope="col" className="px-4 py-3.5">
                 Department
               </th>
-              <th scope="col" className="px-4 py-2.5">
+              <th scope="col" className="px-4 py-3.5">
                 Location
               </th>
-              <th scope="col" className="px-4 py-2.5">
+              <th scope="col" className="px-4 py-3.5">
                 Employment type
               </th>
-              <th scope="col" className="px-4 py-2.5">
+              <th scope="col" className="px-4 py-3.5">
                 Status
               </th>
-              <th scope="col" className="px-4 py-2.5">
+              <th scope="col" className="px-4 py-3.5">
                 Created
               </th>
-              <th scope="col" className="px-4 py-2.5">
+              <th scope="col" className="px-4 py-3.5 pr-5">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {jobs.map((job) => (
-              <tr key={job._id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                <td className="px-4 py-2.5 font-medium text-foreground">{job.title}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{job.department ?? "—"}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{job.location ?? "—"}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{job.employment_type ?? "—"}</td>
-                <td className="px-4 py-2.5">
+              <tr key={job._id} className="border-b border-border last:border-0 hover:bg-primary/5">
+                <td className="px-5 py-3.5">
+                  <div className="font-semibold text-foreground">{job.title}</div>
+                  {(job.department || job.location) && (
+                    <div className="text-xs text-muted-foreground">
+                      {[job.department, job.location].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3.5 text-muted-foreground">{job.department ?? "—"}</td>
+                <td className="px-4 py-3.5">
+                  {job.location ? (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                      {job.location}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3.5 text-muted-foreground">{job.employment_type ?? "—"}</td>
+                <td className="px-4 py-3.5">
                   <JobStatusBadge status={job.status} />
                 </td>
-                <td className="px-4 py-2.5 text-muted-foreground">{formatDate(job.created_at)}</td>
-                <td className="px-4 py-2.5 text-right">
+                <td className="px-4 py-3.5">
+                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />
+                    {formatDate(job.created_at)}
+                  </span>
+                </td>
+                <td className="px-4 py-3.5 pr-5 text-right">
                   {job.public_id ? (
-                    <Button variant="outline" size="icon" asChild aria-label={`Edit ${job.title}`}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
+                      asChild
+                      aria-label={`Edit ${job.title}`}
+                    >
                       <Link to={`/jobs/${jobUrlId(job)}/edit`}>
                         <Pencil className="size-4" aria-hidden="true" />
                       </Link>

@@ -114,15 +114,14 @@ export function CvFileInput({ id, file, onChange, error }: CvFileInputProps) {
             handleFiles(e.dataTransfer.files);
           }}
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border border-dashed px-4 py-6 text-center transition-colors",
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-10 text-center transition-colors",
             "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
             isDragging ? "border-primary bg-primary/5" : "border-input hover:bg-muted/50"
           )}
         >
-          <Upload className="size-5 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-foreground">
-            <span className="font-medium text-primary">Choose a file</span> or drag and drop
-          </p>
+          <Upload className="size-6 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm font-semibold text-primary">Upload your resume / CV</p>
+          <p className="text-sm text-muted-foreground">Drag and drop your file here, or click to browse</p>
           <p id={`${id}-hint`} className="text-xs text-muted-foreground">
             PDF or DOCX · Max 5 MB
           </p>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as jobsApi from "@/services/api/jobs";
 import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { Job } from "@/types/job";
 
 interface UseJobResult {
@@ -37,7 +38,7 @@ export function useJob(id: string | undefined): UseJobResult {
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
         } else {
-          setError(err instanceof ApiError ? err.message : "Failed to load this job. Please try again.");
+          setError(getGenericApiErrorMessage(err, "Failed to load this job. Please try again."));
         }
       })
       .finally(() => {

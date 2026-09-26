@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { BrandMark } from "@/components/layout/BrandMark";
 import { AuthPromoPanel } from "@/components/auth/AuthPromoPanel";
 import { useAuth } from "@/hooks/useAuth";
-import { ApiError } from "@/services/api/client";
+import { getLoginErrorMessage } from "@/lib/loginErrors";
 
 export function LoginPage() {
   const { login, isAuthenticated, isLoading: isSessionLoading } = useAuth();
@@ -33,7 +33,7 @@ export function LoginPage() {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(getLoginErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -104,6 +104,12 @@ export function LoginPage() {
                 Don't have an account?{" "}
                 <Link to="/signup" className="font-medium text-primary hover:underline">
                   Create your company
+                </Link>
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Looking for a job?{" "}
+                <Link to="/careers" className="font-medium text-primary hover:underline">
+                  Browse jobs
                 </Link>
               </p>
             </div>

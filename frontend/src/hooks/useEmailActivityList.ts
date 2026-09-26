@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as emailActivityApi from "@/services/api/emailActivity";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { Pagination } from "@/types/application";
 import type { EmailActivityRow, ListEmailActivityFilters } from "@/types/emailActivity";
 
@@ -36,7 +36,7 @@ export function useEmailActivityList(filters: ListEmailActivityFilters): UseEmai
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Email activity could not be loaded. Please try again.");
+        setError(getGenericApiErrorMessage(err, "Email activity could not be loaded. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

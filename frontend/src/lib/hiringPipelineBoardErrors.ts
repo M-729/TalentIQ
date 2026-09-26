@@ -1,8 +1,11 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 // Never surface a raw backend message here — same safe-error-mapping
 // convention as screeningErrors.ts / hiringStepErrors.ts.
 export function getBoardErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:
@@ -22,6 +25,8 @@ export function getBoardErrorMessage(err: unknown): string {
 // message-less ConflictError — a single safe "state changed, refresh and
 // retry" message covers all of them without string-matching backend text.
 export function getMoveErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -42,6 +47,8 @@ export function getMoveErrorMessage(err: unknown): string {
 // stage" — a single safe message that never implies a partial success,
 // since the backend guarantees all-or-nothing.
 export function getBulkMoveErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:

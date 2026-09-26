@@ -47,7 +47,7 @@ describe("ApplyPage (public application form)", () => {
 
     expect(await screen.findByText("Applying for")).toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Full Name/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
   });
 
   // 6. Apply page has a "Back to job details" navigation link
@@ -127,7 +127,7 @@ describe("ApplyPage (public application form)", () => {
     renderPage();
 
     await screen.findByRole("link", { name: "Back to job details" });
-    expect(screen.getByLabelText(/Full Name/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Submit application" })).toBeInTheDocument();
   });
@@ -151,7 +151,7 @@ describe("ApplyPage (public application form)", () => {
     });
     renderPage();
 
-    await userEvent.type(await screen.findByLabelText(/Full Name/), "Jane Doe");
+    await userEvent.type(await screen.findByLabelText(/Full Name/i), "Jane Doe");
     await userEvent.type(screen.getByLabelText(/Email/), "jane@example.com");
     const file = new File(["dummy"], "resume.pdf", { type: "application/pdf" });
     await userEvent.upload(screen.getByLabelText(/Resume/), file);
@@ -167,7 +167,7 @@ describe("ApplyPage (public application form)", () => {
     vi.mocked(publicJobsApi.getPublicJob).mockResolvedValue({ job: buildJob() });
     renderPage();
 
-    expect(await screen.findByLabelText(/Full Name/)).toHaveAttribute("autoComplete", "name");
+    expect(await screen.findByLabelText(/Full Name/i)).toHaveAttribute("autoComplete", "name");
     expect(screen.getByLabelText(/Email/)).toHaveAttribute("autoComplete", "email");
     expect(screen.getByLabelText("Phone")).toHaveAttribute("autoComplete", "tel");
     expect(screen.getByLabelText("Phone")).toHaveAttribute("type", "tel");

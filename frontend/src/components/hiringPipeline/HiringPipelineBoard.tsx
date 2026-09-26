@@ -34,7 +34,7 @@ function BoardSkeleton() {
   return (
     <div className="flex gap-4 overflow-x-auto pb-2">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="w-72 shrink-0 space-y-3">
+        <div key={i} className="w-80 shrink-0 space-y-3 rounded-xl border border-border bg-card p-3">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />

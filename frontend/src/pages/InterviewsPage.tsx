@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { CalendarDays } from "lucide-react";
 import { Pagination } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { InterviewsEmptyState } from "@/components/interviews/InterviewsEmptyState";
 import { InterviewsFilterBar } from "@/components/interviews/InterviewsFilterBar";
 import { InterviewsTable } from "@/components/interviews/InterviewsTable";
@@ -46,25 +47,35 @@ export function InterviewsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Interviews" description="Every interview scheduled across your hiring pipelines." />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <InterviewsFilterBar
-          status={status}
-          onStatusChange={setStatus}
-          jobId={jobId}
-          onJobIdChange={setJobId}
-          when={when}
-          onWhenChange={setWhen}
-          jobs={jobsQuery.jobs ?? []}
-        />
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <CalendarDays className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Interviews</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Every interview scheduled across your hiring pipelines.</p>
+        </div>
       </div>
+
+      <Card className="border-border bg-muted/20">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <InterviewsFilterBar
+            status={status}
+            onStatusChange={setStatus}
+            jobId={jobId}
+            onJobIdChange={setJobId}
+            when={when}
+            onWhenChange={setWhen}
+            jobs={jobsQuery.jobs ?? []}
+          />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="space-y-2">

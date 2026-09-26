@@ -1,3 +1,4 @@
+import { Briefcase } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ApplicationDetail } from "@/types/application";
 
@@ -19,7 +20,12 @@ export function JobInfoCard({ job }: { job: ApplicationDetail["job"] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Job Information</CardTitle>
+        <CardTitle className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Briefcase className="size-4" aria-hidden="true" />
+          </span>
+          Job Information
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <dl className="grid gap-3 sm:grid-cols-2">

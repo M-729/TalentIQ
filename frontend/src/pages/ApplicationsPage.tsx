@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { InlineError } from "@/components/ui/inline-error";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { ApplicationsEmptyState } from "@/components/applications/ApplicationsEmptyState";
 import { ApplicationsFilterBar } from "@/components/applications/ApplicationsFilterBar";
 import { ApplicationsTable } from "@/components/applications/ApplicationsTable";
@@ -50,25 +50,32 @@ export function ApplicationsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Applications" description="Review and manage candidates who have applied to your open positions." />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <ApplicationsFilterBar
-          searchInput={searchInput}
-          onSearchInputChange={setSearchInput}
-          jobId={jobId}
-          onJobIdChange={setJobId}
-          status={status}
-          onStatusChange={setStatus}
-          jobs={jobsQuery.jobs ?? []}
-        />
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Applications</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Review and manage candidates who have applied to your open positions.
+        </p>
       </div>
+
+      <Card className="border-border bg-muted/20">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <ApplicationsFilterBar
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            jobId={jobId}
+            onJobIdChange={setJobId}
+            status={status}
+            onStatusChange={setStatus}
+            jobs={jobsQuery.jobs ?? []}
+          />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {applications.isLoading ? (
         <div className="space-y-2">

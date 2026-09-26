@@ -17,7 +17,7 @@ describe("LandingPage", () => {
   // coverage (that "/" actually mounts this page) lives in router.test.tsx.
   it("1. renders the hero headline", () => {
     renderPage();
-    expect(screen.getByRole("heading", { name: /Smarter hiring/i, level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Hire Smarter/i, level: 1 })).toBeInTheDocument();
   });
 
   // 2. Start Free -> /signup
@@ -38,35 +38,37 @@ describe("LandingPage", () => {
     links.forEach((link) => expect(link).toHaveAttribute("href", "/login"));
   });
 
-  // 4. Browse Open Jobs -> /careers
-  it("4. Browse Open Jobs links to /careers", () => {
+  // 4. Browse open jobs -> /careers
+  it("4. Browse open jobs links to /careers", () => {
     renderPage();
-    expect(screen.getByRole("link", { name: "Browse Open Jobs" })).toHaveAttribute("href", "/careers");
+    const browseJobsLinks = screen.getAllByRole("link", { name: "Browse open jobs" });
+    expect(browseJobsLinks.length).toBeGreaterThan(0);
+    browseJobsLinks.forEach((link) => expect(link).toHaveAttribute("href", "/careers"));
   });
 
   it("final CTA links to /signup and /careers", () => {
     renderPage();
-    expect(screen.getByRole("link", { name: "Create your TalentIQ workspace" })).toHaveAttribute("href", "/signup");
-    expect(screen.getByRole("link", { name: "Browse open positions" })).toHaveAttribute("href", "/careers");
+    expect(screen.getByRole("link", { name: "Create your workspace" })).toHaveAttribute("href", "/signup");
+    expect(screen.getAllByRole("link", { name: "Browse open jobs" }).length).toBeGreaterThan(0);
   });
 
   // 5. main feature sections render
   it("5. renders the core feature sections", () => {
     renderPage();
-    expect(screen.getByRole("heading", { name: "Everything hiring teams need" })).toBeInTheDocument();
-    expect(screen.getByText("AI-Assisted CV Screening")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Hiring Pipeline" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Everything you need to hire top talent" })).toBeInTheDocument();
+    expect(screen.getByText("AI Candidate Screening")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hiring Workflows" })).toBeInTheDocument();
     expect(screen.getByText("Interview Scheduling")).toBeInTheDocument();
     expect(screen.getByText("External Assessments")).toBeInTheDocument();
     expect(screen.getByText("Offer Management")).toBeInTheDocument();
-    expect(screen.getByText("Hiring Analytics")).toBeInTheDocument();
+    expect(screen.getByText("Detailed Analytics")).toBeInTheDocument();
   });
 
   it("renders the How it works steps in order", () => {
     renderPage();
     expect(screen.getByRole("heading", { name: "How it works" })).toBeInTheDocument();
-    expect(screen.getByText("Create your workspace")).toBeInTheDocument();
-    expect(screen.getByText("Hire")).toBeInTheDocument();
+    expect(screen.getByText("Post a job")).toBeInTheDocument();
+    expect(screen.getByText("Make the hire")).toBeInTheDocument();
   });
 
   // 6. AI trust section renders

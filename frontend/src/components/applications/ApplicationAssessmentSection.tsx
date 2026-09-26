@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, ClipboardCheck } from "lucide-react";
+import { AlertCircle, Check, ClipboardCheck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,15 @@ const RESULT_BADGE_CONFIG: Record<ApplicationAssessmentStatus, { label: string; 
   pending: { label: "Pending", variant: "neutral" },
   passed: { label: "Passed", variant: "success" },
   failed: { label: "Failed", variant: "destructive" },
+};
+
+// Matches the Interviews section's own leading status-dot treatment —
+// same three-state shape (in progress / resolved-positive / resolved-
+// negative), same colors, so the two sections read as one workflow.
+const STATUS_DOT_STYLES: Record<ApplicationAssessmentStatus, string> = {
+  pending: "bg-primary text-primary-foreground",
+  passed: "bg-success text-success-foreground",
+  failed: "bg-destructive text-destructive-foreground",
 };
 
 // Renders nothing at all unless there's something to show: either the
@@ -127,7 +136,12 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
       {isAssessmentStage && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle>External Assessment</CardTitle>
+            <CardTitle className="flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ClipboardCheck className="size-4" aria-hidden="true" />
+              </span>
+              External Assessment
+            </CardTitle>
             {assessment &&
               (assessment.status === "pending" ? (
                 <Button variant="outline" size="sm" onClick={() => setIsEditingLink(true)}>
@@ -150,7 +164,18 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="flex gap-3 rounded-lg border border-border p-3.5">
+                <span
+                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${STATUS_DOT_STYLES[assessment.status]}`}
+                  aria-hidden="true"
+                >
+                  {assessment.status === "passed" ? (
+                    <Check className="size-3.5" />
+                  ) : assessment.status === "failed" ? (
+                    <X className="size-3" />
+                  ) : null}
+                </span>
+                <div className="min-w-0 flex-1 space-y-4">
                 <div>
                   <p className="font-medium text-foreground">{assessment.name}</p>
                 </div>
@@ -221,6 +246,7 @@ export function ApplicationAssessmentSection({ application }: ApplicationAssessm
                     <p className="text-sm text-foreground">{assessment.notes}</p>
                   </div>
                 )}
+                </div>
               </div>
             )}
           </CardContent>

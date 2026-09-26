@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, IdCard } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatFileSize } from "@/lib/formatFileSize";
 import type { ApplicationDetail } from "@/types/application";
@@ -53,7 +53,12 @@ export function ApplicationDetailsPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Application Details</CardTitle>
+        <CardTitle className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <IdCard className="size-4" aria-hidden="true" />
+          </span>
+          Application Details
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -69,10 +74,12 @@ export function ApplicationDetailsPanel({
 
         <div className="border-t border-border pt-4">
           <p className="mb-2 text-xs font-medium text-muted-foreground">CV</p>
-          <div className="flex items-center gap-3">
-            <FileText className="size-8 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <div>
-              <p className="text-sm font-medium text-foreground">{cv.original_name}</p>
+          <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FileText className="size-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-foreground">{cv.original_name}</p>
               <p className="text-xs text-muted-foreground">
                 {MIME_LABELS[cv.mime_type] ?? cv.mime_type} · {formatFileSize(cv.size_bytes)}
               </p>

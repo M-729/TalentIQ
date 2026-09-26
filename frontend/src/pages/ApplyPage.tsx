@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, SearchX } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle2, FileText, SearchX, Users, Zap } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { usePublicJob } from "@/hooks/usePublicJob";
 import { jobUrlId } from "@/lib/jobUrlId";
 import * as applicationsApi from "@/services/api/applications";
 import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import { parseApiFieldErrors } from "@/lib/parseApiFieldErrors";
 import type { SubmitApplicationInput } from "@/types/application";
 
@@ -112,7 +113,7 @@ export function ApplyPage() {
       } else if (err instanceof ApiError && err.status === 404) {
         setServerError("This position is no longer available.");
       } else {
-        setServerError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+        setServerError(getGenericApiErrorMessage(err, "Something went wrong. Please try again."));
       }
     } finally {
       setIsSubmitting(false);
@@ -125,14 +126,14 @@ export function ApplyPage() {
     <div className="min-h-svh bg-background">
       <PublicHeader backTo={backTo} backLabel="Back to job details" />
 
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
         {isJobLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-6 w-2/3" />
             <Skeleton className="h-64 w-full" />
           </div>
         ) : notFound ? (
-          <Card>
+          <Card className="mx-auto max-w-xl">
             <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
               <SearchX className="size-8 text-muted-foreground" aria-hidden="true" />
               <div>
@@ -144,7 +145,7 @@ export function ApplyPage() {
             </CardContent>
           </Card>
         ) : jobError ? (
-          <Card>
+          <Card className="mx-auto max-w-xl">
             <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
               <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
               <div>
@@ -154,7 +155,7 @@ export function ApplyPage() {
             </CardContent>
           </Card>
         ) : isSubmitted ? (
-          <Card>
+          <Card className="mx-auto max-w-xl">
             <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
               <CheckCircle2 className="size-10 text-success" aria-hidden="true" />
               <div>
@@ -172,18 +173,81 @@ export function ApplyPage() {
           </Card>
         ) : (
           job && (
-            <div className="space-y-6">
-              <div>
-                <p className="text-sm text-muted-foreground">Applying for</p>
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">{job.title}</h1>
-                <p className="text-sm text-muted-foreground">
-                  {[job.company_name, job.location, job.employment_type].filter(Boolean).join(" · ")}
-                </p>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-10">
+              <div className="space-y-6 lg:sticky lg:top-20 lg:self-start">
+                <Card className="rounded-2xl">
+                  <CardContent className="space-y-4 p-6">
+                    <p className="text-sm text-muted-foreground">Applying for</p>
+                    <h1 className="font-heading text-2xl font-extrabold tracking-tight text-foreground">
+                      {job.title}
+                    </h1>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex size-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#4B3EDD,#8B7CF6)]">
+                        <Briefcase className="size-4 text-white" aria-hidden="true" />
+                      </div>
+                      {job.company_name}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {[job.department, job.location, job.employment_type].filter(Boolean).map((label) => (
+                        <span
+                          key={label}
+                          className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl bg-secondary/40">
+                  <CardContent className="space-y-4 p-6">
+                    <h2 className="font-heading text-base font-bold text-foreground">
+                      A quick and easy application process
+                    </h2>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Zap className="size-4" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Quick application</p>
+                        <p className="text-xs text-muted-foreground">Just a few details and your resume.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <FileText className="size-4" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">PDF or DOCX accepted</p>
+                        <p className="text-xs text-muted-foreground">Max file size 5 MB.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Users className="size-4" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">We review applications on a rolling basis</p>
+                        <p className="text-xs text-muted-foreground">You'll be notified about next steps soon.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Your information</CardTitle>
+              <Card className="rounded-2xl">
+                <CardHeader className="flex-row items-start gap-3 space-y-0">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <FileText className="size-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Submit your application</CardTitle>
+                    <p className="text-sm text-muted-foreground">Complete the details below to apply for this role.</p>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
@@ -194,99 +258,101 @@ export function ApplyPage() {
                       </div>
                     )}
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="full_name">
-                        Full Name<span className="text-destructive"> *</span>
-                      </Label>
-                      <Input
-                        id="full_name"
-                        autoComplete="name"
-                        value={values.full_name}
-                        onChange={(e) => update("full_name", e.target.value)}
-                        aria-invalid={!!fieldErrors.full_name}
-                        aria-describedby={fieldErrors.full_name ? "full_name-error" : undefined}
-                      />
-                      {fieldErrors.full_name && (
-                        <p id="full_name-error" role="alert" className="text-xs text-destructive">
-                          {fieldErrors.full_name}
-                        </p>
-                      )}
-                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="full_name">
+                          Full name<span className="text-destructive"> *</span>
+                        </Label>
+                        <Input
+                          id="full_name"
+                          autoComplete="name"
+                          value={values.full_name}
+                          onChange={(e) => update("full_name", e.target.value)}
+                          aria-invalid={!!fieldErrors.full_name}
+                          aria-describedby={fieldErrors.full_name ? "full_name-error" : undefined}
+                        />
+                        {fieldErrors.full_name && (
+                          <p id="full_name-error" role="alert" className="text-xs text-destructive">
+                            {fieldErrors.full_name}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="email">
-                        Email<span className="text-destructive"> *</span>
-                      </Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        autoComplete="email"
-                        value={values.email}
-                        onChange={(e) => update("email", e.target.value)}
-                        aria-invalid={!!fieldErrors.email}
-                        aria-describedby={fieldErrors.email ? "email-error" : undefined}
-                      />
-                      {fieldErrors.email && (
-                        <p id="email-error" role="alert" className="text-xs text-destructive">
-                          {fieldErrors.email}
-                        </p>
-                      )}
-                    </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="email">
+                          Email<span className="text-destructive"> *</span>
+                        </Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          autoComplete="email"
+                          value={values.email}
+                          onChange={(e) => update("email", e.target.value)}
+                          aria-invalid={!!fieldErrors.email}
+                          aria-describedby={fieldErrors.email ? "email-error" : undefined}
+                        />
+                        {fieldErrors.email && (
+                          <p id="email-error" role="alert" className="text-xs text-destructive">
+                            {fieldErrors.email}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        autoComplete="tel"
-                        value={values.phone}
-                        onChange={(e) => update("phone", e.target.value)}
-                      />
-                    </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="phone">Phone</Label>
+                        <Input
+                          id="phone"
+                          type="tel"
+                          autoComplete="tel"
+                          value={values.phone}
+                          onChange={(e) => update("phone", e.target.value)}
+                        />
+                      </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
-                        value={values.location}
-                        onChange={(e) => update("location", e.target.value)}
-                      />
-                    </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="location">Location</Label>
+                        <Input
+                          id="location"
+                          value={values.location}
+                          onChange={(e) => update("location", e.target.value)}
+                        />
+                      </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="linkedin_url">LinkedIn URL</Label>
-                      <Input
-                        id="linkedin_url"
-                        type="url"
-                        placeholder="https://linkedin.com/in/..."
-                        value={values.linkedin_url}
-                        onChange={(e) => update("linkedin_url", e.target.value)}
-                        aria-invalid={!!fieldErrors.linkedin_url}
-                        aria-describedby={fieldErrors.linkedin_url ? "linkedin_url-error" : undefined}
-                      />
-                      {fieldErrors.linkedin_url && (
-                        <p id="linkedin_url-error" role="alert" className="text-xs text-destructive">
-                          {fieldErrors.linkedin_url}
-                        </p>
-                      )}
-                    </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="linkedin_url">LinkedIn URL</Label>
+                        <Input
+                          id="linkedin_url"
+                          type="url"
+                          placeholder="https://linkedin.com/in/..."
+                          value={values.linkedin_url}
+                          onChange={(e) => update("linkedin_url", e.target.value)}
+                          aria-invalid={!!fieldErrors.linkedin_url}
+                          aria-describedby={fieldErrors.linkedin_url ? "linkedin_url-error" : undefined}
+                        />
+                        {fieldErrors.linkedin_url && (
+                          <p id="linkedin_url-error" role="alert" className="text-xs text-destructive">
+                            {fieldErrors.linkedin_url}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="portfolio_url">Portfolio URL</Label>
-                      <Input
-                        id="portfolio_url"
-                        type="url"
-                        placeholder="https://..."
-                        value={values.portfolio_url}
-                        onChange={(e) => update("portfolio_url", e.target.value)}
-                        aria-invalid={!!fieldErrors.portfolio_url}
-                        aria-describedby={fieldErrors.portfolio_url ? "portfolio_url-error" : undefined}
-                      />
-                      {fieldErrors.portfolio_url && (
-                        <p id="portfolio_url-error" role="alert" className="text-xs text-destructive">
-                          {fieldErrors.portfolio_url}
-                        </p>
-                      )}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="portfolio_url">Portfolio URL</Label>
+                        <Input
+                          id="portfolio_url"
+                          type="url"
+                          placeholder="https://..."
+                          value={values.portfolio_url}
+                          onChange={(e) => update("portfolio_url", e.target.value)}
+                          aria-invalid={!!fieldErrors.portfolio_url}
+                          aria-describedby={fieldErrors.portfolio_url ? "portfolio_url-error" : undefined}
+                        />
+                        {fieldErrors.portfolio_url && (
+                          <p id="portfolio_url-error" role="alert" className="text-xs text-destructive">
+                            {fieldErrors.portfolio_url}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
@@ -296,9 +362,15 @@ export function ApplyPage() {
                       <CvFileInput id="cv" file={cvFile} onChange={setCvFile} error={fieldErrors.cv} />
                     </div>
 
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    <Button type="submit" variant="gradient" className="w-full" size="lg" disabled={isSubmitting}>
                       {isSubmitting ? "Submitting…" : "Submit application"}
                     </Button>
+
+                    <p className="text-center text-xs text-muted-foreground">
+                      By submitting your application, you agree that your information will be used for the
+                      recruitment process for this position. Required fields are marked with{" "}
+                      <span className="text-destructive">*</span>.
+                    </p>
                   </form>
                 </CardContent>
               </Card>

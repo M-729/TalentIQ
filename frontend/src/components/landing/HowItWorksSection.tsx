@@ -1,10 +1,10 @@
 import { ArrowRight, BriefcaseBusiness, CalendarCheck2, ClipboardCheck, Send } from "lucide-react";
 
 const STAGES = [
-  { icon: BriefcaseBusiness, number: "01", title: "Attract", description: "Create your workspace, publish a job, and receive applications.", steps: ["Create your workspace", "Publish a job", "Receive applications"] },
-  { icon: ClipboardCheck, number: "02", title: "Evaluate", description: "Use AI-assisted screening, your pipeline, and assessments to build a considered shortlist.", steps: ["AI-assisted screening", "Move candidates through your pipeline", "Assess"] },
-  { icon: CalendarCheck2, number: "03", title: "Interview", description: "Coordinate interviews, Meet links, and structured feedback with your team.", steps: ["Interview", "Collect feedback"] },
-  { icon: Send, number: "04", title: "Decide", description: "Send an offer, receive the candidate response, and make the final hire.", steps: ["Send an offer", "Hire"] },
+  { icon: BriefcaseBusiness, number: 1, title: "Post a job", description: "Create a job listing with all the details in minutes." },
+  { icon: ClipboardCheck, number: 2, title: "Review candidates", description: "Let AI help you screen and rank applications." },
+  { icon: CalendarCheck2, number: 3, title: "Conduct interviews", description: "Schedule and manage interviews with ease." },
+  { icon: Send, number: 4, title: "Make the hire", description: "Choose the best candidate and move forward." },
 ];
 
 export function HowItWorksSection() {
@@ -12,24 +12,32 @@ export function HowItWorksSection() {
     <section id="how-it-works" className="scroll-mt-20 bg-[#f4f5fa]">
       <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24 lg:px-12 xl:px-16">
         <div className="max-w-2xl">
-          <p className="font-mono-accent text-xs font-semibold uppercase tracking-[0.18em] text-primary">A clearer path to hiring</p>
+          <p className="font-mono-accent text-xs font-semibold uppercase tracking-[0.18em] text-primary">A simple process</p>
           <h2 className="mt-3 font-heading text-3xl font-extrabold tracking-[-0.035em] text-foreground sm:text-4xl">How it works</h2>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">From first job post to final decision, every handoff stays connected.</p>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            From posting a job to hiring the right candidate, TalentIQ makes the process simple and efficient.
+          </p>
         </div>
 
-        <ol className="mt-12 grid gap-0 border-y border-border lg:grid-cols-4">
-          {STAGES.map(({ icon: Icon, number, title, description, steps }, index) => (
-            <li key={title} className="relative border-border px-0 py-7 sm:px-6 lg:border-r lg:px-7 lg:last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="flex size-10 items-center justify-center rounded-lg bg-white text-primary shadow-sm"><Icon className="size-5" aria-hidden="true" /></span>
-                <span className="font-mono-accent text-xs font-semibold text-[#9ca1b5]">{number}</span>
+        <ol className="mt-14 grid gap-y-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-x-6">
+          {STAGES.map(({ icon: Icon, number, title, description }, index) => (
+            <li key={title} className="relative flex flex-col items-center text-center">
+              <div className="relative">
+                <span className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Icon className="size-6" aria-hidden="true" />
+                </span>
+                <span className="absolute -top-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
+                  {number}
+                </span>
               </div>
-              <h3 className="mt-5 text-lg font-bold text-foreground">{title}</h3>
-              <p className="mt-2 min-h-14 text-sm leading-relaxed text-muted-foreground">{description}</p>
-              <ul className="mt-5 space-y-2 border-t border-border pt-4">
-                {steps.map((step) => <li key={step} className="text-xs font-semibold text-foreground">{step}</li>)}
-              </ul>
-              {index < STAGES.length - 1 && <ArrowRight className="absolute -right-3 top-9 z-10 hidden size-6 rounded-full border border-border bg-[#f4f5fa] p-1 text-primary lg:block" aria-hidden="true" />}
+              <h3 className="mt-5 text-base font-bold text-foreground">{title}</h3>
+              <p className="mt-2 max-w-[15rem] text-sm leading-relaxed text-muted-foreground">{description}</p>
+              {index < STAGES.length - 1 && (
+                <ArrowRight
+                  className="absolute -right-3 top-7 hidden size-5 text-[#c4c9dd] lg:right-[-1.4rem] lg:block"
+                  aria-hidden="true"
+                />
+              )}
             </li>
           ))}
         </ol>

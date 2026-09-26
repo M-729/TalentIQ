@@ -1,3 +1,4 @@
+import { Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface HiringPipelineBoardEmptyStateProps {
@@ -9,9 +10,12 @@ export interface HiringPipelineBoardEmptyStateProps {
 // can see that candidates exist even before a pipeline is built.
 export function HiringPipelineBoardEmptyState({ onConfigurePipeline }: HiringPipelineBoardEmptyStateProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-muted/30 px-4 py-3">
-      <p className="text-sm text-muted-foreground">No hiring stages are configured for this job yet.</p>
-      <Button variant="outline" size="sm" onClick={onConfigurePipeline}>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3.5">
+      <div className="flex items-center gap-2.5">
+        <Workflow className="size-4 shrink-0 text-primary" aria-hidden="true" />
+        <p className="text-sm text-foreground">No hiring stages are configured for this job yet.</p>
+      </div>
+      <Button size="sm" onClick={onConfigurePipeline}>
         Configure Pipeline
       </Button>
     </div>

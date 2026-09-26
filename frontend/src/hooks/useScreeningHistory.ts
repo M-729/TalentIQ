@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as screeningsApi from "@/services/api/screenings";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { Screening } from "@/types/screening";
 
 interface UseScreeningHistoryResult {
@@ -35,7 +35,7 @@ export function useScreeningHistory(applicationId: string | undefined): UseScree
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Failed to load screening history. Please try again.");
+        setError(getGenericApiErrorMessage(err, "Failed to load screening history. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

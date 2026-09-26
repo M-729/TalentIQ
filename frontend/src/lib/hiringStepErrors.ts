@@ -1,4 +1,5 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 export type HiringStepErrorContext = "fetch" | "create" | "update" | "delete" | "reorder";
 
@@ -17,6 +18,8 @@ export type HiringStepErrorContext = "fetch" | "create" | "update" | "delete" | 
 // passes its own fixed `context`, so this mapping never depends on
 // response content at all.
 export function getHiringStepErrorMessage(err: unknown, context: HiringStepErrorContext): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (!(err instanceof ApiError)) {
     return "The hiring pipeline could not be updated. Please try again.";
   }

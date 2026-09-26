@@ -1,3 +1,4 @@
+import { ArrowRight, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,34 @@ function formatDateTime(iso: string): string {
   return `${datePart} · ${timePart}`;
 }
 
+// A small ring visualizing the SAME latest_score number shown as text below
+// it — purely a presentation of real data, never a second/derived metric.
+function ScoreRing({ score }: { score: number }) {
+  const radius = 30;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - score / 100);
+  return (
+    <svg width="76" height="76" viewBox="0 0 76 76" className="shrink-0 -rotate-90" aria-hidden="true">
+      <circle cx="38" cy="38" r={radius} fill="none" stroke="currentColor" strokeWidth="7" className="text-muted" />
+      <circle
+        cx="38"
+        cy="38"
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        className="text-primary"
+      />
+      <text x="38" y="38" textAnchor="middle" dominantBaseline="central" className="rotate-90 fill-foreground text-[17px] font-bold" style={{ transformOrigin: "38px 38px" }}>
+        {score}%
+      </text>
+    </svg>
+  );
+}
+
 // Never POSTs from this page — the dedicated screening page
 // (ApplicationScreeningPage) is the single place that owns running/
 // retrying AI screening; this card only ever links into it, whatever the
@@ -21,22 +50,36 @@ function formatDateTime(iso: string): string {
 export function AiScreeningCard({ applicationId, screening }: { applicationId: string; screening: ApplicationDetail["screening"] }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>AI Screening</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="size-4" aria-hidden="true" />
+          </span>
+          AI Screening
+        </CardTitle>
         <ScreeningStatusBadge status={screening.status} />
-
+      </CardHeader>
+      <CardContent className="space-y-4">
         {screening.status === "completed" ? (
           <>
             {screening.latest_score != null && (
-              <p className="text-sm text-foreground">Required Skill Coverage: {screening.latest_score}%</p>
+              <div className="flex items-center gap-4 rounded-lg border border-border p-4">
+                <ScoreRing score={screening.latest_score} />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Required Skill Coverage</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    This candidate matches {screening.latest_score}% of the required skills for this role.
+                  </p>
+                </div>
+              </div>
             )}
             {screening.latest_screened_at && (
               <p className="text-xs text-muted-foreground">Last screened: {formatDateTime(screening.latest_screened_at)}</p>
             )}
             <Button asChild>
-              <Link to={`/applications/${applicationId}/screening`}>View AI Screening</Link>
+              <Link to={`/applications/${applicationId}/screening`}>
+                View AI Screening <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
             </Button>
           </>
         ) : screening.status === "processing" || screening.status === "pending" ? (

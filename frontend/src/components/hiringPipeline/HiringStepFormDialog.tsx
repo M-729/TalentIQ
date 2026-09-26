@@ -47,7 +47,7 @@ export function HiringStepFormDialog({ open, onOpenChange, jobId, mode, step, on
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Add hiring stage" : "Edit hiring stage"}</DialogTitle>
+          <DialogTitle className="text-lg font-bold">{mode === "create" ? "Add hiring stage" : "Edit hiring stage"}</DialogTitle>
           <DialogDescription>
             {mode === "create"
               ? "Create a stage that matches this job's real recruitment process. You choose the name — the type tells TalentIQ what kind of step it is."

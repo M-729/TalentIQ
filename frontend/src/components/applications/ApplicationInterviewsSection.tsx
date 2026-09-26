@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, CalendarDays } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,14 @@ import { useApplicationInterviews } from "@/hooks/useApplicationInterviews";
 import { formatDateTime } from "@/lib/formatDate";
 import { resourceUrlId } from "@/lib/resourceUrlId";
 import type { ApplicationDetail } from "@/types/application";
-import type { Interview } from "@/types/interview";
+import type { Interview, InterviewStatus } from "@/types/interview";
 import type { LatestNotificationSummary } from "@/types/interviewNotification";
+
+const STATUS_DOT_STYLES: Record<InterviewStatus, string> = {
+  completed: "bg-success text-success-foreground",
+  scheduled: "bg-primary text-primary-foreground",
+  cancelled: "border-2 border-border bg-background text-muted-foreground",
+};
 
 export interface ApplicationInterviewsSectionProps {
   application: ApplicationDetail;
@@ -69,7 +75,12 @@ export function ApplicationInterviewsSection({ application }: ApplicationIntervi
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle>Interviews</CardTitle>
+        <CardTitle className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CalendarDays className="size-4" aria-hidden="true" />
+          </span>
+          Interviews
+        </CardTitle>
         {canScheduleNew && (
           <Button size="sm" onClick={() => setIsScheduleOpen(true)}>
             Schedule Interview
@@ -94,37 +105,49 @@ export function ApplicationInterviewsSection({ application }: ApplicationIntervi
         ) : interviews && interviews.length > 0 ? (
           <ul className="space-y-3">
             {interviews.map((interview) => (
-              <li key={interview.id} className="rounded-md border border-border p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <Link to={`/interviews/${resourceUrlId(interview)}`} className="font-medium text-foreground hover:underline">
-                      {interview.title}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{interview.stage.name}</p>
+              <li key={interview.id} className="flex gap-3 rounded-lg border border-border p-3.5">
+                <span
+                  className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${STATUS_DOT_STYLES[interview.status]}`}
+                  aria-hidden="true"
+                >
+                  {interview.status === "completed" ? (
+                    <Check className="size-3.5" />
+                  ) : interview.status === "cancelled" ? (
+                    <X className="size-3" />
+                  ) : null}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <Link to={`/interviews/${resourceUrlId(interview)}`} className="font-medium text-foreground hover:underline">
+                        {interview.title}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">{interview.stage.name}</p>
+                    </div>
+                    <InterviewStatusBadge status={interview.status} />
                   </div>
-                  <InterviewStatusBadge status={interview.status} />
+                  <p className="mt-1 text-sm text-muted-foreground">{formatDateTime(interview.starts_at)}</p>
+                  {interview.interviewers.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Interviewer(s): {interview.interviewers.map((interviewer) => interviewer.name).join(", ")}
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <InterviewCalendarBadge calendar={interview.calendar} />
+                    {canJoinMeet(interview) && <JoinMeetLink url={interview.calendar!.meeting_url!} />}
+                    {canJoinMeet(interview) && <CopyMeetLinkButton url={interview.calendar!.meeting_url!} />}
+                  </div>
+                  {notificationStatusLabel(interview.latest_notification) && (
+                    <p
+                      className={`mt-1.5 text-xs ${interview.latest_notification?.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}
+                    >
+                      {notificationStatusLabel(interview.latest_notification)}
+                    </p>
+                  )}
+                  {feedbackProgressLabel(interview) && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">{feedbackProgressLabel(interview)}</p>
+                  )}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{formatDateTime(interview.starts_at)}</p>
-                {interview.interviewers.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Interviewer(s): {interview.interviewers.map((interviewer) => interviewer.name).join(", ")}
-                  </p>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <InterviewCalendarBadge calendar={interview.calendar} />
-                  {canJoinMeet(interview) && <JoinMeetLink url={interview.calendar!.meeting_url!} />}
-                  {canJoinMeet(interview) && <CopyMeetLinkButton url={interview.calendar!.meeting_url!} />}
-                </div>
-                {notificationStatusLabel(interview.latest_notification) && (
-                  <p
-                    className={`mt-1.5 text-xs ${interview.latest_notification?.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}
-                  >
-                    {notificationStatusLabel(interview.latest_notification)}
-                  </p>
-                )}
-                {feedbackProgressLabel(interview) && (
-                  <p className="mt-1.5 text-xs text-muted-foreground">{feedbackProgressLabel(interview)}</p>
-                )}
               </li>
             ))}
           </ul>

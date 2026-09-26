@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { HiringPipelineBoard } from "@/components/hiringPipeline/HiringPipelineBoard";
 import { HiringPipelineJobSelect } from "@/components/hiringPipeline/HiringPipelineJobSelect";
 import { HiringPipelineWorkspaceTabs, type HiringPipelineWorkspaceTab } from "@/components/hiringPipeline/HiringPipelineWorkspaceTabs";
@@ -71,23 +70,44 @@ export function HiringPipelinePage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Hiring Pipeline" description="Configure stages and manage applicants through each job's hiring process." />
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Workflow className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Hiring Pipeline</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Configure stages and manage applicants through each job's hiring process.
+          </p>
+        </div>
+      </div>
 
-      <HiringPipelineJobSelect
-        value={selectedJobId}
-        onChange={handleSelectJob}
-        jobs={jobs}
-        isLoading={isLoading}
-        error={error}
-        onRetry={refetch}
-      />
+      <Card className="border-border bg-muted/20">
+        <CardContent className="p-4">
+          <HiringPipelineJobSelect
+            value={selectedJobId}
+            onChange={handleSelectJob}
+            jobs={jobs}
+            isLoading={isLoading}
+            error={error}
+            onRetry={refetch}
+          />
+        </CardContent>
+      </Card>
 
       {isLoading || error ? null : !selectedJobId ? (
-        <Card>
+        <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <Workflow className="size-8 text-muted-foreground" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">Select a job to view its hiring pipeline.</p>
+            <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Workflow className="size-6" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="font-semibold text-foreground">Select a job to view its hiring pipeline.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose a job above to see its board and configure its hiring stages.
+              </p>
+            </div>
           </CardContent>
         </Card>
       ) : (

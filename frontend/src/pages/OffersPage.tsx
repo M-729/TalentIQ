@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InlineError } from "@/components/ui/inline-error";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { OffersFilterBar } from "@/components/offers/OffersFilterBar";
 import { OffersTable } from "@/components/offers/OffersTable";
 import { useOffersList } from "@/hooks/useOffersList";
@@ -70,25 +69,35 @@ export function OffersPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader title="Offers" description="Offers extended to candidates across your hiring pipelines." />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <OffersFilterBar
-          searchInput={searchInput}
-          onSearchInputChange={setSearchInput}
-          jobId={jobId}
-          onJobIdChange={setJobId}
-          status={status}
-          onStatusChange={setStatus}
-          jobs={jobsQuery.jobs ?? []}
-        />
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <FileSignature className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Offers</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Offers extended to candidates across your hiring pipelines.</p>
+        </div>
       </div>
+
+      <Card className="border-border bg-muted/20">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <OffersFilterBar
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            jobId={jobId}
+            onJobIdChange={setJobId}
+            status={status}
+            onStatusChange={setStatus}
+            jobs={jobsQuery.jobs ?? []}
+          />
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="space-y-2">

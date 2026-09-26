@@ -1,9 +1,12 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 // Never surface a raw backend message here — same safe-error-mapping
 // convention as interviewErrors.ts / hiringPipelineBoardErrors.ts.
 
 export function getAssessmentErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -20,6 +23,8 @@ export function getAssessmentErrorMessage(err: unknown): string {
 }
 
 export function getRecordResultErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -34,6 +39,8 @@ export function getRecordResultErrorMessage(err: unknown): string {
 }
 
 export function getSendAssessmentErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:
@@ -48,6 +55,8 @@ export function getSendAssessmentErrorMessage(err: unknown): string {
 }
 
 export function getRetryAssessmentNotificationErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:
@@ -62,6 +71,8 @@ export function getRetryAssessmentNotificationErrorMessage(err: unknown): string
 }
 
 export function getAssessmentsListErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError && err.status === 400) {
     return "Invalid filter values. Please adjust and try again.";
   }

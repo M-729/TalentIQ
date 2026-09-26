@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +123,7 @@ export function HiringStepForm({ mode, step, isSubmitting, serverError, onSubmit
   }
 
   return (
-    <form onSubmit={(e) => e.preventDefault()} noValidate className="space-y-4">
+    <form onSubmit={(e) => e.preventDefault()} noValidate className="space-y-5">
       {serverError && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -154,7 +154,10 @@ export function HiringStepForm({ mode, step, isSubmitting, serverError, onSubmit
             </option>
           ))}
         </Select>
-        <p className="text-xs text-muted-foreground">{TYPE_HINTS[values.type]}</p>
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground">{TYPE_HINTS[values.type]}</p>
+        </div>
       </Field>
 
       <Field label="Description (optional)" htmlFor="step-description" error={errors.description}>
@@ -169,8 +172,8 @@ export function HiringStepForm({ mode, step, isSubmitting, serverError, onSubmit
         />
       </Field>
 
-      <div className="flex flex-wrap justify-end gap-3 pt-2">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+      <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button type="button" disabled={isSubmitting} onClick={() => void handleSubmit()}>

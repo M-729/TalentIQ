@@ -1,14 +1,20 @@
 import { ApiError } from "@/services/api/client";
+import { NETWORK_UNREACHABLE_MESSAGE, OFFLINE_MESSAGE, isNetworkUnreachable, isOffline } from "@/lib/apiErrorMessage";
 
 // Never surface a raw backend message here — same safe-error-mapping
-// convention as offerErrors.ts / rejectionErrors.ts.
+// convention as offerErrors.ts / rejectionErrors.ts. A completely
+// unreachable backend is checked first in every function, so it always
+// shows NETWORK_UNREACHABLE_MESSAGE rather than a page-specific fallback.
 
 export function getTeamListErrorMessage(err: unknown): string {
-  void err;
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   return "Team data could not be loaded. Please try again.";
 }
 
 export function getInviteTeamMemberErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
@@ -23,6 +29,8 @@ export function getInviteTeamMemberErrorMessage(err: unknown): string {
 }
 
 export function getInvitationActionErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:
@@ -37,6 +45,8 @@ export function getInvitationActionErrorMessage(err: unknown): string {
 }
 
 export function getMemberActionErrorMessage(err: unknown): string {
+  if (isOffline()) return OFFLINE_MESSAGE;
+  if (isNetworkUnreachable(err)) return NETWORK_UNREACHABLE_MESSAGE;
   if (err instanceof ApiError) {
     switch (err.status) {
       case 404:

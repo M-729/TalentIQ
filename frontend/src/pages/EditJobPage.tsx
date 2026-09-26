@@ -8,7 +8,7 @@ import { JobForm } from "@/components/jobs/JobForm";
 import { PublicJobLinkAction } from "@/components/jobs/PublicJobLinkAction";
 import { useJob } from "@/hooks/useJob";
 import * as jobsApi from "@/services/api/jobs";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import { parseApiFieldErrors } from "@/lib/parseApiFieldErrors";
 import type { UpdateJobInput } from "@/types/job";
 
@@ -34,7 +34,7 @@ export function EditJobPage() {
       if (parsedFieldErrors) {
         setFieldErrors(parsedFieldErrors);
       } else {
-        setServerError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+        setServerError(getGenericApiErrorMessage(err, "We couldn't save the job. Please try again."));
       }
     } finally {
       setIsSubmitting(false);

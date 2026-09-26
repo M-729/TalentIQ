@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as dashboardApi from "@/services/api/dashboard";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { Dashboard } from "@/types/dashboard";
 
 interface UseDashboardResult {
@@ -31,7 +31,7 @@ export function useDashboard(): UseDashboardResult {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Dashboard could not be loaded. Please try again.");
+        setError(getGenericApiErrorMessage(err, "Dashboard could not be loaded. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

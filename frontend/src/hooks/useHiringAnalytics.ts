@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as hiringAnalyticsApi from "@/services/api/hiringAnalytics";
-import { ApiError } from "@/services/api/client";
+import { getGenericApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { AnalyticsRange, HiringAnalytics } from "@/types/hiringAnalytics";
 
 interface UseHiringAnalyticsResult {
@@ -31,7 +31,7 @@ export function useHiringAnalytics(range: AnalyticsRange, jobId?: string): UseHi
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Analytics could not be loaded. Please try again.");
+        setError(getGenericApiErrorMessage(err, "Analytics could not be loaded. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
